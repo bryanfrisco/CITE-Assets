@@ -1,0 +1,57 @@
+# Supabase CLI config — local development.
+# `supabase start` boots Postgres/Auth/Storage, `supabase db reset` applies every
+# migration in supabase/migrations then runs supabase/seed.sql.
+
+project_id = "cite-assets"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 15
+
+[db.seed]
+enabled = true
+sql_paths = ["./seed.sql"]
+
+[studio]
+enabled = true
+port = 54323
+
+[auth]
+enabled = true
+site_url = "citeassets://"
+additional_redirect_urls = ["citeassets://"]
+jwt_expiry = 3600
+# Self-service signup is off: accounts are created by a Super Admin, who then
+# issues credentials through the Auth admin API.
+enable_signup = false
+
+[auth.email]
+# This flag enables the email/password PROVIDER, not just registration —
+# setting it false makes GoTrue reject sign-in with "Email logins are disabled".
+# Signup stays blocked by [auth] enable_signup above.
+enable_signup = true
+enable_confirmations = false
+
+[storage]
+enabled = true
+file_size_limit = "10MiB"      # BAST scan / document ceiling from DATABASE.md §12
+
+[inbucket]
+enabled = true
+port = 54324
+
+[edge_runtime]
+enabled = true
+
+# The BAST PDF renderer runs under the caller's JWT, never the service role, so
+# RLS and the storage policies still decide what it may read and write.
+[functions.generate-bast-pdf]
+verify_jwt = true

@@ -1,0 +1,8 @@
+node_modules
+.expo
+dist
+web-build
+supabase/.temp
+CITE Assets.dc.html
+support.js
+ios-frame.jsx

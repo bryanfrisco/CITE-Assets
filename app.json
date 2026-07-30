@@ -1,0 +1,68 @@
+{
+  "expo": {
+    "name": "CITE Assets",
+    "slug": "cite-assets",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "citeassets",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "id.co.cite.assets",
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsLocalNetworking": true
+        },
+        "NSPhotoLibraryUsageDescription": "CITE Assets attaches photos of an asset to its record.",
+        "NSCameraUsageDescription": "CITE Assets takes a photo of an asset for its record."
+      }
+    },
+    "android": {
+      "package": "id.co.cite.assets",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#00072D"
+      }
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "favicon": "./assets/cite-logo.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      "expo-secure-store",
+      "expo-status-bar",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/cite-logo.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#00072D",
+          "imageWidth": 180
+        }
+      ],
+      "expo-system-ui",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "owner": "bryanfrisco",
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "7c019827-1c66-4bed-8ed3-5da2554950c7"
+      }
+    }
+  }
+}

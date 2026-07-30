@@ -1,0 +1,1548 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+  html,body{margin:0;padding:0;background:#EFF2F7;}
+  :root{
+    --c-bg:#F6F8FB;--c-card:#FFFFFF;--c-text:#0B1220;--c-sub:#5A6478;--c-line:#E6EAF2;
+    --c-navy:#00072D;--c-royal:#2B57C4;--c-gold:#D4AF37;--c-soft:#F0F3F9;
+    --sh:0 1px 2px rgba(11,18,32,.05),0 8px 24px rgba(11,18,32,.06);
+  }
+  a{color:var(--c-royal);text-decoration:none}
+  a:hover{color:var(--c-navy)}
+  ::-webkit-scrollbar{width:0;height:0}
+  @keyframes citeShimmer{0%{background-position:-320px 0}100%{background-position:320px 0}}
+  @keyframes citeRise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+  @keyframes citeSheet{from{transform:translateY(100%)}to{transform:none}}
+  @keyframes citeFade{from{opacity:0}to{opacity:1}}
+</style>
+</helmet>
+<div style="min-height:100%;display:flex;align-items:center;justify-content:center;padding:40px;background:#EFF2F7;font-family:-apple-system,system-ui,'SF Pro Display',sans-serif">
+<x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" dark="{{ dark }}" hint-size="402px,874px">
+<div style="{{ themeVars }}">
+<div style="height:100%;position:relative;overflow:hidden;background:var(--c-bg);color:var(--c-text);font-family:-apple-system,system-ui,'SF Pro Display',sans-serif;-webkit-font-smoothing:antialiased">
+
+  <!-- ── App header ─────────────────────────────── -->
+  <div style="padding:56px 18px 12px;background:var(--c-card);border-bottom:1px solid var(--c-line);position:relative;z-index:20">
+    <div style="display:flex;align-items:center;gap:11px">
+      <img src="assets/cite-logo.png" alt="CITE" style="width:32px;height:32px;object-fit:contain;flex:none" />
+      <div style="flex:1;min-width:0">
+        <div style="font-size:16px;font-weight:650;letter-spacing:-.35px;line-height:1.1">CITE Assets</div>
+        <div style="font-size:10.5px;font-weight:500;color:var(--c-sub);letter-spacing:.28px;text-transform:uppercase;margin-top:2px">IT Asset Management</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <button onClick="{{ openNotif }}" style="width:34px;height:34px;border-radius:11px;border:1px solid var(--c-line);background:var(--c-soft);color:var(--c-text);display:flex;align-items:center;justify-content:center;position:relative;cursor:pointer;padding:0">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M18 8A6 6 0 006 8c0 6-2 7-2 7h16s-2-1-2-7"></path><path d="M10.3 20a2 2 0 003.4 0"></path></svg>
+          <sc-if value="{{ hasUnread }}" hint-placeholder-val="{{ true }}"><span style="position:absolute;top:5px;right:6px;width:7px;height:7px;border-radius:9px;background:#E0393E;border:1.5px solid var(--c-card)"></span></sc-if>
+        </button>
+        <button onClick="{{ toggleScope }}" style="height:34px;padding:0 11px;border-radius:11px;border:1px solid var(--c-line);background:var(--c-soft);color:var(--c-text);display:flex;align-items:center;gap:6px;cursor:pointer;font-family:inherit">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M12 21s7-6.3 7-11a7 7 0 10-14 0c0 4.7 7 11 7 11z"></path><circle cx="12" cy="10" r="2.4"></circle></svg>
+          <span style="font-size:11.5px;font-weight:600;letter-spacing:-.1px">{{ scopeLabel }}</span>
+        </button>
+        <div style="width:34px;height:34px;border-radius:11px;background:var(--c-navy);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:650;letter-spacing:.2px">DL</div>
+      </div>
+    </div>
+    <sc-if value="{{ scopeOpen }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute;left:18px;right:18px;top:98px;background:var(--c-card);border:1px solid var(--c-line);border-radius:18px;box-shadow:var(--sh);padding:8px;z-index:40;animation:citeRise .18s ease both">
+        <div style="font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--c-sub);padding:8px 10px 6px">Global data scope</div>
+        <sc-for list="{{ scopeItems }}" as="s" hint-placeholder-count="2">
+          <button onClick="{{ s.toggle }}" style="width:100%;display:flex;align-items:center;gap:11px;padding:11px 10px;border:0;background:transparent;border-radius:12px;cursor:pointer;font-family:inherit;text-align:left;color:var(--c-text)">
+            <span style="{{ s.boxStyle }}">
+              <sc-if value="{{ s.on }}" hint-placeholder-val="{{ true }}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5.5 5.5L20 6.5"></path></svg></sc-if>
+            </span>
+            <span style="flex:1">
+              <span style="display:block;font-size:13.5px;font-weight:550">{{ s.name }}</span>
+              <span style="display:block;font-size:11px;color:var(--c-sub);margin-top:1px">{{ s.meta }}</span>
+            </span>
+          </button>
+        </sc-for>
+        <div style="padding:8px 10px 4px;border-top:1px solid var(--c-line);margin-top:4px;font-size:10.5px;color:var(--c-sub);line-height:1.45">Dashboard, Assets, BAST, Documents and Reports all follow this scope.</div>
+      </div>
+    </sc-if>
+  </div>
+
+  <!-- ── Scroll area ─────────────────────────────── -->
+  <div style="position:absolute;top:113px;bottom:0;left:0;right:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch">
+  <div style="padding:16px 18px 132px">
+
+  <!-- DASHBOARD -->
+  <sc-if value="{{ isHome }}" hint-placeholder-val="{{ true }}">
+  <div style="animation:citeFade .2s ease both">
+    <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:12px">
+      <div>
+        <div style="font-size:22px;font-weight:680;letter-spacing:-.6px">Good morning, Dewi</div>
+        <div style="font-size:12.5px;color:var(--c-sub);margin-top:3px">{{ scopeSentence }}</div>
+      </div>
+    </div>
+
+    <sc-if value="{{ loading }}" hint-placeholder-val="{{ false }}">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <sc-for list="{{ skeletons }}" as="k" hint-placeholder-count="6">
+          <div style="height:82px;border-radius:16px;border:1px solid var(--c-line);background:linear-gradient(100deg,var(--c-card) 20%,var(--c-soft) 40%,var(--c-card) 60%);background-size:320px 100%;animation:citeShimmer 1.2s linear infinite"></div>
+        </sc-for>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ ready }}" hint-placeholder-val="{{ true }}">
+    <div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px">
+        <sc-for list="{{ kpis }}" as="k" hint-placeholder-count="6">
+          <div style="background:var(--c-card);border:1px solid var(--c-line);border-radius:16px;padding:12px 12px 11px;box-shadow:var(--sh)">
+            <div style="display:flex;align-items:center;gap:5px">
+              <span style="{{ k.dot }}"></span>
+              <span style="font-size:9.5px;font-weight:650;letter-spacing:.34px;text-transform:uppercase;color:var(--c-sub)">{{ k.label }}</span>
+            </div>
+            <div style="font-size:22px;font-weight:680;letter-spacing:-.9px;margin-top:7px;font-variant-numeric:tabular-nums">{{ k.value }}</div>
+            <div style="font-size:10px;color:var(--c-sub);margin-top:1px">{{ k.delta }}</div>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="margin-top:12px;background:linear-gradient(135deg,#00072D,#0A1547 62%,#132766);border-radius:18px;padding:16px 16px 14px;color:#fff;box-shadow:0 10px 26px rgba(0,7,45,.28);position:relative;overflow:hidden">
+        <div style="position:absolute;right:-28px;top:-28px;width:130px;height:130px;border-radius:99px;border:1px solid rgba(212,175,55,.34)"></div>
+        <div style="position:absolute;right:-8px;top:6px;width:80px;height:80px;border-radius:99px;border:1px solid rgba(212,175,55,.2)"></div>
+        <div style="display:flex;align-items:center;gap:7px">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#D4AF37" stroke-width="1.8" stroke-linecap="round"><path d="M12 8v5l3 2"></path><circle cx="12" cy="12" r="9"></circle></svg>
+          <span style="font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:#D4AF37">Warranty expiring</span>
+        </div>
+        <div style="display:flex;align-items:flex-end;gap:10px;margin-top:9px">
+          <div style="font-size:34px;font-weight:700;letter-spacing:-1.4px;line-height:1">23</div>
+          <div style="font-size:12px;color:rgba(255,255,255,.72);padding-bottom:5px;line-height:1.35">assets in the next<br />30 days</div>
+        </div>
+        <button onClick="{{ goAssets }}" style="margin-top:13px;height:34px;padding:0 14px;border-radius:11px;border:1px solid rgba(212,175,55,.55);background:rgba(212,175,55,.14);color:#F3DFA2;font-size:12px;font-weight:600;font-family:inherit;cursor:pointer">Review list</button>
+      </div>
+
+      <div style="font-size:11px;font-weight:700;letter-spacing:.42px;text-transform:uppercase;color:var(--c-sub);margin:20px 2px 9px">Quick actions</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px">
+        <sc-for list="{{ quickActions }}" as="q" hint-placeholder-count="6">
+          <button onClick="{{ q.go }}" style="background:var(--c-card);border:1px solid var(--c-line);border-radius:15px;padding:13px 8px 11px;display:flex;flex-direction:column;align-items:center;gap:7px;cursor:pointer;font-family:inherit;color:var(--c-text);box-shadow:var(--sh)">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--c-royal)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="{{ q.icon }}"></path></svg>
+            <span style="font-size:10.5px;font-weight:600;letter-spacing:-.1px;text-align:center;line-height:1.25">{{ q.label }}</span>
+          </button>
+        </sc-for>
+      </div>
+
+      <div style="margin-top:20px;background:var(--c-card);border:1px solid var(--c-line);border-radius:18px;padding:16px;box-shadow:var(--sh)">
+        <div style="font-size:13.5px;font-weight:650;letter-spacing:-.2px">Assets by category</div>
+        <div style="display:flex;align-items:center;gap:16px;margin-top:12px">
+          <div style="position:relative;flex:none">
+            <svg width="118" height="118" viewBox="0 0 118 118" style="transform:rotate(-90deg)">
+              <circle cx="59" cy="59" r="52" fill="none" stroke="var(--c-soft)" stroke-width="13"></circle>
+              <circle cx="59" cy="59" r="52" fill="none" stroke="#00072D" stroke-width="13" stroke-dasharray="137.2 326.7" stroke-dashoffset="0" stroke-linecap="butt"></circle>
+              <circle cx="59" cy="59" r="52" fill="none" stroke="#2B57C4" stroke-width="13" stroke-dasharray="58.8 326.7" stroke-dashoffset="-137.2"></circle>
+              <circle cx="59" cy="59" r="52" fill="none" stroke="#5B84E8" stroke-width="13" stroke-dasharray="45.7 326.7" stroke-dashoffset="-196"></circle>
+              <circle cx="59" cy="59" r="52" fill="none" stroke="#8FB0F5" stroke-width="13" stroke-dasharray="32.7 326.7" stroke-dashoffset="-241.7"></circle>
+              <circle cx="59" cy="59" r="52" fill="none" stroke="#D4AF37" stroke-width="13" stroke-dasharray="29.4 326.7" stroke-dashoffset="-274.4"></circle>
+              <circle cx="59" cy="59" r="52" fill="none" stroke="#A9B4C7" stroke-width="13" stroke-dasharray="22.9 326.7" stroke-dashoffset="-303.8"></circle>
+            </svg>
+            <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center">
+              <div style="font-size:19px;font-weight:680;letter-spacing:-.7px;font-variant-numeric:tabular-nums">1,284</div>
+              <div style="font-size:9px;font-weight:600;letter-spacing:.35px;text-transform:uppercase;color:var(--c-sub)">Total</div>
+            </div>
+          </div>
+          <div style="flex:1;display:flex;flex-direction:column;gap:8px">
+            <sc-for list="{{ categoryLegend }}" as="c" hint-placeholder-count="6">
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="{{ c.dot }}"></span>
+                <span style="flex:1;font-size:11.5px;font-weight:520">{{ c.name }}</span>
+                <span style="font-size:11.5px;font-weight:650;font-variant-numeric:tabular-nums;color:var(--c-sub)">{{ c.value }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top:12px;background:var(--c-card);border:1px solid var(--c-line);border-radius:18px;padding:16px;box-shadow:var(--sh)">
+        <div style="font-size:13.5px;font-weight:650;letter-spacing:-.2px">By location</div>
+        <div style="display:flex;flex-direction:column;gap:13px;margin-top:13px">
+          <sc-for list="{{ locationBars }}" as="b" hint-placeholder-count="2">
+            <div>
+              <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px">
+                <span style="font-size:12px;font-weight:560">{{ b.name }}</span>
+                <span style="font-size:11.5px;font-weight:650;color:var(--c-sub);font-variant-numeric:tabular-nums">{{ b.value }}</span>
+              </div>
+              <div style="height:8px;border-radius:8px;background:var(--c-soft);overflow:hidden">
+                <div style="{{ b.fill }}"></div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="height:1px;background:var(--c-line);margin:16px 0 14px"></div>
+        <div style="font-size:13.5px;font-weight:650;letter-spacing:-.2px">By department</div>
+        <div style="display:flex;flex-direction:column;gap:11px;margin-top:13px">
+          <sc-for list="{{ deptBars }}" as="b" hint-placeholder-count="5">
+            <div style="display:flex;align-items:center;gap:10px">
+              <span style="width:86px;font-size:11.5px;font-weight:520;flex:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ b.name }}</span>
+              <span style="flex:1;height:7px;border-radius:8px;background:var(--c-soft);overflow:hidden;display:block"><span style="{{ b.fill }}"></span></span>
+              <span style="width:32px;text-align:right;font-size:11px;font-weight:650;color:var(--c-sub);font-variant-numeric:tabular-nums">{{ b.value }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:baseline;justify-content:space-between;margin:20px 2px 9px">
+        <div style="font-size:11px;font-weight:700;letter-spacing:.42px;text-transform:uppercase;color:var(--c-sub)">Recent activity</div>
+        <button onClick="{{ goAudit }}" style="border:0;background:transparent;color:var(--c-royal);font-size:11.5px;font-weight:600;font-family:inherit;cursor:pointer;padding:0">Audit log</button>
+      </div>
+      <div style="background:var(--c-card);border:1px solid var(--c-line);border-radius:18px;overflow:hidden;box-shadow:var(--sh)">
+        <sc-for list="{{ activity }}" as="a" hint-placeholder-count="5">
+          <div style="display:flex;gap:11px;padding:13px 14px;border-bottom:1px solid var(--c-line)">
+            <span style="{{ a.chip }}">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="{{ a.icon }}"></path></svg>
+            </span>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:12.5px;font-weight:560;letter-spacing:-.1px">{{ a.title }}</div>
+              <div style="font-size:11px;color:var(--c-sub);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ a.meta }}</div>
+            </div>
+            <div style="font-size:10.5px;color:var(--c-sub);flex:none;padding-top:1px">{{ a.time }}</div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+    </sc-if>
+  </div>
+  </sc-if>
+
+  <!-- ASSETS LIST -->
+  <sc-if value="{{ isAssets }}" hint-placeholder-val="{{ false }}">
+  <div style="animation:citeFade .2s ease both">
+    <div style="font-size:22px;font-weight:680;letter-spacing:-.6px">Assets</div>
+    <div style="font-size:12.5px;color:var(--c-sub);margin-top:3px">{{ assetCountLabel }}</div>
+    <div style="display:flex;align-items:center;gap:9px;height:42px;padding:0 13px;margin-top:13px;background:var(--c-card);border:1px solid var(--c-line);border-radius:14px;box-shadow:var(--sh)">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--c-sub)" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M16.5 16.5L21 21"></path></svg>
+      <input value="{{ query }}" onChange="{{ onQuery }}" placeholder="Asset code, serial, name, user…" style="flex:1;border:0;outline:0;background:transparent;font-family:inherit;font-size:13px;color:var(--c-text);min-width:0" />
+      <sc-if value="{{ hasQuery }}" hint-placeholder-val="{{ false }}">
+        <button onClick="{{ clearQuery }}" style="border:0;background:var(--c-soft);color:var(--c-sub);width:20px;height:20px;border-radius:20px;cursor:pointer;font-size:12px;line-height:1;padding:0;font-family:inherit">×</button>
+      </sc-if>
+    </div>
+    <div style="display:flex;gap:7px;margin-top:11px;overflow-x:auto;padding-bottom:2px">
+      <sc-for list="{{ statusFilters }}" as="f" hint-placeholder-count="5">
+        <button onClick="{{ f.set }}" style="{{ f.style }}">{{ f.label }}</button>
+      </sc-for>
+    </div>
+
+    <sc-if value="{{ loading }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;flex-direction:column;gap:10px;margin-top:14px">
+        <sc-for list="{{ skeletons }}" as="k" hint-placeholder-count="5">
+          <div style="height:92px;border-radius:16px;border:1px solid var(--c-line);background:linear-gradient(100deg,var(--c-card) 20%,var(--c-soft) 40%,var(--c-card) 60%);background-size:320px 100%;animation:citeShimmer 1.2s linear infinite"></div>
+        </sc-for>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ ready }}" hint-placeholder-val="{{ true }}">
+    <div style="display:flex;flex-direction:column;gap:10px;margin-top:14px">
+      <sc-for list="{{ visibleAssets }}" as="a" hint-placeholder-count="4">
+        <button onClick="{{ a.open }}" style="text-align:left;background:var(--c-card);border:1px solid var(--c-line);border-radius:17px;padding:13px 14px;cursor:pointer;font-family:inherit;color:var(--c-text);box-shadow:var(--sh);display:block;width:100%">
+          <div style="display:flex;align-items:center;gap:11px">
+            <span style="width:42px;height:42px;border-radius:13px;background:var(--c-soft);border:1px solid var(--c-line);display:flex;align-items:center;justify-content:center;flex:none;color:var(--c-royal)">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="{{ a.icon }}"></path></svg>
+            </span>
+            <span style="flex:1;min-width:0;display:block">
+              <span style="display:block;font-size:10.5px;font-weight:700;letter-spacing:.5px;color:var(--c-royal);font-variant-numeric:tabular-nums">{{ a.code }}</span>
+              <span style="display:block;font-size:13.5px;font-weight:600;letter-spacing:-.25px;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ a.name }}</span>
+              <span style="display:block;font-size:11px;color:var(--c-sub);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ a.holder }}</span>
+            </span>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--c-sub)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M9 5l7 7-7 7"></path></svg>
+          </div>
+          <div style="display:flex;gap:6px;margin-top:11px;flex-wrap:wrap">
+            <span style="{{ a.statusStyle }}">{{ a.status }}</span>
+            <span style="{{ a.condStyle }}">{{ a.condition }}</span>
+            <span style="font-size:10px;font-weight:600;padding:4px 8px;border-radius:8px;background:var(--c-soft);color:var(--c-sub);border:1px solid var(--c-line)">{{ a.location }}</span>
+          </div>
+        </button>
+      </sc-for>
+      <sc-if value="{{ isEmpty }}" hint-placeholder-val="{{ false }}">
+        <div style="padding:44px 24px;text-align:center;background:var(--c-card);border:1px dashed var(--c-line);border-radius:18px">
+          <div style="width:56px;height:56px;margin:0 auto 14px;border-radius:18px;background:var(--c-soft);display:flex;align-items:center;justify-content:center;color:var(--c-sub)">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M16.5 16.5L21 21"></path></svg>
+          </div>
+          <div style="font-size:14px;font-weight:620;letter-spacing:-.2px">No assets match</div>
+          <div style="font-size:12px;color:var(--c-sub);margin-top:5px;line-height:1.45">Try a different asset code or widen the<br />global data scope.</div>
+          <button onClick="{{ resetFilters }}" style="margin-top:15px;height:34px;padding:0 16px;border-radius:11px;border:1px solid var(--c-line);background:var(--c-soft);color:var(--c-text);font-size:12px;font-weight:600;font-family:inherit;cursor:pointer">Reset filters</button>
+        </div>
+      </sc-if>
+    </div>
+    </sc-if>
+  </div>
+  </sc-if>
+
+  <!-- ASSET DETAIL -->
+  <sc-if value="{{ isDetail }}" hint-placeholder-val="{{ false }}">
+  <div style="animation:citeFade .2s ease both">
+    <button onClick="{{ goAssets }}" style="display:flex;align-items:center;gap:5px;border:0;background:transparent;color:var(--c-royal);font-size:12.5px;font-weight:600;font-family:inherit;cursor:pointer;padding:0;margin-bottom:12px">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"></path></svg>Assets
+    </button>
+    <div style="background:var(--c-card);border:1px solid var(--c-line);border-radius:20px;overflow:hidden;box-shadow:var(--sh)">
+      <div style="height:150px;background:linear-gradient(150deg,#0A1240,#00072D 55%,#101B4E);display:flex;align-items:center;justify-content:center;position:relative">
+        <div style="position:absolute;inset:0;background:radial-gradient(120px 90px at 78% 18%,rgba(212,175,55,.22),transparent 70%)"></div>
+        <div style="width:96px;height:74px;border-radius:12px;border:1.5px dashed rgba(255,255,255,.34);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:rgba(255,255,255,.6)">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 8l2-3h12l2 3v10a1 1 0 01-1 1H5a1 1 0 01-1-1V8z"></path><circle cx="12" cy="13" r="3.2"></circle></svg>
+          <span style="font-size:9px;font-weight:600;letter-spacing:.4px;text-transform:uppercase">Asset photo</span>
+        </div>
+      </div>
+      <div style="padding:15px 16px 16px">
+        <div style="font-size:10.5px;font-weight:700;letter-spacing:.6px;color:var(--c-royal);font-variant-numeric:tabular-nums">{{ sel.code }}</div>
+        <div style="font-size:19px;font-weight:670;letter-spacing:-.5px;margin-top:4px;line-height:1.25">{{ sel.name }}</div>
+        <div style="font-size:12px;color:var(--c-sub);margin-top:4px">{{ sel.brand }} · {{ sel.category }} · SN {{ sel.serial }}</div>
+        <div style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap">
+          <span style="{{ sel.statusStyle }}">{{ sel.status }}</span>
+          <span style="{{ sel.condStyle }}">{{ sel.condition }}</span>
+          <span style="font-size:10px;font-weight:600;padding:4px 8px;border-radius:8px;background:var(--c-soft);color:var(--c-sub);border:1px solid var(--c-line)">{{ sel.location }}</span>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:14px">
+          <button onClick="{{ startAssign }}" style="flex:1;height:38px;border-radius:12px;border:0;background:var(--c-navy);color:#fff;font-size:12.5px;font-weight:620;font-family:inherit;cursor:pointer">{{ sel.primaryAction }}</button>
+          <button onClick="{{ openBastForAsset }}" style="height:38px;padding:0 14px;border-radius:12px;border:1px solid var(--c-line);background:var(--c-soft);color:var(--c-text);font-size:12.5px;font-weight:600;font-family:inherit;cursor:pointer">BAST</button>
+          <button onClick="{{ notImplemented }}" style="width:38px;height:38px;border-radius:12px;border:1px solid var(--c-line);background:var(--c-soft);color:var(--c-text);display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5.5" r="1.3" fill="currentColor"></circle><circle cx="12" cy="12" r="1.3" fill="currentColor"></circle><circle cx="12" cy="18.5" r="1.3" fill="currentColor"></circle></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:6px;margin-top:14px;overflow-x:auto;padding-bottom:2px">
+      <sc-for list="{{ detailTabs }}" as="t" hint-placeholder-count="6">
+        <button onClick="{{ t.set }}" style="{{ t.style }}">{{ t.label }}</button>
+      </sc-for>
+    </div>
+
+    <!-- Overview -->
+    <sc-if value="{{ tabOverview }}" hint-placeholder-val="{{ true }}">
+    <div style="margin-top:13px;display:flex;flex-direction:column;gap:12px;animation:citeFade .18s ease both">
+      <div style="background:var(--c-card);border:1px solid var(--c-line);border-radius:18px;padding:4px 16px;box-shadow:var(--sh)">
+        <sc-for list="{{ overviewRows }}" as="r" hint-placeholder-count="7">
+          <div style="display:flex;align-items:flex-start;gap:12px;padding:12px 0;border-bottom:1px solid var(--c-line)">
+            <span style="width:104px;flex:none;font-size:11.5px;color:var(--c-sub);font-weight:520">{{ r.k }}</span>
+            <span style="flex:1;font-size:12.5px;font-weight:560;text-align:right;letter-spacing:-.1px">{{ r.v }}</span>
+          </div>
+        </sc-for>
+      </div>
+      <div style="background:var(--c-card);border:1px solid var(--c-line);border-radius:18px;padding:15px 16px;box-shadow:var(--sh)">
+        <div style="font-size:11px;font-weight:700;letter-spacing:.42px;text-transform:uppercase;color:var(--c-sub)">Notes</div>
+        <div style="font-size:12.5px;line-height:1.55;margin-top:8px;text-wrap:pretty">{{ sel.notes }}</div>
+      </div>
+    </div>
+    </sc-if>
+
+    <!-- Specifications -->
+    <sc-if value="{{ tabSpecs }}" hint-placeholder-val="{{ false }}">
+    <div style="margin-top:13px;background:var(--c-card);border:1px solid var(--c-line);border-radius:18px;padding:4px 16px;box-shadow:var(--sh);animation:citeFade .18s ease both">
+      <sc-for list="{{ specRows }}" as="r" hint-placeholder-count="5">
+        <div style="display:flex;align-items:flex-start;gap:12px;padding:12px 0;border-bottom:1px solid var(--c-line)">
+          <span style="width:104px;flex:none;font-size:11.5px;color:var(--c-sub);font-weight:520">{{ r.k }}</span>
+          <span style="flex:1;font-size:12.5px;font-weight:560;text-align:right">{{ r.v }}</span>
+        </div>
+      </sc-for>
+    </div>
+    </sc-if>
+
+    <!-- Timeline -->
+    <sc-if value="{{ tabTimeline }}" hint-placeholder-val="{{ false }}">
+    <div style="margin-top:13px;background:var(--c-card);border:1px solid var(--c-line);border-radius:18px;padding:18px 16px 6px;box-shadow:var(--sh);animation:citeFade .18s ease both">
+      <sc-for list="{{ timeline }}" as="e" hint-placeholder-count="6">
+        <div style="display:flex;gap:13px">
+          <div style="width:26px;flex:none;display:flex;flex-direction:column;align-items:center">
+            <span style="{{ e.dot }}"></span>
+            <span style="{{ e.rail }}"></span>
+          </div>
+          <div style="flex:1;padding-bottom:20px;min-width:0">
+            <div style="display:flex;align-items:baseline;gap:8px">
+              <span style="font-size:13px;font-weight:640;letter-spacing:-.2px">{{ e.title }}</span>
+              <span style="font-size:10.5px;color:var(--c-sub);margin-left:auto;flex:none;font-variant-numeric:tabular-nums">{{ e.date }}</span>
+            </div>
+            <div style="font-size:11.5px;color:var(--c-sub);line-height:1.5;margin-top:3px;text-wrap:pretty">{{ e.detail }}</div>
+            <sc-if value="{{ e.hasTag }}" hint-placeholder-val="{{ false }}">
+              <span style="{{ e.tagStyle }}">{{ e.tag }}</span>
+            </sc-if>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+    </sc-if>
+
+    <!-- Documents -->
+    <sc-if value="{{ tabDocs }}" hint-placeholder-val="{{ false }}">
+    <div style="margin-top:13px;animation:citeFade .18s ease both">
+      <div style="background:var(--c-card);border:1px solid var(--c-line);border-radius:18px;overflow:hidden;box-shadow:var(--sh)">
+        <sc-for list="{{ documents }}" as="d" hint-placeholder-count="4">
+          <div style="display:flex;align-items:center;gap:12px;padding:13px 15px;border-bottom:1px solid var(--c-line)">
+            <span style="{{ d.chip }}">{{ d.ext }}</span>
+            <span style="flex:1;min-width:0;display:block">
+              <span style="display:block;font-size:12.5px;font-weight:580;letter-spacing:-.1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ d.name }}</span>
+              <span style="display:block;font-size:10.5px;color:var(--c-sub);margin-top:2px">{{ d.meta }}</span>
+            </span>
+            <button onClick="{{ notImplemented }}" style="border:1px solid var(--c-line);background:var(--c-soft);color:var(--c-text);width:30px;height:30px;border-radius:10px;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;flex:none">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m0 0l-4-4m4 4l4-4M5 19h14"></path></svg>
+            </button>
+          </div>
+        </sc-for>
+      </div>
+      <button onClick="{{ notImplemented }}" style="width:100%;margin-top:11px;height:44px;border-radius:14px;border:1.5px dashed var(--c-line);background:transparent;color:var(--c-royal);font-size:12.5px;font-weight:620;font-family:inherit;cursor:pointer">+ Upload document</button>
+    </div>
+    </sc-if>
+
+    <!-- Assignments -->
+    <sc-if value="{{ tabAssign }}" hint-placeholder-val="{{ false }}">
+    <div style="margin-top:13px;background:var(--c-card);border:1px solid var(--c-line);border-radius:18px;overflow:hidden;box-shadow:var(--sh);animation:citeFade .18s ease both">
+      <sc-for list="{{ assignHistory }}" as="h" hint-placeholder-count="3">
+        <div style="padding:14px 15px;border-bottom:1px solid var(--c-line)">
+          <div style="display:flex;align-items:center;gap:9px">
+            <span style="width:30px;height:30px;border-radius:10px;background:var(--c-navy);color:#fff;display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:650;flex:none">{{ h.initials }}</span>
+            <span style="flex:1;min-width:0;display:block">
+              <span style="display:block;font-size:12.5px;font-weight:600;letter-spacing:-.15px">{{ h.name }}</span>
+              <span style="display:block;font-size:10.5px;color:var(--c-sub);margin-top:1px">{{ h.dept }}</span>
+            </span>
+            <span style="{{ h.tagStyle }}">{{ h.state }}</span>
+          </div>
+          <div style="font-size:11px;color:var(--c-sub);margin-top:9px;display:flex;justify-content:space-between">
+            <span>{{ h.range }}</span><span>{{ h.bast }}</span>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+    </sc-if>
+
+    <!-- Maintenance -->
+    <sc-if value="{{ tabMaint }}" hint-placeholder-val="{{ false }}">
+    <div style="margin-top:13px;display:flex;flex-direction:column;gap:10px;animation:citeFade .18s ease both">
+      <sc-for list="{{ maintenance }}" as="m" hint-placeholder-count="3">
+        <div style="background:var(--c-card);border:1px solid var(--c-line);border-radius:17px;padding:14px 15px;box-shadow:var(--sh)">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="{{ m.tagStyle }}">{{ m.state }}</span>
+            <span style="font-size:10.5px;color:var(--c-sub);margin-left:auto;font-variant-numeric:tabular-nums">{{ m.date }}</span>
+          </div>
+          <div style="font-size:13px;font-weight:620;letter-spacing:-.2px;margin-top:9px">{{ m.title }}</div>
+          <div style="font-size:11.5px;color:var(--c-sub);line-height:1.5;margin-top:4px">{{ m.detail }}</div>
+          <div style="display:flex;gap:14px;margin-top:11px;padding-top:11px;border-top:1px solid var(--c-line)">
+            <span style="font-size:11px;color:var(--c-sub)">Vendor · <span style="color:var(--c-text);font-weight:560">{{ m.vendor }}</span></span>
+            <span style="font-size:11px;color:var(--c-sub);margin-left:auto">Cost · <span style="color:var(--c-text);font-weight:560">{{ m.cost }}</span></span>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+    </sc-if>
+  </div>
+  </sc-if>
+
+  <!-- ASSIGN / RETURN WIZARD -->
+  <sc-if value="{{ isAssign }}" hint-placeholder-val="{{ false }}">
+  <div style="animation:citeFade .2s ease both">
+    <sc-if value="{{ assignDone }}" hint-placeholder-val="{{ false }}">
+    <div style="padding-top:26px;text-align:center;animation:citeRise .25s ease both">
+      <div style="width:78px;height:78px;margin:0 auto;border-radius:26px;background:linear-gradient(150deg,#0F7A47,#12A45D);display:flex;align-items:center;justify-content:center;box-shadow:0 12px 28px rgba(15,122,71,.28)">
+        <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5.5 5.5L20 6.5"></path></svg>
+      </div>
+      <div style="font-size:20px;font-weight:680;letter-spacing:-.5px;margin-top:18px">{{ doneTitle }}</div>
+      <div style="font-size:12.5px;color:var(--c-sub);margin-top:7px;line-height:1.55;padding:0 14px;text-wrap:pretty">{{ doneSub }}</div>
+      <div style="background:var(--c-card);border:1px solid var(--c-line);border-radius:18px;padding:4px 16px;margin-top:20px;text-align:left;box-shadow:var(--sh)">
+        <sc-for list="{{ doneRows }}" as="r" hint-placeholder-count="4">
+          <div style="display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--c-line)">
+            <span style="width:100px;flex:none;font-size:11.5px;color:var(--c-sub)">{{ r.k }}</span>
+            <span style="flex:1;font-size:12.5px;font-weight:580;text-align:right">{{ r.v }}</span>
+          </div>
+        </sc-for>
+      </div>
+      <button onClick="{{ generateBast }}" style="width:100%;height:46px;margin-top:16px;border-radius:14px;border:0;background:var(--c-navy);color:#fff;font-size:13.5px;font-weight:640;font-family:inherit;cursor:pointer">Generate BAST document</button>
+      <button onClick="{{ goHome }}" style="width:100%;height:44px;margin-top:9px;border-radius:14px;border:1px solid var(--c-line);background:var(--c-soft);color:var(--c-text);font-size:13px;font-weight:600;font-family:inherit;cursor:pointer">Back to dashboard</button>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ assignActive }}" hint-placeholder-val="{{ true }}">
+    <div>
+      <button onClick="{{ cancelAssign }}" style="display:flex;align-items:center;gap:5px;border:0;background:transparent;color:var(--c-royal);font-size:12.5px;font-weight:600;font-family:inherit;cursor:pointer;padding:0;margin-bottom:12px">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"></path></svg>Cancel
+      </button>
+      <div style="font-size:22px;font-weight:680;letter-spacing:-.6px">{{ assignTitle }}</div>
+      <div style="font-size:12.5px;color:var(--c-sub);margin-top:3px">Step {{ stepNo }} of 3 · {{ stepName }}</div>
+      <div style="display:flex;gap:5px;margin-top:14px">
+        <sc-for list="{{ stepBars }}" as="b" hint-placeholder-count="3"><span style="{{ b.style }}"></span></sc-for>
+      </div>
+
+      <!-- step 1: employee -->
+      <sc-if value="{{ step1 }}" hint-placeholder-val="{{ true }}">
+      <div style="margin-top:18px;animation:citeFade .18s ease both">
+        <div style="font-size:11px;font-weight:700;letter-spacing:.42px;text-transform:uppercase;color:var(--c-sub);margin-bottom:9px">Select employee</div>
+        <div style="display:flex;flex-direction:column;gap:9px">
+          <sc-for list="{{ employees }}" as="e" hint-placeholder-count="5">
+            <button onClick="{{ e.pick }}" style="{{ e.style }}">
+              <span style="width:36px;height:36px;border-radius:12px;background:var(--c-navy);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11.5px;font-weight:650;flex:none">{{ e.initials }}</span>
+              <span style="flex:1;min-width:0;display:block;text-align:left">
+                <span style="display:block;font-size:13px;font-weight:600;letter-spacing:-.2px">{{ e.name }}</span>
+                <span style="display:block;font-size:11px;color:var(--c-sub);margin-top:2px">{{ e.meta }}</span>
+              </span>
+              <sc-if value="{{ e.on }}" hint-placeholder-val="{{ false }}">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--c-royal)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M4 12.5l5.5 5.5L20 6.5"></path></svg>
+              </sc-if>
+            </button>
+          </sc-for>
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- step 2: asset -->
+      <sc-if value="{{ step2 }}" hint-placeholder-val="{{ false }}">
+      <div style="margin-top:18px;animation:citeFade .18s ease both">
+        <div style="font-size:11px;font-weight:700;letter-spacing:.42px;text-transform:uppercase;color:var(--c-sub);margin-bottom:9px">Select available asset</div>
+        <div style="display:flex;flex-direction:column;gap:9px">
+          <sc-for list="{{ assignableAssets }}" as="a" hint-placeholder-count="4">
+            <button onClick="{{ a.pick }}" style="{{ a.style }}">
+              <span style="width:36px;height:36px;border-radius:12px;background:var(--c-soft);border:1px solid var(--c-line);color:var(--c-royal);display:flex;align-items:center;justify-content:center;flex:none">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="{{ a.icon }}"></path></svg>
+              </span>
+              <span style="flex:1;min-width:0;display:block;text-align:left">
+                <span style="display:block;font-size:10.5px;font-weight:700;letter-spacing:.5px;color:var(--c-royal)">{{ a.code }}</span>
+                <span style="display:block;font-size:12.5px;font-weight:590;letter-spacing:-.2px;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ a.name }}</span>
+                <span style="display:block;font-size:10.5px;color:var(--c-sub);margin-top:2px">{{ a.location }} · {{ a.condition }}</span>
+              </span>
+              <sc-if value="{{ a.on }}" hint-placeholder-val="{{ false }}">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--c-royal)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M4 12.5l5.5 5.5L20 6.5"></path></svg>
+              </sc-if>
+            </button>
+          </sc-for>
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- step 3: details -->
+      <sc-if value="{{ step3 }}" hint-placeholder-val="{{ false }}">
+      <div style="margin-top:18px;animation:citeFade .18s ease both">
+        <div style="background:var(--c-card);border:1px solid var(--c-line);border-radius:18px;padding:14px 16px;box-shadow:var(--sh)">
+          <div style="font-size:11px;font-weight:700;letter-spacing:.42px;text-transform:uppercase;color:var(--c-sub)">Summary</div>
+          <div style="display:flex;align-items:center;gap:11px;margin-top:11px">
+            <span style="width:34px;height:34px;border-radius:11px;background:var(--c-navy);color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:650;flex:none">{{ pickedEmpInitials }}</span>
+            <span style="flex:1;display:block">
+              <span style="display:block;font-size:13px;font-weight:600">{{ pickedEmpName }}</span>
+              <span style="display:block;font-size:11px;color:var(--c-sub);margin-top:1px">{{ pickedEmpMeta }}</span>
+            </span>
+          </div>
+          <div style="height:1px;background:var(--c-line);margin:12px 0"></div>
+          <div style="font-size:10.5px;font-weight:700;letter-spacing:.5px;color:var(--c-royal)">{{ pickedAssetCode }}</div>
+          <div style="font-size:12.5px;font-weight:580;margin-top:2px">{{ pickedAssetName }}</div>
+        </div>
+        <div style="margin-top:14px;display:flex;flex-direction:column;gap:13px">
+          <label style="display:block">
+            <span style="display:block;font-size:11.5px;font-weight:600;color:var(--c-sub);margin-bottom:6px">Assignment date <span style="color:#E0393E">*</span></span>
+            <input type="date" value="{{ assignDate }}" onChange="{{ onAssignDate }}" style="{{ dateFieldStyle }}" />
+            <sc-if value="{{ dateError }}" hint-placeholder-val="{{ false }}">
+              <span style="display:flex;align-items:center;gap:5px;font-size:11px;color:#E0393E;margin-top:6px;font-weight:550">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v4.5M12 16h.01"></path></svg>Assignment date is required
+              </span>
+            </sc-if>
+          </label>
+          <label style="display:block">
+            <span style="display:block;font-size:11.5px;font-weight:600;color:var(--c-sub);margin-bottom:6px">Expected return <span style="font-weight:500">(optional)</span></span>
+            <input type="date" value="{{ returnDate }}" onChange="{{ onReturnDate }}" style="width:100%;box-sizing:border-box;height:44px;padding:0 13px;border-radius:13px;border:1px solid var(--c-line);background:var(--c-card);color:var(--c-text);font-family:inherit;font-size:13px;outline:0" />
+          </label>
+          <label style="display:block">
+            <span style="display:block;font-size:11.5px;font-weight:600;color:var(--c-sub);margin-bottom:6px">Notes</span>
+            <textarea value="{{ assignNotes }}" onChange="{{ onAssignNotes }}" rows="3" placeholder="Handover condition, accessories included…" style="width:100%;box-sizing:border-box;padding:11px 13px;border-radius:13px;border:1px solid var(--c-line);background:var(--c-card);color:var(--c-text);font-family:inherit;font-size:13px;outline:0;resize:none;line-height:1.5"></textarea>
+          </label>
+          <label onClick="{{ toggleAutoBast }}" style="display:flex;align-items:center;gap:11px;background:var(--c-card);border:1px solid var(--c-line);border-radius:14px;padding:13px 14px;cursor:pointer">
+            <span style="flex:1;display:block">
+              <span style="display:block;font-size:12.5px;font-weight:600">Auto-generate BAST</span>
+              <span style="display:block;font-size:11px;color:var(--c-sub);margin-top:2px">Berita Acara Serah Terima draft</span>
+            </span>
+            <span style="{{ autoBastTrack }}"><span style="{{ autoBastKnob }}"></span></span>
+          </label>
+        </div>
+      </div>
+      </sc-if>
+
+      <div style="display:flex;gap:9px;margin-top:20px">
+        <sc-if value="{{ canGoBack }}" hint-placeholder-val="{{ false }}">
+          <button onClick="{{ stepBack }}" style="height:46px;padding:0 18px;border-radius:14px;border:1px solid var(--c-line);background:var(--c-soft);color:var(--c-text);font-size:13px;font-weight:600;font-family:inherit;cursor:pointer">Back</button>
+        </sc-if>
+        <button onClick="{{ stepNext }}" style="{{ nextBtnStyle }}">{{ nextLabel }}</button>
+      </div>
+      <sc-if value="{{ stepError }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;align-items:center;gap:6px;font-size:11.5px;color:#E0393E;margin-top:10px;font-weight:550;justify-content:center">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v4.5M12 16h.01"></path></svg>{{ stepErrorMsg }}
+        </div>
+      </sc-if>
+    </div>
+    </sc-if>
+  </div>
+  </sc-if>
+
+  <!-- BAST -->
+  <sc-if value="{{ isBast }}" hint-placeholder-val="{{ false }}">
+  <div style="animation:citeFade .2s ease both">
+    <sc-if value="{{ bastList }}" hint-placeholder-val="{{ true }}">
+    <div>
+      <div style="font-size:22px;font-weight:680;letter-spacing:-.6px">BAST</div>
+      <div style="font-size:12.5px;color:var(--c-sub);margin-top:3px">Berita Acara Serah Terima · {{ bastCountLabel }}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:9px;margin-top:14px">
+        <sc-for list="{{ bastStats }}" as="s" hint-placeholder-count="3">
+          <div style="background:var(--c-card);border:1px solid var(--c-line);border-radius:15px;padding:11px 12px;box-shadow:var(--sh)">
+            <div style="font-size:20px;font-weight:680;letter-spacing:-.7px;font-variant-numeric:tabular-nums">{{ s.value }}</div>
+            <div style="font-size:9.5px;font-weight:650;letter-spacing:.34px;text-transform:uppercase;color:var(--c-sub);margin-top:3px">{{ s.label }}</div>
+          </div>
+        </sc-for>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-top:14px">
+        <sc-for list="{{ bastRecords }}" as="b" hint-placeholder-count="4">
+          <button onClick="{{ b.open }}" style="text-align:left;background:var(--c-card);border:1px solid var(--c-line);border-radius:17px;padding:14px 15px;cursor:pointer;font-family:inherit;color:var(--c-text);box-shadow:var(--sh);display:block;width:100%">
+            <div style="display:flex;align-items:center;gap:10px">
+              <span style="font-size:11px;font-weight:700;letter-spacing:.4px;color:var(--c-royal);font-variant-numeric:tabular-nums">{{ b.number }}</span>
+              <span style="{{ b.tagStyle }}">{{ b.status }}</span>
+              <span style="font-size:10.5px;color:var(--c-sub);margin-left:auto;font-variant-numeric:tabular-nums">{{ b.date }}</span>
+            </div>
+            <div style="font-size:13px;font-weight:610;letter-spacing:-.2px;margin-top:9px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ b.asset }}</div>
+            <div style="font-size:11.5px;color:var(--c-sub);margin-top:3px">{{ b.employee }} · {{ b.dept }} · {{ b.location }}</div>
+          </button>
+        </sc-for>
+      </div>
+    </div>
+    </sc-if>
+
+    <sc-if value="{{ bastDetail }}" hint-placeholder-val="{{ false }}">
+    <div>
+      <button onClick="{{ backToBastList }}" style="display:flex;align-items:center;gap:5px;border:0;background:transparent;color:var(--c-royal);font-size:12.5px;font-weight:600;font-family:inherit;cursor:pointer;padding:0;margin-bottom:12px">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"></path></svg>All BAST
+      </button>
+      <div style="background:var(--c-card);border:1px solid var(--c-line);border-radius:20px;overflow:hidden;box-shadow:var(--sh)">
+        <div style="padding:15px 16px;border-bottom:1px solid var(--c-line);display:flex;align-items:center;gap:10px">
+          <div style="flex:1">
+            <div style="font-size:11px;font-weight:700;letter-spacing:.4px;color:var(--c-royal)">{{ curBast.number }}</div>
+            <div style="font-size:15px;font-weight:660;letter-spacing:-.3px;margin-top:3px">Serah Terima Aset</div>
+          </div>
+          <span style="{{ curBast.tagStyle }}">{{ curBast.status }}</span>
+        </div>
+        <!-- paper preview -->
+        <div style="padding:16px;background:var(--c-soft)">
+          <div style="background:#fff;border:1px solid rgba(11,18,32,.1);border-radius:8px;padding:18px 16px;box-shadow:0 6px 18px rgba(11,18,32,.08);color:#0B1220">
+            <div style="display:flex;align-items:center;gap:8px;padding-bottom:10px;border-bottom:2px solid #00072D">
+              <img src="assets/cite-logo.png" alt="" style="width:22px;height:22px;object-fit:contain" />
+              <div>
+                <div style="font-size:9.5px;font-weight:700;letter-spacing:.4px">CORPORATE IT — CITE</div>
+                <div style="font-size:7.5px;letter-spacing:.5px;color:#5A6478;text-transform:uppercase">IT Asset Management</div>
+              </div>
+            </div>
+            <div style="text-align:center;margin-top:12px">
+              <div style="font-size:11px;font-weight:700;letter-spacing:.3px;text-decoration:underline">BERITA ACARA SERAH TERIMA</div>
+              <div style="font-size:8.5px;color:#5A6478;margin-top:3px;font-variant-numeric:tabular-nums">No. {{ curBast.number }}</div>
+            </div>
+            <div style="font-size:8.5px;line-height:1.7;margin-top:12px;color:#2B3346">Pada hari ini, {{ curBast.longDate }}, telah dilakukan serah terima aset IT sebagai berikut:</div>
+            <div style="margin-top:10px;border:1px solid #E6EAF2;border-radius:4px;overflow:hidden">
+              <sc-for list="{{ bastDocRows }}" as="r" hint-placeholder-count="5">
+                <div style="display:flex;border-bottom:1px solid #E6EAF2">
+                  <span style="width:88px;flex:none;padding:6px 8px;font-size:8px;color:#5A6478;background:#F6F8FB">{{ r.k }}</span>
+                  <span style="flex:1;padding:6px 8px;font-size:8px;font-weight:600">{{ r.v }}</span>
+                </div>
+              </sc-for>
+            </div>
+            <div style="display:flex;gap:20px;margin-top:16px">
+              <div style="flex:1;text-align:center">
+                <div style="font-size:8px;color:#5A6478">Yang Menyerahkan</div>
+                <div style="height:34px;border-bottom:1px solid #C7CEDB;margin-top:4px"></div>
+                <div style="font-size:8px;font-weight:600;margin-top:4px">Dewi Lestari</div>
+                <div style="font-size:7px;color:#5A6478">Corporate IT</div>
+              </div>
+              <div style="flex:1;text-align:center">
+                <div style="font-size:8px;color:#5A6478">Yang Menerima</div>
+                <div style="height:34px;border-bottom:1px solid #C7CEDB;margin-top:4px"></div>
+                <div style="font-size:8px;font-weight:600;margin-top:4px">{{ curBast.employee }}</div>
+                <div style="font-size:7px;color:#5A6478">{{ curBast.dept }}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="padding:14px 16px;display:flex;gap:8px">
+          <button onClick="{{ notImplemented }}" style="flex:1;height:40px;border-radius:12px;border:0;background:var(--c-navy);color:#fff;font-size:12.5px;font-weight:620;font-family:inherit;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m0 0l-4-4m4 4l4-4M5 19h14"></path></svg>PDF
+          </button>
+          <button onClick="{{ notImplemented }}" style="flex:1;height:40px;border-radius:12px;border:1px solid var(--c-line);background:var(--c-soft);color:var(--c-text);font-size:12.5px;font-weight:600;font-family:inherit;cursor:pointer">Preview</button>
+        </div>
+      </div>
+
+      <!-- upload signed -->
+      <div style="margin-top:12px;background:var(--c-card);border:1px solid var(--c-line);border-radius:18px;padding:15px 16px;box-shadow:var(--sh)">
+        <div style="font-size:11px;font-weight:700;letter-spacing:.42px;text-transform:uppercase;color:var(--c-sub)">Signed BAST</div>
+        <sc-if value="{{ uploadIdle }}" hint-placeholder-val="{{ true }}">
+        <button onClick="{{ startUpload }}" style="width:100%;margin-top:11px;padding:20px;border-radius:15px;border:1.5px dashed var(--c-line);background:transparent;color:var(--c-text);font-family:inherit;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:8px">
+          <span style="width:40px;height:40px;border-radius:13px;background:var(--c-soft);display:flex;align-items:center;justify-content:center;color:var(--c-royal)">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V8m0 0l-4 4m4-4l4 4M5 5h14"></path></svg>
+          </span>
+          <span style="font-size:12.5px;font-weight:620">Upload scanned signed BAST</span>
+          <span style="font-size:10.5px;color:var(--c-sub)">PDF or JPG · max 10 MB</span>
+        </button>
+        </sc-if>
+        <sc-if value="{{ uploading }}" hint-placeholder-val="{{ false }}">
+        <div style="margin-top:12px">
+          <div style="display:flex;align-items:center;gap:10px">
+            <span style="width:34px;height:34px;border-radius:11px;background:#E0393E;color:#fff;display:flex;align-items:center;justify-content:center;font-size:8.5px;font-weight:700;flex:none">PDF</span>
+            <span style="flex:1;display:block;min-width:0">
+              <span style="display:block;font-size:12px;font-weight:580;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">BAST-signed-scan.pdf</span>
+              <span style="display:block;font-size:10.5px;color:var(--c-sub);margin-top:1px">{{ uploadPctLabel }}</span>
+            </span>
+          </div>
+          <div style="height:6px;border-radius:6px;background:var(--c-soft);margin-top:11px;overflow:hidden">
+            <div style="{{ uploadFill }}"></div>
+          </div>
+        </div>
+        </sc-if>
+        <sc-if value="{{ uploaded }}" hint-placeholder-val="{{ false }}">
+        <div style="margin-top:12px;display:flex;align-items:center;gap:10px;padding:12px;border-radius:14px;background:rgba(18,164,93,.09);border:1px solid rgba(18,164,93,.28)">
+          <span style="width:34px;height:34px;border-radius:11px;background:#0F7A47;color:#fff;display:flex;align-items:center;justify-content:center;flex:none">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5.5 5.5L20 6.5"></path></svg>
+          </span>
+          <span style="flex:1;display:block;min-width:0">
+            <span style="display:block;font-size:12px;font-weight:600">BAST-signed-scan.pdf</span>
+            <span style="display:block;font-size:10.5px;color:var(--c-sub);margin-top:1px">Uploaded · 1.8 MB · v2</span>
+          </span>
+        </div>
+        </sc-if>
+        <div style="height:1px;background:var(--c-line);margin:15px 0 12px"></div>
+        <div style="font-size:11px;font-weight:700;letter-spacing:.42px;text-transform:uppercase;color:var(--c-sub);margin-bottom:10px">Version history</div>
+        <sc-for list="{{ bastVersions }}" as="v" hint-placeholder-count="2">
+          <div style="display:flex;gap:11px">
+            <div style="width:22px;flex:none;display:flex;flex-direction:column;align-items:center">
+              <span style="{{ v.dot }}"></span>
+              <span style="{{ v.rail }}"></span>
+            </div>
+            <div style="flex:1;padding-bottom:16px">
+              <div style="display:flex;align-items:baseline;gap:8px">
+                <span style="font-size:12px;font-weight:620">{{ v.title }}</span>
+                <span style="font-size:10px;color:var(--c-sub);margin-left:auto;font-variant-numeric:tabular-nums">{{ v.date }}</span>
+              </div>
+              <div style="font-size:11px;color:var(--c-sub);margin-top:2px">{{ v.by }}</div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+    </sc-if>
+  </div>
+  </sc-if>
+
+  <!-- NOTIFICATIONS -->
+  <sc-if value="{{ isNotif }}" hint-placeholder-val="{{ false }}">
+  <div style="animation:citeFade .2s ease both">
+    <div style="display:flex;align-items:baseline;justify-content:space-between">
+      <div>
+        <div style="font-size:22px;font-weight:680;letter-spacing:-.6px">Notifications</div>
+        <div style="font-size:12.5px;color:var(--c-sub);margin-top:3px">{{ unreadLabel }}</div>
+      </div>
+      <button onClick="{{ markAllRead }}" style="border:0;background:transparent;color:var(--c-royal);font-size:12px;font-weight:620;font-family:inherit;cursor:pointer;padding:0">Mark all read</button>
+    </div>
+    <sc-for list="{{ notifGroups }}" as="g" hint-placeholder-count="2">
+      <div style="margin-top:18px">
+        <div style="font-size:11px;font-weight:700;letter-spacing:.42px;text-transform:uppercase;color:var(--c-sub);margin:0 2px 9px">{{ g.label }}</div>
+        <div style="background:var(--c-card);border:1px solid var(--c-line);border-radius:18px;overflow:hidden;box-shadow:var(--sh)">
+          <sc-for list="{{ g.items }}" as="n" hint-placeholder-count="3">
+            <button onClick="{{ n.open }}" style="{{ n.style }}">
+              <span style="{{ n.chip }}">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="{{ n.icon }}"></path></svg>
+              </span>
+              <span style="flex:1;min-width:0;display:block;text-align:left">
+                <span style="display:block;font-size:12.5px;font-weight:600;letter-spacing:-.15px">{{ n.title }}</span>
+                <span style="display:block;font-size:11.5px;color:var(--c-sub);margin-top:3px;line-height:1.45">{{ n.body }}</span>
+                <span style="display:block;font-size:10.5px;color:var(--c-sub);margin-top:5px">{{ n.time }}</span>
+              </span>
+              <sc-if value="{{ n.unread }}" hint-placeholder-val="{{ false }}">
+                <span style="width:7px;height:7px;border-radius:9px;background:var(--c-royal);flex:none;margin-top:5px"></span>
+              </sc-if>
+            </button>
+          </sc-for>
+        </div>
+      </div>
+    </sc-for>
+  </div>
+  </sc-if>
+
+  <!-- MORE -->
+  <sc-if value="{{ isMore }}" hint-placeholder-val="{{ false }}">
+  <div style="animation:citeFade .2s ease both">
+    <div style="font-size:22px;font-weight:680;letter-spacing:-.6px">More</div>
+    <div style="font-size:12.5px;color:var(--c-sub);margin-top:3px">Modules and administration</div>
+    <div style="margin-top:14px;background:var(--c-card);border:1px solid var(--c-line);border-radius:18px;overflow:hidden;box-shadow:var(--sh)">
+      <sc-for list="{{ moreItems }}" as="m" hint-placeholder-count="8">
+        <button onClick="{{ m.go }}" style="width:100%;display:flex;align-items:center;gap:12px;padding:14px 15px;border:0;border-bottom:1px solid var(--c-line);background:transparent;color:var(--c-text);cursor:pointer;font-family:inherit;text-align:left">
+          <span style="width:34px;height:34px;border-radius:11px;background:var(--c-soft);color:var(--c-royal);display:flex;align-items:center;justify-content:center;flex:none">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ m.icon }}"></path></svg>
+          </span>
+          <span style="flex:1;display:block">
+            <span style="display:block;font-size:13px;font-weight:590;letter-spacing:-.2px">{{ m.label }}</span>
+            <span style="display:block;font-size:11px;color:var(--c-sub);margin-top:2px">{{ m.sub }}</span>
+          </span>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--c-sub)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M9 5l7 7-7 7"></path></svg>
+        </button>
+      </sc-for>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- MASTER DATA -->
+  <sc-if value="{{ isMaster }}" hint-placeholder-val="{{ false }}">
+  <div style="animation:citeFade .2s ease both">
+    <button onClick="{{ goMore }}" style="display:flex;align-items:center;gap:5px;border:0;background:transparent;color:var(--c-royal);font-size:12.5px;font-weight:600;font-family:inherit;cursor:pointer;padding:0;margin-bottom:12px">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"></path></svg>More
+    </button>
+    <div style="font-size:22px;font-weight:680;letter-spacing:-.6px">Master data</div>
+    <div style="font-size:12.5px;color:var(--c-sub);margin-top:3px">Create, edit and delete reference records</div>
+    <div style="display:flex;gap:7px;margin-top:14px;overflow-x:auto;padding-bottom:2px">
+      <sc-for list="{{ masterTabs }}" as="t" hint-placeholder-count="6">
+        <button onClick="{{ t.set }}" style="{{ t.style }}">{{ t.label }}</button>
+      </sc-for>
+    </div>
+    <div style="display:flex;align-items:center;gap:9px;height:44px;padding:0 6px 0 13px;margin-top:12px;background:var(--c-card);border:1px solid var(--c-line);border-radius:14px;box-shadow:var(--sh)">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--c-royal)" stroke-width="1.9" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+      <input value="{{ masterDraft }}" onChange="{{ onMasterDraft }}" placeholder="{{ masterPlaceholder }}" style="flex:1;border:0;outline:0;background:transparent;font-family:inherit;font-size:13px;color:var(--c-text);min-width:0" />
+      <button onClick="{{ masterSave }}" style="height:32px;padding:0 13px;border-radius:10px;border:0;background:var(--c-navy);color:#fff;font-size:12px;font-weight:620;font-family:inherit;cursor:pointer;flex:none">{{ masterSaveLabel }}</button>
+    </div>
+    <sc-if value="{{ masterError }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#E0393E;margin-top:8px;font-weight:550;padding-left:2px">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v4.5M12 16h.01"></path></svg>{{ masterErrorMsg }}
+      </div>
+    </sc-if>
+    <div style="margin-top:14px;background:var(--c-card);border:1px solid var(--c-line);border-radius:18px;overflow:hidden;box-shadow:var(--sh)">
+      <sc-for list="{{ masterItems }}" as="m" hint-placeholder-count="5">
+        <div style="display:flex;align-items:center;gap:10px;padding:13px 14px;border-bottom:1px solid var(--c-line)">
+          <span style="flex:1;min-width:0;display:block">
+            <span style="display:block;font-size:13px;font-weight:570;letter-spacing:-.15px">{{ m.name }}</span>
+            <span style="display:block;font-size:10.5px;color:var(--c-sub);margin-top:2px">{{ m.meta }}</span>
+          </span>
+          <button onClick="{{ m.edit }}" style="width:30px;height:30px;border-radius:10px;border:1px solid var(--c-line);background:var(--c-soft);color:var(--c-text);display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;flex:none">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L20 8l-4-4L4 16v4z"></path></svg>
+          </button>
+          <button onClick="{{ m.del }}" style="width:30px;height:30px;border-radius:10px;border:1px solid rgba(224,57,62,.28);background:rgba(224,57,62,.08);color:#E0393E;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;flex:none">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 7h14M9 7V4h6v3M7 7l1 13h8l1-13"></path></svg>
+          </button>
+        </div>
+      </sc-for>
+      <sc-if value="{{ masterEmpty }}" hint-placeholder-val="{{ false }}">
+        <div style="padding:34px 20px;text-align:center">
+          <div style="font-size:13.5px;font-weight:620">No records yet</div>
+          <div style="font-size:11.5px;color:var(--c-sub);margin-top:4px">Add the first one using the field above.</div>
+        </div>
+      </sc-if>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- SETTINGS -->
+  <sc-if value="{{ isSettings }}" hint-placeholder-val="{{ false }}">
+  <div style="animation:citeFade .2s ease both">
+    <button onClick="{{ goMore }}" style="display:flex;align-items:center;gap:5px;border:0;background:transparent;color:var(--c-royal);font-size:12.5px;font-weight:600;font-family:inherit;cursor:pointer;padding:0;margin-bottom:12px">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"></path></svg>More
+    </button>
+    <div style="font-size:22px;font-weight:680;letter-spacing:-.6px">Settings</div>
+    <div style="background:var(--c-card);border:1px solid var(--c-line);border-radius:18px;padding:15px 16px;margin-top:14px;box-shadow:var(--sh);display:flex;align-items:center;gap:12px">
+      <span style="width:48px;height:48px;border-radius:16px;background:var(--c-navy);color:#fff;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:650;flex:none">DL</span>
+      <span style="flex:1;display:block">
+        <span style="display:block;font-size:14.5px;font-weight:650;letter-spacing:-.25px">Dewi Lestari</span>
+        <span style="display:block;font-size:11.5px;color:var(--c-sub);margin-top:2px">dewi.lestari@cite.co.id</span>
+        <span style="display:inline-block;font-size:9.5px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;padding:3px 7px;border-radius:7px;background:rgba(212,175,55,.16);color:#8A6D12;border:1px solid rgba(212,175,55,.4);margin-top:7px">Super Admin</span>
+      </span>
+    </div>
+
+    <div style="font-size:11px;font-weight:700;letter-spacing:.42px;text-transform:uppercase;color:var(--c-sub);margin:20px 2px 9px">Appearance</div>
+    <div style="background:var(--c-card);border:1px solid var(--c-line);border-radius:18px;overflow:hidden;box-shadow:var(--sh)">
+      <button onClick="{{ toggleDark }}" style="width:100%;display:flex;align-items:center;gap:12px;padding:14px 15px;border:0;border-bottom:1px solid var(--c-line);background:transparent;color:var(--c-text);cursor:pointer;font-family:inherit;text-align:left">
+        <span style="flex:1;display:block">
+          <span style="display:block;font-size:13px;font-weight:590">Dark mode</span>
+          <span style="display:block;font-size:11px;color:var(--c-sub);margin-top:2px">{{ themeLabel }}</span>
+        </span>
+        <span style="{{ darkTrack }}"><span style="{{ darkKnob }}"></span></span>
+      </button>
+      <div style="display:flex;align-items:center;gap:12px;padding:14px 15px">
+        <span style="flex:1;display:block">
+          <span style="display:block;font-size:13px;font-weight:590">Language</span>
+          <span style="display:block;font-size:11px;color:var(--c-sub);margin-top:2px">Interface language</span>
+        </span>
+        <div style="display:flex;gap:4px;background:var(--c-soft);border-radius:11px;padding:3px">
+          <sc-for list="{{ langOptions }}" as="l" hint-placeholder-count="2">
+            <button onClick="{{ l.set }}" style="{{ l.style }}">{{ l.label }}</button>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;align-items:baseline;justify-content:space-between;margin:20px 2px 9px">
+      <div style="font-size:11px;font-weight:700;letter-spacing:.42px;text-transform:uppercase;color:var(--c-sub)">User accounts</div>
+      <button onClick="{{ toggleAccountForm }}" style="border:0;background:transparent;color:var(--c-royal);font-size:11.5px;font-weight:620;font-family:inherit;cursor:pointer;padding:0">{{ accountFormLabel }}</button>
+    </div>
+    <sc-if value="{{ accountFormOpen }}" hint-placeholder-val="{{ false }}">
+      <div style="background:var(--c-card);border:1px solid var(--c-line);border-radius:18px;padding:15px 16px;box-shadow:var(--sh);margin-bottom:11px;animation:citeRise .18s ease both">
+        <div style="display:flex;flex-direction:column;gap:11px">
+          <label style="display:block">
+            <span style="display:block;font-size:11.5px;font-weight:600;color:var(--c-sub);margin-bottom:6px">Full name <span style="color:#E0393E">*</span></span>
+            <input value="{{ acctName }}" onChange="{{ onAcctName }}" placeholder="e.g. Budi Santoso" style="{{ acctNameStyle }}" />
+          </label>
+          <div style="display:flex;gap:9px">
+            <label style="flex:1;display:block">
+              <span style="display:block;font-size:11.5px;font-weight:600;color:var(--c-sub);margin-bottom:6px">Department</span>
+              <select value="{{ acctDept }}" onChange="{{ onAcctDept }}" style="width:100%;box-sizing:border-box;height:42px;padding:0 10px;border-radius:12px;border:1px solid var(--c-line);background:var(--c-card);color:var(--c-text);font-family:inherit;font-size:12.5px;outline:0">
+                <sc-for list="{{ deptOptions }}" as="d" hint-placeholder-count="4"><option value="{{ d }}">{{ d }}</option></sc-for>
+              </select>
+            </label>
+            <label style="flex:1;display:block">
+              <span style="display:block;font-size:11.5px;font-weight:600;color:var(--c-sub);margin-bottom:6px">Location</span>
+              <select value="{{ acctLoc }}" onChange="{{ onAcctLoc }}" style="width:100%;box-sizing:border-box;height:42px;padding:0 10px;border-radius:12px;border:1px solid var(--c-line);background:var(--c-card);color:var(--c-text);font-family:inherit;font-size:12.5px;outline:0">
+                <sc-for list="{{ locOptions }}" as="l" hint-placeholder-count="2"><option value="{{ l }}">{{ l }}</option></sc-for>
+              </select>
+            </label>
+          </div>
+          <label onClick="{{ toggleAcctLogin }}" style="display:flex;align-items:center;gap:11px;background:var(--c-soft);border:1px solid var(--c-line);border-radius:14px;padding:12px 13px;cursor:pointer">
+            <span style="flex:1;display:block">
+              <span style="display:block;font-size:12.5px;font-weight:600">Can sign in</span>
+              <span style="display:block;font-size:11px;color:var(--c-sub);margin-top:2px;line-height:1.4">Off = record only, assets can still be assigned</span>
+            </span>
+            <span style="{{ acctLoginTrack }}"><span style="{{ acctLoginKnob }}"></span></span>
+          </label>
+          <sc-if value="{{ acctCanLogin }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;gap:6px;flex-wrap:wrap;animation:citeFade .16s ease both">
+              <sc-for list="{{ roleOptions }}" as="r" hint-placeholder-count="4">
+                <button onClick="{{ r.set }}" style="{{ r.style }}">{{ r.label }}</button>
+              </sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{ acctError }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#E0393E;font-weight:550">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 8v4.5M12 16h.01"></path></svg>Full name is required
+            </div>
+          </sc-if>
+          <button onClick="{{ createAccount }}" style="height:44px;border-radius:13px;border:0;background:var(--c-navy);color:#fff;font-size:13px;font-weight:630;font-family:inherit;cursor:pointer">Create account</button>
+        </div>
+      </div>
+    </sc-if>
+    <div style="background:var(--c-card);border:1px solid var(--c-line);border-radius:18px;overflow:hidden;box-shadow:var(--sh)">
+      <sc-for list="{{ accounts }}" as="a" hint-placeholder-count="4">
+        <div style="display:flex;align-items:center;gap:11px;padding:13px 15px;border-bottom:1px solid var(--c-line)">
+          <span style="{{ a.avatar }}">{{ a.initials }}</span>
+          <span style="flex:1;min-width:0;display:block">
+            <span style="display:block;font-size:12.5px;font-weight:600;letter-spacing:-.15px">{{ a.name }}</span>
+            <span style="display:block;font-size:10.5px;color:var(--c-sub);margin-top:2px">{{ a.meta }}</span>
+          </span>
+          <span style="{{ a.tagStyle }}">{{ a.tag }}</span>
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="font-size:11px;font-weight:700;letter-spacing:.42px;text-transform:uppercase;color:var(--c-sub);margin:20px 2px 9px">General</div>
+    <div style="background:var(--c-card);border:1px solid var(--c-line);border-radius:18px;overflow:hidden;box-shadow:var(--sh)">
+      <sc-for list="{{ settingsRows }}" as="s" hint-placeholder-count="3">
+        <button onClick="{{ s.go }}" style="width:100%;display:flex;align-items:center;gap:12px;padding:14px 15px;border:0;border-bottom:1px solid var(--c-line);background:transparent;color:var(--c-text);cursor:pointer;font-family:inherit;text-align:left">
+          <span style="flex:1;font-size:13px;font-weight:560">{{ s.label }}</span>
+          <span style="font-size:11.5px;color:var(--c-sub)">{{ s.value }}</span>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--c-sub)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M9 5l7 7-7 7"></path></svg>
+        </button>
+      </sc-for>
+    </div>
+    <button onClick="{{ notImplemented }}" style="width:100%;height:46px;margin-top:14px;border-radius:14px;border:1px solid rgba(224,57,62,.3);background:rgba(224,57,62,.07);color:#E0393E;font-size:13px;font-weight:630;font-family:inherit;cursor:pointer">Log out</button>
+    <div style="text-align:center;font-size:10.5px;color:var(--c-sub);margin-top:14px">CITE Assets v1.0.0 · Build 2026.07</div>
+  </div>
+  </sc-if>
+
+  <!-- AUDIT LOG -->
+  <sc-if value="{{ isAudit }}" hint-placeholder-val="{{ false }}">
+  <div style="animation:citeFade .2s ease both">
+    <button onClick="{{ goMore }}" style="display:flex;align-items:center;gap:5px;border:0;background:transparent;color:var(--c-royal);font-size:12.5px;font-weight:600;font-family:inherit;cursor:pointer;padding:0;margin-bottom:12px">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"></path></svg>More
+    </button>
+    <div style="font-size:22px;font-weight:680;letter-spacing:-.6px">Audit log</div>
+    <div style="font-size:12.5px;color:var(--c-sub);margin-top:3px">Immutable · every action is recorded</div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-top:14px">
+      <sc-for list="{{ auditRows }}" as="a" hint-placeholder-count="5">
+        <div style="background:var(--c-card);border:1px solid var(--c-line);border-radius:16px;padding:13px 14px;box-shadow:var(--sh)">
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="{{ a.tagStyle }}">{{ a.action }}</span>
+            <span style="font-size:10.5px;color:var(--c-sub);margin-left:auto;font-variant-numeric:tabular-nums">{{ a.time }}</span>
+          </div>
+          <div style="font-size:12.5px;font-weight:580;margin-top:9px">{{ a.target }}</div>
+          <div style="display:flex;align-items:center;gap:7px;margin-top:8px;flex-wrap:wrap">
+            <span style="font-size:10.5px;padding:3px 7px;border-radius:7px;background:rgba(224,57,62,.08);color:#B3312F;border:1px solid rgba(224,57,62,.22);text-decoration:line-through">{{ a.oldValue }}</span>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--c-sub)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13m0 0l-4-4m4 4l-4 4"></path></svg>
+            <span style="font-size:10.5px;padding:3px 7px;border-radius:7px;background:rgba(18,164,93,.1);color:#0C6B3F;border:1px solid rgba(18,164,93,.26)">{{ a.newValue }}</span>
+          </div>
+          <div style="font-size:10.5px;color:var(--c-sub);margin-top:9px;padding-top:9px;border-top:1px solid var(--c-line)">{{ a.by }}</div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+  </sc-if>
+
+  </div>
+  </div>
+
+  <!-- ── Toast ─────────────────────────────── -->
+  <sc-if value="{{ hasToast }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;left:16px;right:16px;bottom:104px;z-index:70;animation:citeRise .2s ease both">
+      <div style="background:rgba(11,18,32,.94);color:#fff;border-radius:15px;padding:13px 15px;display:flex;align-items:center;gap:10px;box-shadow:0 14px 34px rgba(0,7,45,.34);backdrop-filter:blur(12px)">
+        <span style="width:24px;height:24px;border-radius:8px;background:rgba(255,255,255,.14);display:flex;align-items:center;justify-content:center;flex:none">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5EE0A0" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5.5 5.5L20 6.5"></path></svg>
+        </span>
+        <span style="flex:1;font-size:12.5px;font-weight:550;letter-spacing:-.1px">{{ toast }}</span>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ── FAB sheet ─────────────────────────────── -->
+  <sc-if value="{{ fabOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ closeFab }}" style="position:absolute;inset:0;z-index:80;background:rgba(4,8,22,.42);backdrop-filter:blur(3px);animation:citeFade .18s ease both">
+      <div style="position:absolute;left:0;right:0;bottom:0;background:var(--c-card);border-radius:26px 26px 0 0;padding:10px 16px 30px;animation:citeSheet .24s cubic-bezier(.22,.9,.3,1) both">
+        <div style="width:38px;height:4px;border-radius:6px;background:var(--c-line);margin:0 auto 14px"></div>
+        <div style="font-size:15px;font-weight:660;letter-spacing:-.3px;margin:0 2px 12px">Quick actions</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">
+          <sc-for list="{{ fabActions }}" as="f" hint-placeholder-count="4">
+            <button onClick="{{ f.go }}" style="background:var(--c-soft);border:1px solid var(--c-line);border-radius:16px;padding:14px 13px;display:flex;flex-direction:column;align-items:flex-start;gap:9px;cursor:pointer;font-family:inherit;color:var(--c-text);text-align:left">
+              <span style="width:34px;height:34px;border-radius:11px;background:var(--c-card);border:1px solid var(--c-line);color:var(--c-royal);display:flex;align-items:center;justify-content:center">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ f.icon }}"></path></svg>
+              </span>
+              <span style="display:block">
+                <span style="display:block;font-size:12.5px;font-weight:620;letter-spacing:-.15px">{{ f.label }}</span>
+                <span style="display:block;font-size:10.5px;color:var(--c-sub);margin-top:2px">{{ f.sub }}</span>
+              </span>
+            </button>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- ── Bottom nav ─────────────────────────────── -->
+  <div style="position:absolute;left:12px;right:12px;bottom:26px;height:66px;z-index:60;background:var(--c-card);border:1px solid var(--c-line);border-radius:22px;box-shadow:0 12px 30px rgba(11,18,32,.14);display:flex;align-items:center;padding:0 6px">
+    <sc-for list="{{ navLeft }}" as="n" hint-placeholder-count="2">
+      <button onClick="{{ n.go }}" style="{{ n.style }}">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ n.icon }}"></path></svg>
+        <span style="font-size:9.5px;font-weight:620;letter-spacing:.1px">{{ n.label }}</span>
+      </button>
+    </sc-for>
+    <div style="width:64px;flex:none"></div>
+    <sc-for list="{{ navRight }}" as="n" hint-placeholder-count="2">
+      <button onClick="{{ n.go }}" style="{{ n.style }}">
+        <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ n.icon }}"></path></svg>
+        <span style="font-size:9.5px;font-weight:620;letter-spacing:.1px">{{ n.label }}</span>
+      </button>
+    </sc-for>
+  </div>
+  <button onClick="{{ openFab }}" style="position:absolute;left:50%;bottom:56px;transform:translateX(-50%);z-index:65;width:60px;height:60px;border-radius:21px;border:3px solid var(--c-bg);background:linear-gradient(150deg,#0B1852,#00072D);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;box-shadow:0 12px 26px rgba(0,7,45,.36)">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#D4AF37" stroke-width="2.1" stroke-linecap="round"><path d="M12 5v14M5 12h14"></path></svg>
+  </button>
+
+</div>
+</div>
+</x-import>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:482,&quot;height&quot;:954}}">
+const NAVY='#00072D',ROYAL='#2B57C4',GOLD='#D4AF37';
+const ICONS={
+  home:'M4 11.2L12 4l8 7.2V20a1 1 0 01-1 1h-4v-6H9v6H5a1 1 0 01-1-1v-8.8z',
+  box:'M4 8.5L12 4l8 4.5v7L12 20l-8-4.5v-7zM4 8.5L12 13l8-4.5M12 13v7',
+  doc:'M7 3h7l4 4v14H7V3zM14 3v4h4M10 12h7M10 16h5',
+  grid:'M4 6h6v6H4V6zM14 6h6v6h-6V6zM4 14h6v6H4v-6zM14 14h6v6h-6v-6z',
+  plus:'M12 5v14M5 12h14',
+  user:'M12 11a3.6 3.6 0 100-7.2A3.6 3.6 0 0012 11zM4.5 20.5c0-3.6 3.4-5.5 7.5-5.5s7.5 1.9 7.5 5.5',
+  move:'M4 8h11m0 0l-3-3m3 3l-3 3M20 16H9m0 0l3-3m-3 3l3 3',
+  wrench:'M14.5 6.5a3.5 3.5 0 104.6 4.6L21 13l-8 8-4-4 8-8 1.5-2.5z',
+  chart:'M5 20V9M12 20V4M19 20v-7M3 20h18',
+  upload:'M12 19V8m0 0l-4 4m4-4l4 4M5 5h14',
+  download:'M12 4v11m0 0l-4-4m4 4l4-4M5 19h14',
+  gear:'M12 15.2a3.2 3.2 0 100-6.4 3.2 3.2 0 000 6.4zM19 12c0-.5-.1-1-.2-1.4l1.7-1.3-1.8-3.1-2 .8a7 7 0 00-2.4-1.4L14 3.5h-4l-.3 2.1a7 7 0 00-2.4 1.4l-2-.8L3.5 9.3 5.2 10.6c-.1.5-.2.9-.2 1.4s.1 1 .2 1.4L3.5 14.7l1.8 3.1 2-.8a7 7 0 002.4 1.4l.3 2.1h4l.3-2.1a7 7 0 002.4-1.4l2 .8 1.8-3.1-1.7-1.3c.1-.4.2-.9.2-1.4z',
+  shield:'M12 3l7 3v6c0 4.2-3 7.5-7 9-4-1.5-7-4.8-7-9V6l7-3zM9 12l2.2 2.2L15.5 10',
+  bell:'M18 8A6 6 0 006 8c0 6-2 7-2 7h16s-2-1-2-7M10.3 20a2 2 0 003.4 0',
+  laptop:'M5 6h14v9H5V6zM3 18h18M9 18v-3h6v3',
+  printer:'M7 8V4h10v4M6 8h12a1 1 0 011 1v6h-3v4H8v-4H5V9a1 1 0 011-1z',
+  monitor:'M4 5h16v10H4V5zM9 19h6M12 15v4',
+  server:'M4 5h16v5H4V5zM4 14h16v5H4v-5zM7.5 7.5h.01M7.5 16.5h.01',
+  net:'M4 6h16v5H4V6zM7 15v4M12 15v4M17 15v4M12 11v4M7 11v1M17 11v1',
+  clock:'M12 8v5l3 2M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
+  excel:'M6 3h8l4 4v14H6V3zM9 11l6 6M15 11l-6 6',
+  swap:'M7 7h10l-3-3M17 17H7l3 3',
+};
+const CATICON={Laptop:ICONS.laptop,Printer:ICONS.printer,Monitor:ICONS.monitor,Server:ICONS.server,Networking:ICONS.net,Desktop:ICONS.monitor};
+const STATUS_C={
+  Assigned:['rgba(43,87,196,.1)','#2B57C4','rgba(43,87,196,.26)'],
+  Available:['rgba(18,164,93,.11)','#0C6B3F','rgba(18,164,93,.26)'],
+  Maintenance:['rgba(178,106,0,.12)','#8A5300','rgba(178,106,0,.26)'],
+  Broken:['rgba(224,57,62,.1)','#B3312F','rgba(224,57,62,.26)'],
+  Lost:['rgba(107,78,230,.11)','#5138C4','rgba(107,78,230,.26)'],
+  Retired:['rgba(107,114,128,.12)','#4B5563','rgba(107,114,128,.26)'],
+  Signed:['rgba(18,164,93,.11)','#0C6B3F','rgba(18,164,93,.26)'],
+  Draft:['rgba(107,114,128,.12)','#4B5563','rgba(107,114,128,.26)'],
+  'Awaiting signature':['rgba(178,106,0,.12)','#8A5300','rgba(178,106,0,.26)'],
+  Good:['rgba(18,164,93,.09)','#0C6B3F','rgba(18,164,93,.22)'],
+  Fair:['rgba(178,106,0,.1)','#8A5300','rgba(178,106,0,.22)'],
+  Poor:['rgba(224,57,62,.09)','#B3312F','rgba(224,57,62,.22)'],
+  Active:['rgba(43,87,196,.1)','#2B57C4','rgba(43,87,196,.26)'],
+};
+function tag(kind,dark){
+  const c=STATUS_C[kind]||STATUS_C.Draft;
+  const fg=dark?'#E6ECF9':c[1];
+  return 'font-size:10px;font-weight:650;letter-spacing:.2px;padding:4px 8px;border-radius:8px;flex:none;white-space:nowrap;background:'+c[0]+';color:'+fg+';border:1px solid '+c[2];
+}
+function dot(color){return 'width:7px;height:7px;border-radius:9px;flex:none;display:inline-block;background:'+color;}
+
+class Component extends DCLogic {
+  state={
+    screen:'home', dark:false, scope:{HO:true,SITE:true}, scopeOpen:false, fabOpen:false,
+    loading:true, query:'', status:'All', tab:'Overview', toast:'', lang:'EN',
+    selId:'LPT045-24-118',
+    assign:{mode:'assign',step:1,emp:null,asset:null,date:'2026-07-29',ret:'',notes:'',autoBast:true,err:'',dateErr:false,done:false},
+    bastView:'list', curBastId:'BAST/CITE/2026/0182', upload:'idle', uploadPct:0,
+    masterTab:'Category', masterDraft:'', masterEdit:null, masterErr:'',
+    master:{
+      Category:['Laptop','Desktop','Monitor','Printer','Networking','Server','Accessories'],
+      Brand:['Lenovo','Dell','HP','Zebra','Cisco','HPE','Epson'],
+      Model:['ThinkPad T14 Gen 4','Latitude 5440','ZT411','Catalyst 9200-24T','ProLiant DL380 Gen10'],
+      Vendor:['PT Mitra Solusi Teknologi','PT Datacom Nusantara','PT Sinar Elektronik'],
+      Department:['Corporate IT','Finance','Operations','HRGA','Procurement'],
+      Location:['Head Office','Site'],
+      Status:['Available','Assigned','Maintenance','Broken','Lost','Retired'],
+      Condition:['Good','Fair','Poor'],
+    },
+    acctForm:false, acct:{name:'',dept:'Operations',loc:'Site',canLogin:true,role:'Site IT',err:false},
+    accounts:[
+      {name:'Dewi Lestari',meta:'Corporate IT · Head Office',login:true,role:'Super Admin'},
+      {name:'Andi Prasetyo',meta:'Finance · Head Office',login:true,role:'Viewer'},
+      {name:'Rizky Hidayat',meta:'Operations · Site',login:false,role:''},
+      {name:'Siti Rahayu',meta:'HRGA · Head Office',login:true,role:'Site IT'},
+    ],
+    assets:[
+      {code:'LPT045-24-118',name:'Lenovo ThinkPad T14 Gen 4',cat:'Laptop',brand:'Lenovo',model:'T14 Gen 4',serial:'PF3XK92L',loc:'Head Office',scope:'HO',status:'Assigned',cond:'Good',holder:'Andi Prasetyo · Finance',dept:'Finance',
+       notes:'Handed over with 65W USB-C adapter and Kensington lock. Screen protector applied on 12 Feb 2026.',
+       purchase:'18 Mar 2024',price:'Rp 21.450.000',wStart:'18 Mar 2024',wEnd:'18 Mar 2027',vendor:'PT Mitra Solusi Teknologi',
+       specs:[['Processor','Intel Core i7-1355U'],['Memory','32 GB DDR5-5200'],['Storage','1 TB NVMe SSD'],['Display','14" WUXGA IPS 400 nits'],['OS','Windows 11 Pro 23H2'],['MAC (Wi-Fi)','A4:F9:33:1C:8E:20']]},
+      {code:'LPT012-23-076',name:'Dell Latitude 5440',cat:'Laptop',brand:'Dell',model:'Latitude 5440',serial:'8J2QW73',loc:'Site',scope:'SITE',status:'Maintenance',cond:'Fair',holder:'Rizky Hidayat · Operations',dept:'Operations',
+       notes:'Keyboard replacement in progress at site workshop. Battery health 71%.',
+       purchase:'02 Aug 2023',price:'Rp 16.900.000',wStart:'02 Aug 2023',wEnd:'02 Aug 2026',vendor:'PT Datacom Nusantara',
+       specs:[['Processor','Intel Core i5-1345U'],['Memory','16 GB DDR5'],['Storage','512 GB NVMe SSD'],['Display','14" FHD'],['OS','Windows 11 Pro'],['MAC (Wi-Fi)','C8:5B:76:04:D1:9A']]},
+      {code:'PRN008-22-031',name:'Zebra ZT411 Label Printer',cat:'Printer',brand:'Zebra',model:'ZT411',serial:'ZT41-77120',loc:'Site',scope:'SITE',status:'Assigned',cond:'Good',holder:'Warehouse · Operations',dept:'Operations',
+       notes:'Used for asset sticker printing at site warehouse. Ribbon stock checked monthly.',
+       purchase:'14 Nov 2022',price:'Rp 34.200.000',wStart:'14 Nov 2022',wEnd:'14 Nov 2025',vendor:'PT Sinar Elektronik',
+       specs:[['Print method','Thermal transfer'],['Resolution','300 dpi'],['Max width','104 mm'],['Interface','Ethernet, USB'],['Firmware','V93.21.01Z']]},
+      {code:'MON122-24-205',name:'Dell P2422H 24" Monitor',cat:'Monitor',brand:'Dell',model:'P2422H',serial:'CN0K7M42',loc:'Head Office',scope:'HO',status:'Available',cond:'Good',holder:'Unassigned · IT store room',dept:'Corporate IT',
+       notes:'In HO store room, shelf B-04. Ready for assignment.',
+       purchase:'09 Jan 2024',price:'Rp 3.150.000',wStart:'09 Jan 2024',wEnd:'09 Jan 2027',vendor:'PT Datacom Nusantara',
+       specs:[['Panel','23.8" IPS FHD'],['Refresh','60 Hz'],['Ports','HDMI, DP, VGA, USB hub'],['Stand','Height adjustable']]},
+      {code:'SRV003-21-014',name:'HPE ProLiant DL380 Gen10',cat:'Server',brand:'HPE',model:'DL380 Gen10',serial:'MXQ12403KP',loc:'Head Office',scope:'HO',status:'Assigned',cond:'Good',holder:'HO Server Room · Corporate IT',dept:'Corporate IT',
+       notes:'Hosts file services and asset database replica. Maintenance window: Sunday 01:00–04:00 WITA.',
+       purchase:'22 Jun 2021',price:'Rp 212.000.000',wStart:'22 Jun 2021',wEnd:'22 Jun 2026',vendor:'PT Mitra Solusi Teknologi',
+       specs:[['CPU','2× Xeon Silver 4214R'],['Memory','128 GB DDR4 ECC'],['Storage','6× 1.2 TB SAS RAID 10'],['iLO','5 v2.78'],['PSU','2× 800W redundant']]},
+      {code:'NET031-23-090',name:'Cisco Catalyst 9200-24T',cat:'Networking',brand:'Cisco',model:'C9200-24T',serial:'FJC2412L0AB',loc:'Site',scope:'SITE',status:'Assigned',cond:'Good',holder:'Site Network Rack · Corporate IT',dept:'Corporate IT',
+       notes:'Uplink to core via 10G SFP+. Config backed up weekly.',
+       purchase:'30 May 2023',price:'Rp 48.700.000',wStart:'30 May 2023',wEnd:'30 May 2028',vendor:'PT Datacom Nusantara',
+       specs:[['Ports','24× 1G RJ45'],['Uplink','4× 1G SFP'],['IOS-XE','17.09.04'],['Stacking','StackWise-160']]},
+      {code:'LPT099-21-004',name:'HP EliteBook 840 G7',cat:'Laptop',brand:'HP',model:'EliteBook 840 G7',serial:'5CD0412X8P',loc:'Head Office',scope:'HO',status:'Broken',cond:'Poor',holder:'Unassigned · pending disposal',dept:'Corporate IT',
+       notes:'Motherboard failure, out of warranty. Awaiting disposal approval from Procurement.',
+       purchase:'11 Feb 2021',price:'Rp 18.300.000',wStart:'11 Feb 2021',wEnd:'11 Feb 2024',vendor:'PT Sinar Elektronik',
+       specs:[['Processor','Intel Core i5-10310U'],['Memory','8 GB DDR4'],['Storage','256 GB NVMe SSD'],['Display','14" FHD']]},
+    ],
+    bast:[
+      {id:'BAST/CITE/2026/0182',date:'24 Jul 2026',longDate:'Jumat, 24 Juli 2026',asset:'Lenovo ThinkPad T14 Gen 4',code:'LPT045-24-118',employee:'Andi Prasetyo',dept:'Finance',location:'Head Office',status:'Awaiting signature'},
+      {id:'BAST/CITE/2026/0178',date:'19 Jul 2026',longDate:'Minggu, 19 Juli 2026',asset:'Cisco Catalyst 9200-24T',code:'NET031-23-090',employee:'Rizky Hidayat',dept:'Operations',location:'Site',status:'Signed'},
+      {id:'BAST/CITE/2026/0175',date:'12 Jul 2026',longDate:'Minggu, 12 Juli 2026',asset:'Dell P2422H 24" Monitor',code:'MON122-24-205',employee:'Siti Rahayu',dept:'HRGA',location:'Head Office',status:'Signed'},
+      {id:'BAST/CITE/2026/0171',date:'04 Jul 2026',longDate:'Sabtu, 4 Juli 2026',asset:'Zebra ZT411 Label Printer',code:'PRN008-22-031',employee:'Budi Santoso',dept:'Procurement',location:'Site',status:'Draft'},
+    ],
+    notifs:[
+      {g:'Today',title:'Warranty expiring in 14 days',body:'PRN008-22-031 · Zebra ZT411 Label Printer, Site',time:'08:24',unread:true,icon:ICONS.clock,c:GOLD,go:'detail',asset:'PRN008-22-031'},
+      {g:'Today',title:'BAST awaiting signature',body:'BAST/CITE/2026/0182 · Andi Prasetyo, Finance',time:'07:51',unread:true,icon:ICONS.doc,c:ROYAL,go:'bast'},
+      {g:'Today',title:'Maintenance updated',body:'LPT012-23-076 moved to In progress by Site IT',time:'06:30',unread:true,icon:ICONS.wrench,c:'#B26A00',go:'detail',asset:'LPT012-23-076'},
+      {g:'Yesterday',title:'Asset returned',body:'MON122-24-205 returned by Siti Rahayu · HRGA',time:'16:12',unread:false,icon:ICONS.swap,c:'#0F7A47',go:'detail',asset:'MON122-24-205'},
+      {g:'Yesterday',title:'Import completed',body:'42 rows imported, 3 skipped with validation errors',time:'11:05',unread:false,icon:ICONS.excel,c:'#0F7A47',go:null},
+      {g:'Yesterday',title:'New assignment',body:'NET031-23-090 assigned to Site Network Rack',time:'09:40',unread:false,icon:ICONS.user,c:ROYAL,go:'detail',asset:'NET031-23-090'},
+    ],
+  };
+
+  componentDidMount(){ this._t=setTimeout(()=>this.setState({loading:false}),700); }
+  componentWillUnmount(){ clearTimeout(this._t); clearTimeout(this._toast); clearInterval(this._up); }
+
+  go=(screen,extra)=>{
+    clearTimeout(this._t);
+    const needsLoad=screen==='home'||screen==='assets';
+    this.setState({screen,fabOpen:false,scopeOpen:false,loading:needsLoad,...(extra||{})});
+    if(needsLoad) this._t=setTimeout(()=>this.setState({loading:false}),620);
+  };
+  toast=(msg)=>{ clearTimeout(this._toast); this.setState({toast:msg}); this._toast=setTimeout(()=>this.setState({toast:''}),2400); };
+
+  sel(){ return this.state.assets.find(a=>a.code===this.state.selId)||this.state.assets[0]; }
+  inScope(a){ return !!this.state.scope[a.scope]; }
+
+  navStyle(active){
+    return 'flex:1;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;border:0;background:transparent;cursor:pointer;font-family:inherit;padding:0;color:'+(active?(this.state.dark?'#FFFFFF':NAVY):(this.state.dark?'#93A0B8':'#8B94A7'));
+  }
+  chipStyle(active){
+    const d=this.state.dark;
+    return 'flex:none;height:32px;padding:0 13px;border-radius:11px;cursor:pointer;font-family:inherit;font-size:11.5px;font-weight:620;letter-spacing:-.1px;white-space:nowrap;'+
+      (active?'background:'+NAVY+';color:#fff;border:1px solid '+NAVY:'background:'+(d?'#131A26':'#fff')+';color:'+(d?'#93A0B8':'#5A6478')+';border:1px solid '+(d?'#232C3C':'#E6EAF2'));
+  }
+  pickStyle(active){
+    const d=this.state.dark;
+    return 'display:flex;align-items:center;gap:11px;width:100%;padding:12px 13px;border-radius:16px;cursor:pointer;font-family:inherit;color:'+(d?'#EAEEF6':'#0B1220')+';background:'+(d?'#131A26':'#fff')+';border:1.5px solid '+(active?ROYAL:(d?'#232C3C':'#E6EAF2'))+';box-shadow:'+(active?'0 0 0 3px rgba(43,87,196,.13)':'0 1px 2px rgba(11,18,32,.05)');
+  }
+  track(on){ return 'width:44px;height:26px;border-radius:20px;flex:none;display:flex;align-items:center;padding:2px;transition:background .18s;background:'+(on?ROYAL:(this.state.dark?'#2A3547':'#D5DBE7')); }
+  knob(on){ return 'width:22px;height:22px;border-radius:20px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .18s;transform:translateX('+(on?'18px':'0')+')'; }
+
+  renderVals(){
+    const S=this.state, d=S.dark, sel=this.sel(), A=S.assign;
+    const scopeOn=Object.keys(S.scope).filter(k=>S.scope[k]);
+    const scopeLabel=scopeOn.length===2?'HO + Site':(scopeOn[0]==='HO'?'Head Office':(scopeOn[0]==='SITE'?'Site':'None'));
+    const inScope=S.assets.filter(a=>this.inScope(a));
+    const q=S.query.trim().toLowerCase();
+    const visible=inScope.filter(a=>(S.status==='All'||a.status===S.status)&&(!q||[a.code,a.serial,a.name,a.holder,a.dept,a.brand,a.model].join(' ').toLowerCase().includes(q)));
+    const curBast=S.bast.find(b=>b.id===S.curBastId)||S.bast[0];
+    const employees=[
+      {name:'Andi Prasetyo',meta:'Finance · Head Office · NIK 20481'},
+      {name:'Rizky Hidayat',meta:'Operations · Site · NIK 21377'},
+      {name:'Siti Rahayu',meta:'HRGA · Head Office · NIK 19822'},
+      {name:'Budi Santoso',meta:'Procurement · Site · NIK 22104'},
+      {name:'Dewi Lestari',meta:'Corporate IT · Head Office · NIK 18930'},
+    ];
+    const initials=n=>n.split(' ').map(w=>w[0]).slice(0,2).join('');
+    const isReturn=A.mode==='return';
+
+    return {
+      dark:d,
+      themeVars:d?{height:'100%','--c-bg':'#080C15','--c-card':'#131A26','--c-text':'#EAEEF6','--c-sub':'#93A0B8','--c-line':'#232C3C','--c-navy':'#0E1A3D','--c-royal':'#7FA2F0','--c-gold':GOLD,'--c-soft':'#1B2432','--sh':'0 1px 2px rgba(0,0,0,.3)'}:{height:'100%'},
+
+      isHome:S.screen==='home', isAssets:S.screen==='assets', isDetail:S.screen==='detail',
+      isAssign:S.screen==='assign', isBast:S.screen==='bast', isNotif:S.screen==='notif',
+      isMore:S.screen==='more', isMaster:S.screen==='master', isSettings:S.screen==='settings', isAudit:S.screen==='audit',
+      loading:S.loading, ready:!S.loading, skeletons:[1,2,3,4,5,6],
+      hasToast:!!S.toast, toast:S.toast,
+      hasUnread:S.notifs.some(n=>n.unread),
+
+      scopeLabel, scopeOpen:S.scopeOpen,
+      toggleScope:()=>this.setState({scopeOpen:!S.scopeOpen}),
+      scopeSentence:'Scope · '+(scopeOn.length===2?'Head Office and Site':scopeLabel)+' · '+inScope.length+' assets',
+      scopeItems:[{k:'HO',name:'Head Office',meta:'Jakarta · 812 assets'},{k:'SITE',name:'Site',meta:'Konawe operations · 472 assets'}].map(s=>({
+        name:s.name,meta:s.meta,on:!!S.scope[s.k],
+        boxStyle:'width:22px;height:22px;border-radius:7px;flex:none;display:flex;align-items:center;justify-content:center;background:'+(S.scope[s.k]?ROYAL:'transparent')+';border:1.5px solid '+(S.scope[s.k]?ROYAL:(d?'#2A3547':'#C7CEDB')),
+        toggle:()=>this.setState({scope:{...S.scope,[s.k]:!S.scope[s.k]}}),
+      })),
+
+      kpis:[
+        {label:'Total',value:'1,284',delta:'+18 this month',c:NAVY},
+        {label:'Active',value:'1,047',delta:'81.5% of fleet',c:ROYAL},
+        {label:'Maint.',value:'62',delta:'9 overdue',c:'#B26A00'},
+        {label:'Broken',value:'38',delta:'6 for disposal',c:'#E0393E'},
+        {label:'Lost',value:'9',delta:'2 under review',c:'#6B4EE6'},
+        {label:'Retired',value:'128',delta:'archived',c:'#6B7280'},
+      ].map(k=>({...k,dot:dot(k.c)})),
+
+      categoryLegend:[
+        {name:'Laptop',value:539,c:NAVY},{name:'Desktop',value:231,c:ROYAL},{name:'Monitor',value:180,c:'#5B84E8'},
+        {name:'Networking',value:128,c:'#8FB0F5'},{name:'Printer',value:116,c:GOLD},{name:'Others',value:90,c:'#A9B4C7'},
+      ].map(c=>({...c,dot:dot(c.c)})),
+
+      locationBars:[{name:'Head Office',value:812,p:63},{name:'Site',value:472,p:37}].map(b=>({
+        ...b,fill:'height:100%;width:'+b.p+'%;border-radius:8px;background:linear-gradient(90deg,'+NAVY+','+ROYAL+');display:block',
+      })),
+      deptBars:[{name:'Operations',value:386,p:100},{name:'Corporate IT',value:214,p:55},{name:'Finance',value:142,p:37},{name:'HRGA',value:118,p:31},{name:'Procurement',value:96,p:25}].map(b=>({
+        ...b,fill:'height:100%;width:'+b.p+'%;border-radius:8px;background:'+ROYAL+';display:block',
+      })),
+
+      quickActions:[
+        {label:'Add Asset',icon:ICONS.plus,go:()=>this.toast('Add Asset form is next on the roadmap')},
+        {label:'Assign',icon:ICONS.user,go:()=>this.startAssignFlow('assign')},
+        {label:'Transfer',icon:ICONS.move,go:()=>this.toast('Transfer records origin → destination')},
+        {label:'BAST',icon:ICONS.doc,go:()=>this.go('bast',{bastView:'list'})},
+        {label:'Import Excel',icon:ICONS.excel,go:()=>this.toast('Template → fill → upload → validate → import')},
+        {label:'Export',icon:ICONS.download,go:()=>this.toast('Exporting current scope to Excel…')},
+      ],
+
+      activity:[
+        {title:'BAST generated',meta:'BAST/CITE/2026/0182 · Andi Prasetyo',time:'2h',icon:ICONS.doc,c:ROYAL},
+        {title:'Status changed to Maintenance',meta:'LPT012-23-076 · Dell Latitude 5440',time:'5h',icon:ICONS.wrench,c:'#B26A00'},
+        {title:'Asset assigned',meta:'NET031-23-090 · Site Network Rack',time:'1d',icon:ICONS.user,c:'#0F7A47'},
+        {title:'Movement recorded',meta:'Head Office → Site · reason: project rollout',time:'2d',icon:ICONS.move,c:NAVY},
+        {title:'Asset created',meta:'MON122-24-205 · Dell P2422H',time:'3d',icon:ICONS.plus,c:'#6B7280'},
+      ].map(a=>({...a,chip:'width:32px;height:32px;border-radius:11px;flex:none;display:flex;align-items:center;justify-content:center;background:'+(d?'#1B2432':'#F0F3F9')+';color:'+(d?'#B9C6DE':a.c)})),
+
+      query:S.query, hasQuery:!!S.query,
+      onQuery:e=>this.setState({query:e.target.value}),
+      clearQuery:()=>this.setState({query:''}),
+      resetFilters:()=>this.setState({query:'',status:'All',scope:{HO:true,SITE:true}}),
+      assetCountLabel:visible.length+' of '+inScope.length+' in scope · '+scopeLabel,
+      statusFilters:['All','Assigned','Available','Maintenance','Broken','Retired'].map(f=>({
+        label:f,style:this.chipStyle(S.status===f),set:()=>this.setState({status:f}),
+      })),
+      isEmpty:visible.length===0,
+      visibleAssets:visible.map(a=>({
+        code:a.code,name:a.name,holder:a.holder,status:a.status,condition:a.cond,location:a.loc,
+        icon:CATICON[a.cat]||ICONS.box, statusStyle:tag(a.status,d), condStyle:tag(a.cond,d),
+        open:()=>this.go('detail',{selId:a.code,tab:'Overview'}),
+      })),
+
+      sel:{
+        code:sel.code,name:sel.name,brand:sel.brand,category:sel.cat,serial:sel.serial,
+        status:sel.status,condition:sel.cond,location:sel.loc,notes:sel.notes,
+        statusStyle:tag(sel.status,d),condStyle:tag(sel.cond,d),
+        primaryAction:sel.status==='Assigned'?'Return Asset':'Assign Asset',
+      },
+      detailTabs:['Overview','Specs','Timeline','Documents','Assignments','Maintenance'].map(t=>({
+        label:t,style:this.chipStyle(S.tab===t),set:()=>this.setState({tab:t}),
+      })),
+      tabOverview:S.tab==='Overview',tabSpecs:S.tab==='Specs',tabTimeline:S.tab==='Timeline',
+      tabDocs:S.tab==='Documents',tabAssign:S.tab==='Assignments',tabMaint:S.tab==='Maintenance',
+      overviewRows:[
+        {k:'Assigned to',v:sel.holder},{k:'Department',v:sel.dept},{k:'Current location',v:sel.loc},
+        {k:'Purchase date',v:sel.purchase},{k:'Purchase price',v:sel.price},
+        {k:'Warranty',v:sel.wStart+' → '+sel.wEnd},{k:'Vendor',v:sel.vendor},{k:'Model',v:sel.brand+' '+sel.model},
+      ],
+      specRows:sel.specs.map(s=>({k:s[0],v:s[1]})),
+      timeline:[
+        {title:'Purchased',date:sel.purchase,detail:sel.vendor+' · PO-2024-0311 · '+sel.price,tag:'',c:'#6B7280'},
+        {title:'Registered in CITE Assets',date:'20 Mar 2024',detail:'Created by Dewi Lestari · asset sticker '+sel.code+' applied',tag:'',c:ROYAL},
+        {title:'Assigned',date:'22 Mar 2024',detail:'Andi Prasetyo · Finance · Head Office',tag:'BAST/CITE/2024/0412',c:'#0F7A47'},
+        {title:'Moved',date:'11 Nov 2025',detail:'Head Office → Site · reason: audit support assignment',tag:'',c:NAVY},
+        {title:'Maintenance',date:'03 Feb 2026',detail:'Thermal cleaning and SSD firmware update · PT Mitra Solusi',tag:'Completed',c:'#B26A00'},
+        {title:'Returned & reassigned',date:'24 Jul 2026',detail:'Returned to HO store, reassigned to Andi Prasetyo',tag:'BAST/CITE/2026/0182',c:ROYAL},
+      ].map((e,i,arr)=>({
+        ...e,hasTag:!!e.tag,
+        dot:'width:11px;height:11px;border-radius:9px;flex:none;background:'+e.c+';box-shadow:0 0 0 3px '+(d?'rgba(127,162,240,.14)':'rgba(43,87,196,.1)'),
+        rail:i===arr.length-1?'display:none':'flex:1;width:1.5px;background:'+(d?'#232C3C':'#E6EAF2')+';margin:4px 0',
+        tagStyle:'display:inline-block;margin-top:7px;font-size:10px;font-weight:640;letter-spacing:.2px;padding:3px 7px;border-radius:7px;background:'+(d?'#1B2432':'#F0F3F9')+';color:'+(d?'#B9C6DE':'#5A6478')+';border:1px solid '+(d?'#232C3C':'#E6EAF2'),
+      })),
+      documents:[
+        {name:'Invoice-INV-2024-03-118.pdf',meta:'PDF · 412 KB · 18 Mar 2024',ext:'PDF',c:'#E0393E'},
+        {name:'PO-2024-0311.pdf',meta:'PDF · 268 KB · 12 Mar 2024',ext:'PDF',c:'#E0393E'},
+        {name:'Warranty-card-Lenovo.jpg',meta:'JPG · 1.2 MB · 18 Mar 2024',ext:'JPG',c:ROYAL},
+        {name:'BAST-2026-0182-signed.pdf',meta:'PDF · 1.8 MB · 24 Jul 2026',ext:'PDF',c:'#0F7A47'},
+        {name:'User-manual-T14-Gen4.pdf',meta:'PDF · 5.4 MB · 18 Mar 2024',ext:'PDF',c:'#6B7280'},
+      ].map(x=>({...x,chip:'width:34px;height:34px;border-radius:11px;flex:none;display:flex;align-items:center;justify-content:center;font-size:8.5px;font-weight:700;letter-spacing:.3px;color:#fff;background:'+x.c})),
+      assignHistory:[
+        {name:'Andi Prasetyo',dept:'Finance · Head Office',state:'Active',range:'22 Mar 2024 → now',bast:'BAST/CITE/2024/0412'},
+        {name:'Siti Rahayu',dept:'HRGA · Head Office',state:'Returned',range:'04 Jan 2024 → 18 Mar 2024',bast:'BAST/CITE/2024/0088'},
+        {name:'IT Store Room',dept:'Corporate IT · Head Office',state:'Returned',range:'20 Mar 2024 → 22 Mar 2024',bast:'—'},
+      ].map(h=>({...h,initials:initials(h.name),tagStyle:tag(h.state==='Active'?'Active':'Retired',d)})),
+      maintenance:[
+        {state:'Maintenance',title:'Thermal cleaning + SSD firmware',detail:'Fan noise reported by user. Cleaned heatsink, updated firmware to 1.42.',date:'03 Feb 2026',vendor:'PT Mitra Solusi',cost:'Rp 450.000'},
+        {state:'Good',title:'Battery health check',detail:'Battery at 89% design capacity. No action required.',date:'12 Sep 2025',vendor:'Internal · Corporate IT',cost:'Rp 0'},
+        {state:'Maintenance',title:'Keyboard replacement',detail:'Two keys unresponsive after liquid exposure. Unit replaced under warranty.',date:'19 Apr 2025',vendor:'PT Mitra Solusi',cost:'Rp 0 (warranty)'},
+      ].map(m=>({...m,tagStyle:tag(m.state,d)})),
+
+      startAssign:()=>this.startAssignFlow(sel.status==='Assigned'?'return':'assign'),
+      openBastForAsset:()=>this.go('bast',{bastView:'list'}),
+      notImplemented:()=>this.toast('Prototype: action not wired yet'),
+
+      assignActive:!A.done, assignDone:A.done,
+      assignTitle:isReturn?'Return Asset':'Assign Asset',
+      stepNo:A.step, stepName:['Employee','Asset','Details'][A.step-1],
+      stepBars:[1,2,3].map(i=>({style:'flex:1;height:4px;border-radius:4px;background:'+(i<=A.step?NAVY:(d?'#232C3C':'#E1E6F0'))})),
+      step1:A.step===1, step2:A.step===2, step3:A.step===3,
+      employees:employees.map(e=>({
+        name:e.name,meta:e.meta,initials:initials(e.name),on:A.emp===e.name,
+        style:this.pickStyle(A.emp===e.name),
+        pick:()=>this.setState({assign:{...A,emp:e.name,err:''}}),
+      })),
+      assignableAssets:inScope.filter(a=>isReturn?a.status==='Assigned':a.status==='Available'||a.code===sel.code).map(a=>({
+        code:a.code,name:a.name,location:a.loc,condition:a.cond,icon:CATICON[a.cat]||ICONS.box,
+        on:A.asset===a.code,style:this.pickStyle(A.asset===a.code),
+        pick:()=>this.setState({assign:{...A,asset:a.code,err:''}}),
+      })),
+      pickedEmpName:A.emp||'—',
+      pickedEmpInitials:A.emp?initials(A.emp):'—',
+      pickedEmpMeta:(employees.find(e=>e.name===A.emp)||{}).meta||'',
+      pickedAssetCode:A.asset||'—',
+      pickedAssetName:(S.assets.find(a=>a.code===A.asset)||{}).name||'',
+      assignDate:A.date, returnDate:A.ret, assignNotes:A.notes,
+      onAssignDate:e=>this.setState({assign:{...A,date:e.target.value,dateErr:false,err:''}}),
+      onReturnDate:e=>this.setState({assign:{...A,ret:e.target.value}}),
+      onAssignNotes:e=>this.setState({assign:{...A,notes:e.target.value}}),
+      dateError:A.dateErr,
+      dateFieldStyle:'width:100%;box-sizing:border-box;height:44px;padding:0 13px;border-radius:13px;background:'+(d?'#131A26':'#fff')+';color:'+(d?'#EAEEF6':'#0B1220')+';font-family:inherit;font-size:13px;outline:0;border:1px solid '+(A.dateErr?'#E0393E':(d?'#232C3C':'#E6EAF2')),
+      toggleAutoBast:()=>this.setState({assign:{...A,autoBast:!A.autoBast}}),
+      autoBastTrack:this.track(A.autoBast), autoBastKnob:this.knob(A.autoBast),
+      canGoBack:A.step>1, stepBack:()=>this.setState({assign:{...A,step:A.step-1,err:''}}),
+      nextLabel:A.step===3?(isReturn?'Confirm return':'Confirm assignment'):'Continue',
+      nextBtnStyle:'flex:1;height:46px;border-radius:14px;border:0;background:'+NAVY+';color:#fff;font-size:13.5px;font-weight:640;font-family:inherit;cursor:pointer',
+      stepError:!!A.err, stepErrorMsg:A.err,
+      stepNext:()=>this.advance(),
+      cancelAssign:()=>this.go('home'),
+      doneTitle:isReturn?'Asset returned':'Assignment created',
+      doneSub:isReturn?'The asset is back in the Head Office store room and its movement history has been updated.':(A.autoBast?'A BAST draft has been created and the assignment history updated.':'Assignment history updated. No BAST was generated.'),
+      doneRows:[
+        {k:isReturn?'Returned by':'Employee',v:A.emp||'—'},
+        {k:'Asset',v:(A.asset||'—')},
+        {k:'Date',v:A.date},
+        {k:'BAST',v:A.autoBast?'BAST/CITE/2026/0183 (draft)':'Not generated'},
+      ],
+      generateBast:()=>{ this.toast('BAST/CITE/2026/0183 generated'); this.go('bast',{bastView:'list'}); },
+
+      bastList:S.bastView==='list', bastDetail:S.bastView==='detail',
+      bastCountLabel:S.bast.length+' documents · '+scopeLabel,
+      bastStats:[{label:'Signed',value:2},{label:'Awaiting',value:1},{label:'Draft',value:1}],
+      bastRecords:S.bast.map(b=>({
+        number:b.id,date:b.date,asset:b.asset,employee:b.employee,dept:b.dept,location:b.location,
+        status:b.status,tagStyle:tag(b.status,d),
+        open:()=>this.setState({bastView:'detail',curBastId:b.id,upload:b.status==='Signed'?'done':'idle',uploadPct:0}),
+      })),
+      curBast:{number:curBast.id,status:curBast.status,tagStyle:tag(curBast.status,d),employee:curBast.employee,dept:curBast.dept,longDate:curBast.longDate},
+      bastDocRows:[
+        {k:'Asset Code',v:curBast.code},{k:'Nama Aset',v:curBast.asset},
+        {k:'Penerima',v:curBast.employee},{k:'Departemen',v:curBast.dept},
+        {k:'Lokasi',v:curBast.location},{k:'Kondisi',v:'Baik / Good'},
+      ],
+      backToBastList:()=>this.setState({bastView:'list'}),
+      uploadIdle:S.upload==='idle', uploading:S.upload==='busy', uploaded:S.upload==='done',
+      uploadPctLabel:'Uploading · '+S.uploadPct+'%',
+      uploadFill:'height:100%;width:'+S.uploadPct+'%;border-radius:6px;background:linear-gradient(90deg,'+NAVY+','+ROYAL+')',
+      startUpload:()=>this.runUpload(),
+      bastVersions:[
+        {title:'Signed scan uploaded',date:'25 Jul 2026',by:'Dewi Lestari · Corporate IT'},
+        {title:'PDF generated (v1)',date:'24 Jul 2026',by:'System · on assignment created'},
+      ].map((v,i,arr)=>({
+        ...v,dot:'width:9px;height:9px;border-radius:9px;flex:none;background:'+(i===0?ROYAL:'#A9B4C7'),
+        rail:i===arr.length-1?'display:none':'flex:1;width:1.5px;background:'+(d?'#232C3C':'#E6EAF2')+';margin:3px 0',
+      })),
+
+      unreadLabel:S.notifs.filter(n=>n.unread).length+' unread · scope '+scopeLabel,
+      markAllRead:()=>{ this.setState({notifs:S.notifs.map(n=>({...n,unread:false}))}); this.toast('All notifications marked read'); },
+      notifGroups:['Today','Yesterday'].map(g=>({
+        label:g,
+        items:S.notifs.filter(n=>n.g===g).map(n=>({
+          title:n.title,body:n.body,time:n.time,unread:n.unread,icon:n.icon,
+          chip:'width:32px;height:32px;border-radius:11px;flex:none;display:flex;align-items:center;justify-content:center;background:'+(d?'#1B2432':'#F0F3F9')+';color:'+(d?'#B9C6DE':n.c),
+          style:'width:100%;display:flex;align-items:flex-start;gap:11px;padding:13px 15px;border:0;border-bottom:1px solid '+(d?'#232C3C':'#E6EAF2')+';background:'+(n.unread?(d?'rgba(127,162,240,.06)':'rgba(43,87,196,.035)'):'transparent')+';cursor:pointer;font-family:inherit;color:'+(d?'#EAEEF6':'#0B1220'),
+          open:()=>{
+            this.setState({notifs:S.notifs.map(x=>x===n?{...x,unread:false}:x)});
+            if(n.go==='detail') this.go('detail',{selId:n.asset,tab:'Overview'});
+            else if(n.go==='bast') this.go('bast',{bastView:'list'});
+          },
+        })),
+      })),
+
+      moreItems:[
+        {label:'Movement',sub:'Transfer history between HO and Site',icon:ICONS.move,go:()=>this.toast('Movement history is read-only and cannot be deleted')},
+        {label:'Maintenance',sub:'Open tickets and service records',icon:ICONS.wrench,go:()=>this.go('detail',{selId:'LPT012-23-076',tab:'Maintenance'})},
+        {label:'Documents',sub:'Invoices, POs, warranty cards, BAST',icon:ICONS.doc,go:()=>this.go('detail',{tab:'Documents'})},
+        {label:'Reports & Export',sub:'Excel and PDF with filters',icon:ICONS.chart,go:()=>this.toast('Export queued for current scope')},
+        {label:'Import Excel',sub:'Template → validate → import',icon:ICONS.excel,go:()=>this.toast('Download template, then upload to validate')},
+        {label:'Master data',sub:'Category, Brand, Vendor, Department…',icon:ICONS.grid,go:()=>this.go('master')},
+        {label:'Audit log',sub:'Immutable record of every action',icon:ICONS.shield,go:()=>this.go('audit')},
+        {label:'Settings',sub:'Profile, accounts, theme, language',icon:ICONS.gear,go:()=>this.go('settings')},
+      ],
+
+      masterTabs:Object.keys(S.master).map(t=>({label:t,style:this.chipStyle(S.masterTab===t),set:()=>this.setState({masterTab:t,masterDraft:'',masterEdit:null,masterErr:''})})),
+      masterDraft:S.masterDraft,
+      masterPlaceholder:'New '+S.masterTab.toLowerCase()+' name',
+      masterSaveLabel:S.masterEdit===null?'Add':'Save',
+      onMasterDraft:e=>this.setState({masterDraft:e.target.value,masterErr:''}),
+      masterSave:()=>this.saveMaster(),
+      masterError:!!S.masterErr, masterErrorMsg:S.masterErr,
+      masterEmpty:S.master[S.masterTab].length===0,
+      masterItems:S.master[S.masterTab].map((name,i)=>({
+        name,meta:S.masterTab+' · used by '+(7+((i*13)%42))+' assets',
+        edit:()=>this.setState({masterDraft:name,masterEdit:i}),
+        del:()=>{ const list=S.master[S.masterTab].filter((_,j)=>j!==i); this.setState({master:{...S.master,[S.masterTab]:list},masterEdit:null,masterDraft:''}); this.toast(name+' deleted'); },
+      })),
+
+      themeLabel:d?'On · easier on the eyes at site':'Off · following light theme',
+      toggleDark:()=>this.setState({dark:!d}),
+      darkTrack:this.track(d), darkKnob:this.knob(d),
+      langOptions:[{k:'EN',label:'EN'},{k:'ID',label:'ID'}].map(l=>({
+        label:l.label,set:()=>this.setState({lang:l.k}),
+        style:'height:28px;padding:0 12px;border-radius:9px;border:0;cursor:pointer;font-family:inherit;font-size:11.5px;font-weight:650;'+(S.lang===l.k?'background:'+(d?'#131A26':'#fff')+';color:'+(d?'#EAEEF6':NAVY)+';box-shadow:0 1px 3px rgba(11,18,32,.14)':'background:transparent;color:'+(d?'#93A0B8':'#5A6478')),
+      })),
+      accountFormOpen:S.acctForm,
+      accountFormLabel:S.acctForm?'Close':'+ New account',
+      toggleAccountForm:()=>this.setState({acctForm:!S.acctForm}),
+      acctName:S.acct.name, acctDept:S.acct.dept, acctLoc:S.acct.loc, acctCanLogin:S.acct.canLogin, acctError:S.acct.err,
+      acctNameStyle:'width:100%;box-sizing:border-box;height:42px;padding:0 13px;border-radius:12px;background:'+(d?'#131A26':'#fff')+';color:'+(d?'#EAEEF6':'#0B1220')+';font-family:inherit;font-size:13px;outline:0;border:1px solid '+(S.acct.err?'#E0393E':(d?'#232C3C':'#E6EAF2')),
+      onAcctName:e=>this.setState({acct:{...S.acct,name:e.target.value,err:false}}),
+      onAcctDept:e=>this.setState({acct:{...S.acct,dept:e.target.value}}),
+      onAcctLoc:e=>this.setState({acct:{...S.acct,loc:e.target.value}}),
+      toggleAcctLogin:()=>this.setState({acct:{...S.acct,canLogin:!S.acct.canLogin}}),
+      acctLoginTrack:this.track(S.acct.canLogin), acctLoginKnob:this.knob(S.acct.canLogin),
+      deptOptions:S.master.Department, locOptions:S.master.Location,
+      roleOptions:['Super Admin','Corporate IT','Site IT','Viewer'].map(r=>({
+        label:r,set:()=>this.setState({acct:{...S.acct,role:r}}),style:this.chipStyle(S.acct.role===r),
+      })),
+      createAccount:()=>this.addAccount(),
+      accounts:S.accounts.map(a=>({
+        name:a.name,meta:a.meta,initials:initials(a.name),
+        avatar:'width:34px;height:34px;border-radius:11px;flex:none;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:650;color:#fff;background:'+(a.login?NAVY:'#8B94A7'),
+        tag:a.login?a.role:'No login',tagStyle:tag(a.login?'Assigned':'Retired',d),
+      })),
+      settingsRows:[
+        {label:'Notification settings',value:'6 types on',go:()=>this.toast('Warranty, assignment, BAST, maintenance, import')},
+        {label:'Default data scope',value:scopeLabel,go:()=>this.setState({scopeOpen:true})},
+        {label:'About CITE Assets',value:'v1.0.0',go:()=>this.toast('CITE Assets · Corporate IT')},
+      ],
+
+      auditRows:[
+        {action:'Status Changed',target:'LPT012-23-076 · Dell Latitude 5440',oldValue:'Assigned',newValue:'Maintenance',by:'Site IT · Rizky Hidayat · Android · 10.20.4.51',time:'Today 06:30',c:'#B26A00'},
+        {action:'BAST Generated',target:'BAST/CITE/2026/0182',oldValue:'—',newValue:'Awaiting signature',by:'System · triggered by assignment',time:'Today 07:51',c:ROYAL},
+        {action:'Assignment Created',target:'LPT045-24-118 → Andi Prasetyo',oldValue:'Available',newValue:'Assigned',by:'Corporate IT · Dewi Lestari · iOS',time:'24 Jul 09:12',c:'#0F7A47'},
+        {action:'Movement Recorded',target:'NET031-23-090 · Catalyst 9200-24T',oldValue:'Head Office',newValue:'Site',by:'Corporate IT · Dewi Lestari · Web',time:'22 Jul 14:03',c:NAVY},
+        {action:'Asset Updated',target:'MON122-24-205 · Dell P2422H',oldValue:'Store room A-01',newValue:'Store room B-04',by:'Corporate IT · Budi Santoso · Android',time:'20 Jul 08:47',c:'#6B7280'},
+      ].map(a=>({...a,tagStyle:'font-size:10px;font-weight:650;letter-spacing:.2px;padding:4px 8px;border-radius:8px;background:'+(d?'#1B2432':'#F0F3F9')+';color:'+(d?'#B9C6DE':a.c)+';border:1px solid '+(d?'#232C3C':'#E6EAF2')})),
+
+      navLeft:[
+        {label:'Home',icon:ICONS.home,active:S.screen==='home',go:()=>this.go('home')},
+        {label:'Assets',icon:ICONS.box,active:S.screen==='assets'||S.screen==='detail',go:()=>this.go('assets')},
+      ].map(n=>({...n,style:this.navStyle(n.active)})),
+      navRight:[
+        {label:'BAST',icon:ICONS.doc,active:S.screen==='bast',go:()=>this.go('bast',{bastView:'list'})},
+        {label:'More',icon:ICONS.grid,active:['more','master','settings','audit'].includes(S.screen),go:()=>this.go('more')},
+      ].map(n=>({...n,style:this.navStyle(n.active)})),
+      goHome:()=>this.go('home'), goAssets:()=>this.go('assets'), goMore:()=>this.go('more'),
+      goAudit:()=>this.go('audit'), openNotif:()=>this.go('notif'),
+      fabOpen:S.fabOpen, openFab:()=>this.setState({fabOpen:true}), closeFab:()=>this.setState({fabOpen:false}),
+      fabActions:[
+        {label:'Add Asset',sub:'Register new equipment',icon:ICONS.plus,go:()=>{this.setState({fabOpen:false});this.toast('Add Asset form is next on the roadmap');}},
+        {label:'Assign Asset',sub:'Handover to employee',icon:ICONS.user,go:()=>this.startAssignFlow('assign')},
+        {label:'Transfer Asset',sub:'HO ↔ Site movement',icon:ICONS.move,go:()=>{this.setState({fabOpen:false});this.toast('Movement recorded with origin and destination');}},
+        {label:'Generate BAST',sub:'Berita Acara Serah Terima',icon:ICONS.doc,go:()=>this.go('bast',{bastView:'list'})},
+      ],
+    };
+  }
+
+  startAssignFlow(mode){
+    const sel=this.sel();
+    this.go('assign',{assign:{mode,step:1,emp:null,asset:mode==='return'?sel.code:null,date:'2026-07-29',ret:'',notes:'',autoBast:true,err:'',dateErr:false,done:false}});
+  }
+  advance(){
+    const A=this.state.assign;
+    if(A.step===1&&!A.emp) return this.setState({assign:{...A,err:'Select an employee to continue'}});
+    if(A.step===2&&!A.asset) return this.setState({assign:{...A,err:'Select an asset to continue'}});
+    if(A.step===3){
+      if(!A.date) return this.setState({assign:{...A,dateErr:true,err:'Fill the required field'}});
+      const assets=this.state.assets.map(a=>a.code===A.asset?{...a,
+        status:A.mode==='return'?'Available':'Assigned',
+        holder:A.mode==='return'?'Unassigned · IT store room':A.emp+' · '+((['Andi Prasetyo','Finance'],A.emp==='Rizky Hidayat'?'Operations':A.emp==='Siti Rahayu'?'HRGA':A.emp==='Budi Santoso'?'Procurement':A.emp==='Dewi Lestari'?'Corporate IT':'Finance')),
+      }:a);
+      this.setState({assets,assign:{...A,done:true,err:''}});
+      this.toast(A.mode==='return'?'Asset returned successfully':'Assignment created successfully');
+      return;
+    }
+    this.setState({assign:{...A,step:A.step+1,err:''}});
+  }
+  saveMaster(){
+    const S=this.state, name=S.masterDraft.trim(), list=S.master[S.masterTab];
+    if(!name) return this.setState({masterErr:'Enter a name first'});
+    if(list.some((x,i)=>x.toLowerCase()===name.toLowerCase()&&i!==S.masterEdit)) return this.setState({masterErr:'"'+name+'" already exists in '+S.masterTab});
+    const next=S.masterEdit===null?[...list,name]:list.map((x,i)=>i===S.masterEdit?name:x);
+    this.setState({master:{...S.master,[S.masterTab]:next},masterDraft:'',masterEdit:null,masterErr:''});
+    this.toast(S.masterEdit===null?name+' added to '+S.masterTab:'Record updated');
+  }
+  addAccount(){
+    const a=this.state.acct;
+    if(!a.name.trim()) return this.setState({acct:{...a,err:true}});
+    const acc={name:a.name.trim(),meta:a.dept+' · '+a.loc,login:a.canLogin,role:a.canLogin?a.role:''};
+    this.setState({accounts:[acc,...this.state.accounts],acctForm:false,acct:{name:'',dept:'Operations',loc:'Site',canLogin:true,role:'Site IT',err:false}});
+    this.toast(a.canLogin?acc.name+' can now sign in':acc.name+' added as assignable record');
+  }
+  runUpload(){
+    clearInterval(this._up); this.setState({upload:'busy',uploadPct:0});
+    this._up=setInterval(()=>{
+      const p=this.state.uploadPct+11;
+      if(p>=100){ clearInterval(this._up); this.setState({uploadPct:100,upload:'done',
+        bast:this.state.bast.map(b=>b.id===this.state.curBastId?{...b,status:'Signed'}:b)});
+        this.toast('Signed BAST uploaded · status set to Signed');
+      } else this.setState({uploadPct:p});
+    },180);
+  }
+}
+</script>
+</body>
+</html>
