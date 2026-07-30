@@ -170,7 +170,7 @@ at runtime and `127.0.0.1` means _the phone itself_. The `preview` profile in
 `eas.json` therefore carries this machine's LAN address:
 
 ```
-EXPO_PUBLIC_SUPABASE_URL=http://192.168.0.8:54321
+EXPO_PUBLIC_SUPABASE_URL=http://10.10.55.80:54321
 ```
 
 Change it whenever this machine joins a different network — `npm run lan-ip`
