@@ -139,6 +139,18 @@ The first run creates the EAS project and generates an Android keystore. **Let
 Expo hold that keystore** — every future update to the same app has to be signed
 with it, and losing it means a new package name.
 
+`eas-cli` is deliberately **not** a project dependency: as a devDependency it
+gets installed on the builder along with its own TypeScript and native-runtime
+tree, for no benefit. Install it globally (`npm i -g eas-cli`).
+
+`scripts/eas-build-pre-install.mjs` deletes `package-lock.json` on the builder
+so EAS resolves with `npm install` rather than `npm ci`. That file explains why
+in full; the short version is that one npm lockfile cannot describe the optional,
+platform-conditional dependency trees of both Windows and Linux, so `npm ci`
+fails on the builder no matter how the lockfile is generated. The trade-off is
+that builds are not byte-reproducible — **move to pnpm or Yarn and delete the
+hook before this ships for real.**
+
 ### iOS — needs an Apple Developer account
 
 An `.ipa` that installs on a real iPhone requires a paid Apple Developer
