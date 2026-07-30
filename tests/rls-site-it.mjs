@@ -25,6 +25,10 @@ const PASSWORD = 'cite-dev-2026';
 const HO_CODES = ['LPT045-24-118', 'MON122-24-205', 'SRV003-21-014', 'LPT099-21-004'];
 const SITE_CODES = ['LPT012-23-076', 'PRN008-22-031', 'NET031-23-090'];
 
+const SEEDED_ALL = [...HO_CODES, ...SITE_CODES];
+const has = (rows, codes) =>
+  codes.every((c) => (rows ?? []).some((r) => (r.asset_code ?? r) === c));
+
 let failures = 0;
 
 function check(name, condition, detail = '') {
@@ -59,7 +63,7 @@ async function run() {
     const { data, error } = await db.from('assets').select('asset_code');
     check('reads assets without error', !error, error?.message);
     const codes = (data ?? []).map((r) => r.asset_code).sort();
-    check('sees all 7 assets', codes.length === 7, `got ${codes.length}`);
+    check('sees every seeded asset, both locations', has(codes, SEEDED_ALL), codes.join(', '));
 
     const { data: session } = await db.rpc('bootstrap_session');
     check('bootstrap_session returns an account', Boolean(session?.account));
@@ -99,19 +103,25 @@ async function run() {
   console.log('\nSite IT — Siti Rahayu (Head Office)');
   {
     const db = await clientFor('siti.rahayu@cite.co.id');
-    const { data, error } = await db.from('assets').select('asset_code');
+    const { data, error } = await db.from('assets').select('asset_code, location_id');
     check('reads assets without error', !error, error?.message);
 
+    const { data: locs } = await db.from('locations').select('id, code');
+    const hoId = locs.find((l) => l.code === 'HO').id;
     const codes = (data ?? []).map((r) => r.asset_code).sort();
-    check('sees exactly 4 assets', codes.length === 4, `got ${codes.length}: ${codes.join(', ')}`);
+
+    // Stated by LOCATION rather than by a list of seeded codes: the claim is
+    // "Site IT sees its own location and nothing else", which must stay true
+    // however many assets the register grows to.
     check(
-      'sees only Head Office assets',
-      codes.every((c) => HO_CODES.includes(c)),
+      'every visible asset is at Head Office',
+      (data ?? []).length > 0 && (data ?? []).every((r) => r.location_id === hoId),
       codes.join(', '),
     );
+    check('all the seeded Head Office assets are visible', has(codes, HO_CODES), codes.join(', '));
     check(
-      'sees no Site assets',
-      codes.every((c) => !SITE_CODES.includes(c)),
+      'no Site asset leaks through',
+      !SITE_CODES.some((c) => codes.includes(c)),
       codes.join(', '),
     );
 
@@ -140,9 +150,16 @@ async function run() {
   console.log('\nViewer — Andi Prasetyo');
   {
     const db = await clientFor('andi.prasetyo@cite.co.id');
-    const { data, error } = await db.from('assets').select('asset_code');
+    const { data, error } = await db.from('assets').select('asset_code, location_id');
     check('reads assets without error', !error, error?.message);
-    check('sees only Head Office assets', (data ?? []).length === 4, `got ${data?.length}`);
+
+    const { data: locs } = await db.from('locations').select('id, code');
+    const hoId = locs.find((l) => l.code === 'HO').id;
+    check(
+      'a Viewer also sees only its own location',
+      (data ?? []).length > 0 && (data ?? []).every((r) => r.location_id === hoId),
+      (data ?? []).map((r) => r.asset_code).join(', '),
+    );
 
     // A Viewer has no write policy on assets, so the update must affect nothing.
     const { data: updated } = await db

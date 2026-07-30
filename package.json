@@ -22,8 +22,9 @@
     "test:register": "node --env-file-if-exists=.env tests/asset-register.mjs",
     "test:assign": "node --env-file-if-exists=.env tests/assign-movement.mjs",
     "test:bast": "node --env-file-if-exists=.env tests/bast.mjs",
-    "test": "npm run test:rls && npm run test:master && npm run test:register && npm run test:assign && npm run test:bast",
-    "eas-build-pre-install": "node scripts/eas-build-pre-install.mjs"
+    "test": "npm run test:rls && npm run test:master && npm run test:register && npm run test:assign && npm run test:bast && npm run test:tags",
+    "eas-build-pre-install": "node scripts/eas-build-pre-install.mjs",
+    "test:tags": "node --env-file-if-exists=.env tests/asset-tags.mjs"
   },
   "dependencies": {
     "@expo-google-fonts/inter": "^0.4.2",

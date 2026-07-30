@@ -8,7 +8,15 @@
  */
 
 import React, { useState } from 'react';
-import { Image, KeyboardAvoidingView, Platform, StyleSheet, Text, View } from 'react-native';
+import {
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Lock, Mail } from 'lucide-react-native';
@@ -54,74 +62,87 @@ export default function SignInScreen() {
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={{ flex: 1, backgroundColor: t.color.bg }}
     >
-      <LinearGradient
-        colors={[...t.gradients.navy.colors]}
-        locations={[...t.gradients.navy.locations]}
-        start={t.gradients.navy.start}
-        end={t.gradients.navy.end}
-        style={[styles.hero, { paddingTop: insets.top + 44 }]}
+      {/*
+       * Scrollable on purpose. Without it the Sign in button is simply clipped
+       * on a short screen or once the soft keyboard is up, with no way to reach
+       * it — and `insets.bottom` matters because edge-to-edge is mandatory from
+       * Android 16, so the gesture bar overlays the last row of content.
+       */}
+      <ScrollView
+        contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 28 }]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        bounces={false}
       >
-        <Image source={logo} style={styles.logo} resizeMode="contain" />
-        <Text style={[t.type.screenTitle, styles.heroTitle, { color: t.color.onNavy }]}>
-          CITE Assets
-        </Text>
-        <Text style={[t.type.appSubtitle, { color: t.color.gold }]}>IT ASSET MANAGEMENT</Text>
-      </LinearGradient>
-
-      <View style={styles.body}>
-        <Card padding={18}>
-          <Text style={[t.type.cardHeading, { color: t.color.text }]}>Sign in</Text>
-          <Text style={[t.type.meta, styles.lead, { color: t.color.sub }]}>
-            Use the credentials issued by Corporate IT.
+        <LinearGradient
+          colors={[...t.gradients.navy.colors]}
+          locations={[...t.gradients.navy.locations]}
+          start={t.gradients.navy.start}
+          end={t.gradients.navy.end}
+          style={[styles.hero, { paddingTop: insets.top + 44 }]}
+        >
+          <Image source={logo} style={styles.logo} resizeMode="contain" />
+          <Text style={[t.type.screenTitle, styles.heroTitle, { color: t.color.onNavy }]}>
+            CITE Assets
           </Text>
+          <Text style={[t.type.appSubtitle, { color: t.color.gold }]}>IT ASSET MANAGEMENT</Text>
+        </LinearGradient>
 
-          <Input
-            label="Email"
-            required
-            value={email}
-            onChangeText={setEmail}
-            error={emailError}
-            placeholder="name@cite.co.id"
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="email-address"
-            textContentType="emailAddress"
-            icon={<Mail size={16} color={t.color.sub} strokeWidth={1.7} />}
-            containerStyle={styles.field}
-          />
-
-          <Input
-            label="Password"
-            required
-            value={password}
-            onChangeText={setPassword}
-            error={passwordError}
-            placeholder="••••••••"
-            secureTextEntry
-            autoCapitalize="none"
-            textContentType="password"
-            icon={<Lock size={16} color={t.color.sub} strokeWidth={1.7} />}
-            containerStyle={styles.field}
-            onSubmitEditing={submit}
-            returnKeyType="go"
-          />
-
-          <Button label="Sign in" onPress={submit} loading={busy} block style={styles.submit} />
-
-          {formError ? (
-            <Text style={[t.type.meta, styles.formError, { color: t.color.error }]}>
-              {formError}
+        <View style={styles.body}>
+          <Card padding={18}>
+            <Text style={[t.type.cardHeading, { color: t.color.text }]}>Sign in</Text>
+            <Text style={[t.type.meta, styles.lead, { color: t.color.sub }]}>
+              Use the credentials issued by Corporate IT.
             </Text>
-          ) : null}
-        </Card>
 
-        <Text style={[t.type.meta, styles.build, { color: t.color.sub }]}>
-          CITE Assets v1.0.0 · Build 2026.07
-        </Text>
-      </View>
+            <Input
+              label="Email"
+              required
+              value={email}
+              onChangeText={setEmail}
+              error={emailError}
+              placeholder="name@cite.co.id"
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="email-address"
+              textContentType="emailAddress"
+              icon={<Mail size={16} color={t.color.sub} strokeWidth={1.7} />}
+              containerStyle={styles.field}
+            />
+
+            <Input
+              label="Password"
+              required
+              value={password}
+              onChangeText={setPassword}
+              error={passwordError}
+              placeholder="••••••••"
+              secureTextEntry
+              autoCapitalize="none"
+              textContentType="password"
+              icon={<Lock size={16} color={t.color.sub} strokeWidth={1.7} />}
+              containerStyle={styles.field}
+              onSubmitEditing={submit}
+              returnKeyType="go"
+            />
+
+            <Button label="Sign in" onPress={submit} loading={busy} block style={styles.submit} />
+
+            {formError ? (
+              <Text style={[t.type.meta, styles.formError, { color: t.color.error }]}>
+                {formError}
+              </Text>
+            ) : null}
+          </Card>
+
+          <Text style={[t.type.meta, styles.build, { color: t.color.sub }]}>
+            CITE Assets v1.0.0 · Build 2026.07
+          </Text>
+        </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
@@ -130,6 +151,7 @@ const styles = StyleSheet.create({
   hero: { alignItems: 'center', paddingBottom: 40, paddingHorizontal: 18 },
   logo: { width: 54, height: 54, marginBottom: 12 },
   heroTitle: { marginBottom: 2 },
+  scroll: { flexGrow: 1 },
   body: { flex: 1, paddingHorizontal: 18, marginTop: -22 },
   lead: { marginTop: 4, marginBottom: 16 },
   field: { marginBottom: 13 },

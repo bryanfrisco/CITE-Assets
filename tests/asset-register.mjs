@@ -17,6 +17,12 @@ const URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? 'http://127.0.0.1:54321';
 const ANON = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 const PASSWORD = 'cite-dev-2026';
 
+const SEEDED_HO = ['LPT045-24-118', 'MON122-24-205', 'SRV003-21-014', 'LPT099-21-004'];
+const SEEDED_SITE = ['LPT012-23-076', 'PRN008-22-031', 'NET031-23-090'];
+const SEEDED_ALL = [...SEEDED_HO, ...SEEDED_SITE];
+const has = (rows, codes) =>
+  codes.every((c) => (rows ?? []).some((r) => (r.asset_code ?? r) === c));
+
 let failures = 0;
 
 function check(name, condition, detail = '') {
@@ -56,8 +62,8 @@ async function run() {
     const all = await search('');
     check(
       'empty query returns every asset in scope',
-      all.data?.length === 7,
-      `got ${all.data?.length}`,
+      has(all.data, SEEDED_ALL),
+      (all.data ?? []).map((r) => r.asset_code).join(', '),
     );
 
     // The two the acceptance criterion names.
@@ -113,8 +119,9 @@ async function run() {
     const scoped = await search('', hoOnly);
     check(
       'scope narrows the list to Head Office',
-      scoped.data?.length === 4,
-      `got ${scoped.data?.length}`,
+      has(scoped.data, SEEDED_HO) &&
+        !SEEDED_SITE.some((c) => (scoped.data ?? []).some((r) => r.asset_code === c)),
+      (scoped.data ?? []).map((r) => r.asset_code).join(', '),
     );
 
     const scopedSite = await search('PF3XK92L', [locations.find((l) => l.code === 'SITE').id]);
@@ -124,7 +131,11 @@ async function run() {
     );
 
     const count = await admin.rpc('count_assets_in_scope', { p_locations: allScope });
-    check('scope count feeds the "n of m in scope" line', count.data === 7, `got ${count.data}`);
+    check(
+      'scope count feeds the "n of m in scope" line',
+      count.data >= SEEDED_ALL.length,
+      `got ${count.data}`,
+    );
   }
 
   console.log('\nScope is a filter, RLS is the boundary');
@@ -138,8 +149,9 @@ async function run() {
     });
     check(
       'Site IT asking for a wider scope still only gets its own location',
-      overreach.data?.length === 4,
-      `got ${overreach.data?.length}`,
+      has(overreach.data, SEEDED_HO) &&
+        !SEEDED_SITE.some((c) => (overreach.data ?? []).some((r) => r.asset_code === c)),
+      (overreach.data ?? []).map((r) => r.asset_code).join(', '),
     );
     check(
       'no Site rows leak through the widened scope',

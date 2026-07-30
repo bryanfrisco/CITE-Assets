@@ -123,12 +123,18 @@ async function run() {
   {
     const list = await admin.rpc('master_list', { p_entity: 'category' });
     const laptop = list.data.find((r) => r.name === 'Laptop');
-    check('Laptop reports its asset usage', laptop?.assetCount === 3, `got ${laptop?.assetCount}`);
+    // Read the count rather than hardcode it: the register grows, and what is
+    // under test is the COPY, not how many laptops happen to exist.
+    check(
+      'Laptop reports a non-zero asset usage',
+      typeof laptop?.assetCount === 'number' && laptop.assetCount > 0,
+      `got ${laptop?.assetCount}`,
+    );
 
     const blocked = await admin.rpc('master_delete', { p_entity: 'category', p_id: laptop.id });
     check(
       'referenced category cannot be deleted, with the exact copy',
-      blocked.error?.message === 'Cannot delete Laptop — still used by 3 assets',
+      blocked.error?.message === `Cannot delete Laptop — still used by ${laptop.assetCount} assets`,
       blocked.error?.message,
     );
 
