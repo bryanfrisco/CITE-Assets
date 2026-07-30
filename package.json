@@ -11,8 +11,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "format": "prettier --write \"**/*.{ts,tsx,json,md}\"",
-    "build:apk": "npx eas-cli build --platform android --profile preview",
-    "build:ios": "npx eas-cli build --platform ios --profile preview-device",
+    "build:apk": "eas build --platform android --profile preview",
+    "build:ios": "eas build --platform ios --profile preview-device",
     "build:icons": "node scripts/build-app-icons.mjs",
     "lan-ip": "node scripts/lan-ip.mjs",
     "db:reset": "supabase db reset",
@@ -59,7 +59,6 @@
   "devDependencies": {
     "@types/react": "^19.2.17",
     "babel-plugin-module-resolver": "^5.0.3",
-    "eas-cli": "^21.4.0",
     "eslint": "^9.39.5",
     "eslint-config-expo": "^57.0.0",
     "eslint-config-prettier": "^10.1.8",
