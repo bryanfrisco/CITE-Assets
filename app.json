@@ -11,9 +11,6 @@
       "supportsTablet": false,
       "bundleIdentifier": "id.co.cite.assets",
       "infoPlist": {
-        "NSAppTransportSecurity": {
-          "NSAllowsLocalNetworking": true
-        },
         "NSPhotoLibraryUsageDescription": "CITE Assets attaches photos of an asset to its record.",
         "NSCameraUsageDescription": "CITE Assets takes a photo of an asset for its record."
       }
@@ -44,15 +41,7 @@
           "imageWidth": 180
         }
       ],
-      "expo-system-ui",
-      [
-        "expo-build-properties",
-        {
-          "android": {
-            "usesCleartextTraffic": true
-          }
-        }
-      ]
+      "expo-system-ui"
     ],
     "experiments": {
       "typedRoutes": true

@@ -13,9 +13,13 @@
 
 import { createClient } from '@supabase/supabase-js';
 
+import { assertLocal } from './_guard.mjs';
+
 const URL = process.env.EXPO_PUBLIC_SUPABASE_URL ?? 'http://127.0.0.1:54321';
 const ANON = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 const PASSWORD = 'cite-dev-2026';
+
+assertLocal(URL);
 
 const SEEDED_HO = ['LPT045-24-118', 'MON122-24-205', 'SRV003-21-014', 'LPT099-21-004'];
 const SEEDED_SITE = ['LPT012-23-076', 'PRN008-22-031', 'NET031-23-090'];

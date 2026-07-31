@@ -7,25 +7,41 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
-      "android": { "buildType": "apk" },
-      "ios": { "simulator": true }
+      "android": {
+        "buildType": "apk"
+      },
+      "ios": {
+        "simulator": true
+      }
     },
     "preview": {
       "distribution": "internal",
-      "android": { "buildType": "apk" },
-      "ios": { "simulator": true },
+      "android": {
+        "buildType": "apk"
+      },
+      "ios": {
+        "simulator": true
+      },
       "env": {
-        "EXPO_PUBLIC_SUPABASE_URL": "http://10.10.55.80:54321",
-        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0"
+        "EXPO_PUBLIC_SUPABASE_URL": "https://umrpgftjxpiacverkilg.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVtcnBnZnRqeHBpYWN2ZXJraWxnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUyNzcwNzcsImV4cCI6MjEwMDg1MzA3N30.BCy02YeTRKvNW-6gnfOf3mgbjFFSJtIKDLyktWEI09k"
       }
     },
     "preview-device": {
       "extends": "preview",
-      "ios": { "simulator": false }
+      "ios": {
+        "simulator": false
+      }
     },
     "production": {
       "autoIncrement": true,
-      "android": { "buildType": "app-bundle" }
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://umrpgftjxpiacverkilg.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVtcnBnZnRqeHBpYWN2ZXJraWxnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUyNzcwNzcsImV4cCI6MjEwMDg1MzA3N30.BCy02YeTRKvNW-6gnfOf3mgbjFFSJtIKDLyktWEI09k"
+      }
     }
   },
   "submit": {
