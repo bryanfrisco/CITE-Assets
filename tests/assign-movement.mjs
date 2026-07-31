@@ -91,21 +91,30 @@ async function run() {
       p_mode: 'assign',
     });
     check(
+      // assignable_assets filters by status in SQL and does not return it, so
+      // the holder is the observable proxy: an Available asset has nobody.
       'step 2 (assign) lists only Available assets',
-      available.data?.length === 1 && available.data[0].asset_code === 'MON122-24-205',
-      JSON.stringify(available.data?.map((a) => a.asset_code)),
-    );
-    check(
-      'the asset row shows location and condition',
-      available.data?.[0]?.location_name === 'Head Office' &&
-        available.data?.[0]?.condition_name === 'Good',
+      (available.data ?? []).some((a) => a.asset_code === 'MON122-24-205') &&
+        (available.data ?? []).every((a) => a.holder_name === null),
+      JSON.stringify(available.data?.map((a) => `${a.asset_code}:${a.holder_name}`)),
     );
 
+    const monitorRow = (available.data ?? []).find((a) => a.asset_code === 'MON122-24-205');
+    check(
+      'the asset row shows location and condition',
+      monitorRow?.location_name === 'Head Office' && monitorRow?.condition_name === 'Good',
+      JSON.stringify(monitorRow),
+    );
+
+    // Stated by identity, not by count. A total would be a claim about how many
+    // assets the seed happens to leave assigned, and it would fail the moment
+    // any other suite — or a real import — added one.
     const assigned = await admin.rpc('assignable_assets', { p_locations: scope, p_mode: 'return' });
     check(
       'step 2 (return) lists only Assigned assets',
-      assigned.data?.length === 4,
-      `got ${assigned.data?.length}`,
+      (assigned.data ?? []).length > 0 &&
+        (assigned.data ?? []).every((a) => Boolean(a.holder_name)),
+      JSON.stringify(assigned.data?.map((a) => `${a.asset_code}:${a.holder_name}`)),
     );
     check(
       'return rows carry the current holder',
@@ -113,7 +122,12 @@ async function run() {
     );
 
     const hoOnly = await admin.rpc('assignable_assets', { p_locations: [HO.id], p_mode: 'return' });
-    check('step 2 respects the scope', hoOnly.data?.length === 2, `got ${hoOnly.data?.length}`);
+    check(
+      'step 2 respects the scope',
+      (hoOnly.data ?? []).length > 0 &&
+        (hoOnly.data ?? []).every((a) => a.location_name === 'Head Office'),
+      JSON.stringify(hoOnly.data?.map((a) => `${a.asset_code}:${a.location_name}`)),
+    );
   }
 
   console.log('\nValidation — the exact copy from README § step 1/2/3');

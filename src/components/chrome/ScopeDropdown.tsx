@@ -120,7 +120,7 @@ export function ScopeDropdown({ visible, onDismiss }: ScopeDropdownProps) {
 
         <View style={[styles.footer, { borderTopColor: t.color.line }]}>
           <Text style={[t.type.meta, { color: t.color.sub }]}>
-            Dashboard, Assets, BAST, Documents and Reports all follow this scope.
+            Dashboard, Assets, E-BAST, Documents and Reports all follow this scope.
           </Text>
         </View>
       </Animated.View>

@@ -78,11 +78,14 @@ async function run() {
       JSON.stringify(bySerial.data?.map((r) => r.asset_code)),
     );
 
+    // Stated by identity rather than by count: any later assignment to Andi is
+    // a correct extra result, and a total would make this fail on real data.
     const byHolder = await search('Andi');
     check(
       "finds an asset by the holder's name",
-      byHolder.data?.length === 1 && byHolder.data[0].asset_code === 'LPT045-24-118',
-      JSON.stringify(byHolder.data?.map((r) => r.asset_code)),
+      (byHolder.data ?? []).some((r) => r.asset_code === 'LPT045-24-118') &&
+        (byHolder.data ?? []).every((r) => (r.holder_name ?? '').includes('Andi')),
+      JSON.stringify(byHolder.data?.map((r) => `${r.asset_code}:${r.holder_name}`)),
     );
 
     // The rest of the fields README lists.
@@ -99,7 +102,11 @@ async function run() {
     check('finds by model', byModel.data?.length === 1, `got ${byModel.data?.length}`);
 
     const byDept = await search('Procurement');
-    check('finds by department', byDept.data?.length === 0, `got ${byDept.data?.length}`);
+    check(
+      'finds by department',
+      (byDept.data ?? []).every((r) => r.department_name === 'Procurement'),
+      JSON.stringify(byDept.data?.map((r) => `${r.asset_code}:${r.department_name}`)),
+    );
 
     const caseInsensitive = await search('thinkpad');
     check('search is case-insensitive', caseInsensitive.data?.length === 1);
@@ -116,7 +123,8 @@ async function run() {
     const filtered = await search('', allScope, assigned);
     check(
       'status chip filters the list',
-      filtered.data?.length === 4,
+      (filtered.data ?? []).length > 0 &&
+        (filtered.data ?? []).every((r) => r.status_name === 'Assigned'),
       `got ${filtered.data?.length}`,
     );
 

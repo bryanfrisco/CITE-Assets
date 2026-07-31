@@ -7,6 +7,7 @@
  */
 
 import { supabase } from '@/lib/supabase';
+import type { SignatureStrokes } from '@/lib/signature';
 
 export type BastStatus = 'draft' | 'awaiting_signature' | 'signed' | 'void';
 
@@ -43,6 +44,22 @@ export interface BastVersion {
   createdAt: string;
 }
 
+/** Who signs which block on the document. */
+export type SignatureRole = 'handover' | 'receiver';
+
+export const SIGNATURE_ROLE_LABEL: Record<SignatureRole, string> = {
+  handover: 'Yang Menyerahkan',
+  receiver: 'Yang Menerima',
+};
+
+export interface BastSignature {
+  signerName: string;
+  signerTitle: string | null;
+  strokes: SignatureStrokes;
+  signedAt: string;
+  recordedByName: string;
+}
+
 export interface BastDetail {
   id: string;
   bastNumber: string;
@@ -61,6 +78,8 @@ export interface BastDetail {
   conditionText: string;
   handedOverBy: string;
   handedOverDept: string;
+  /** Only the newest signature per role; earlier attempts stay in the table. */
+  signatures: Partial<Record<SignatureRole, BastSignature>>;
   versions: BastVersion[];
 }
 
@@ -96,16 +115,21 @@ export interface GeneratedBast {
   bastNumber: string;
   filePath: string;
   fileSize: number;
+  signed: boolean;
 }
 
 /**
- * Calls the generate-bast-pdf Edge Function. It runs under the caller's token,
- * writes `bast/<id>/v1.pdf`, and records the version through
- * attach_generated_bast().
+ * Calls the generate-bast-pdf Edge Function. It runs under the caller's token.
+ *
+ * `finalize` is the difference between a draft and the finished document:
+ * without it the function writes `bast/<id>/v1.pdf` and records it through
+ * attach_generated_bast(); with it — and only once both signatures exist — it
+ * writes a new version and records it through attach_signed_bast(), which is
+ * what sets the status to Signed.
  */
-export async function generateBastPdf(bastId: string): Promise<GeneratedBast> {
+export async function generateBastPdf(bastId: string, finalize = false): Promise<GeneratedBast> {
   const { data, error } = await supabase.functions.invoke('generate-bast-pdf', {
-    body: { bastId },
+    body: { bastId, finalize },
   });
   if (error) {
     // The function returns its own message in the body; surface that when present.
@@ -205,4 +229,63 @@ export async function attachSignedBast(
   });
   if (error) throw new Error(error.message);
   return data as { version: number };
+}
+
+// ---------------------------------------------------------------------------
+// E-BAST — signing on the screen
+// ---------------------------------------------------------------------------
+
+export interface Signatory {
+  id: string;
+  full_name: string;
+  title: string | null;
+  department_name: string | null;
+}
+
+/** The "Yang Menyerahkan" picker — Corporate IT staff who hand devices over. */
+export async function fetchSignatories(): Promise<Signatory[]> {
+  const { data, error } = await supabase.rpc('bast_signatories_list');
+  if (error) throw new Error(error.message);
+  return (data ?? []) as Signatory[];
+}
+
+/** Adding someone already on the list reactivates them rather than failing. */
+export async function addSignatory(
+  name: string,
+  title?: string | null,
+  departmentId?: string | null,
+): Promise<{ id: string; created: boolean }> {
+  const { data, error } = await supabase.rpc('add_bast_signatory', {
+    p_name: name,
+    p_title: title ?? null,
+    p_department: departmentId ?? null,
+  });
+  if (error) throw new Error(error.message);
+  return data as { id: string; created: boolean };
+}
+
+/**
+ * Records one signature.
+ *
+ * This does not set the status to Signed — `complete` says whether both blocks
+ * are now filled, and the caller then finalises the PDF. Splitting it that way
+ * means a failure at the PDF step never loses a signature that has already been
+ * given.
+ */
+export async function signBast(
+  bastId: string,
+  role: SignatureRole,
+  signerName: string,
+  signerTitle: string | null,
+  strokes: SignatureStrokes,
+): Promise<{ complete: boolean }> {
+  const { data, error } = await supabase.rpc('sign_bast', {
+    p_bast: bastId,
+    p_role: role,
+    p_name: signerName,
+    p_title: signerTitle,
+    p_strokes: strokes,
+  });
+  if (error) throw new Error(error.message);
+  return data as { complete: boolean };
 }

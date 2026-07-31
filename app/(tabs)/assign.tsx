@@ -190,7 +190,7 @@ export default function AssignScreen() {
       { k: 'Asset', v: asset ? `${asset.asset_code} · ${asset.name}` : '—' },
       { k: 'Date', v: date },
       {
-        k: 'BAST',
+        k: 'E-BAST',
         v: done?.bastNumber ? `${done.bastNumber} (draft)` : 'Not generated',
       },
     ],
@@ -221,8 +221,8 @@ export default function AssignScreen() {
           {isReturn
             ? 'The asset is available again and its assignment history has been updated.'
             : done.bastNumber
-              ? 'A BAST draft has been created and the assignment history updated.'
-              : 'Assignment history updated. No BAST was generated.'}
+              ? 'An E-BAST draft has been created and the assignment history updated.'
+              : 'Assignment history updated. No E-BAST was generated.'}
         </Text>
 
         <Card radius="cardMedium" padding={16} style={styles.doneCard}>
@@ -246,7 +246,7 @@ export default function AssignScreen() {
         </Card>
 
         <Button
-          label="Generate BAST document"
+          label="Generate E-BAST document"
           block
           style={styles.doneAction}
           onPress={() => {
@@ -463,7 +463,7 @@ export default function AssignScreen() {
                     <Switch
                       value={autoBast}
                       onValueChange={setAutoBast}
-                      label="Auto-generate BAST"
+                      label="Auto-generate E-BAST"
                       description="Berita Acara Serah Terima draft"
                     />
                   </Card>

@@ -29,7 +29,7 @@ const ICONS = {
 const LABELS: Record<NavKey, string> = {
   home: 'Home',
   assets: 'Assets',
-  bast: 'BAST',
+  bast: 'E-BAST',
   more: 'More',
 };
 

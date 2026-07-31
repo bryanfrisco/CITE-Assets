@@ -147,9 +147,41 @@ export class Content {
     return this;
   }
 
-  /** Draws the single embedded image (`/Im1`) into the given box. */
-  image(x: number, y: number, width: number, height: number): this {
-    this.ops.push('q', `${n(width)} 0 0 ${n(height)} ${n(x)} ${n(y)} cm`, '/Im1 Do', 'Q');
+  /** Draws one of the embedded images into the given box. */
+  image(name: string, x: number, y: number, width: number, height: number): this {
+    this.ops.push('q', `${n(width)} 0 0 ${n(height)} ${n(x)} ${n(y)} cm`, `/${name} Do`, 'Q');
+    return this;
+  }
+
+  /**
+   * Freehand strokes — a signature.
+   *
+   * Round caps and round joins matter more than they look: with the default
+   * butt cap every change of direction leaves a visible notch, and handwriting
+   * is nothing but changes of direction. A single-point stroke (a dot on an
+   * "i") is drawn as a zero-length segment, which a round cap renders as a dot.
+   */
+  strokes(paths: [number, number][][], width: number, color: Rgb): this {
+    if (paths.length === 0) return this;
+
+    this.ops.push(
+      'q',
+      `${n(color.r)} ${n(color.g)} ${n(color.b)} RG`,
+      `${n(width)} w`,
+      '1 J', // round cap
+      '1 j', // round join
+    );
+
+    for (const path of paths) {
+      if (path.length === 0) continue;
+      const [x0, y0] = path[0]!;
+      this.ops.push(`${n(x0)} ${n(y0)} m`);
+      if (path.length === 1) this.ops.push(`${n(x0)} ${n(y0)} l`);
+      else for (const [x, y] of path.slice(1)) this.ops.push(`${n(x)} ${n(y)} l`);
+      this.ops.push('S');
+    }
+
+    this.ops.push('Q');
     return this;
   }
 
@@ -168,10 +200,15 @@ export interface ImageXObject {
 /**
  * Assembles the objects into a complete file. Built as byte chunks so the
  * cross-reference offsets stay exact once binary image data is in the mix.
+ *
+ * `images` is keyed by the name used in the content stream (`Im1`, `Im2`, …).
+ * An entry with no data is skipped entirely rather than embedded empty — that
+ * is how a missing letterhead logo degrades to no logo instead of a PDF a
+ * reader refuses to open.
  */
 export function buildPdf(
   content: Content,
-  image: ImageXObject,
+  images: Record<string, ImageXObject>,
   pageWidth: number,
   pageHeight: number,
 ): Uint8Array {
@@ -190,6 +227,10 @@ export function buildPdf(
     offsets.push(length);
   };
 
+  // Objects 1-6 are fixed; the images follow from 7 upwards.
+  const embedded = Object.entries(images).filter(([, image]) => image.data.length > 0);
+  const xobjects = embedded.map(([name], i) => `/${name} ${7 + i} 0 R`).join(' ');
+
   push('%PDF-1.4\n%\xE2\xE3\xCF\xD3\n');
 
   startObject();
@@ -202,7 +243,7 @@ export function buildPdf(
   push(
     '3 0 obj\n<< /Type /Page /Parent 2 0 R ' +
       `/MediaBox [0 0 ${n(pageWidth)} ${n(pageHeight)}] ` +
-      '/Resources << /Font << /F1 5 0 R /F2 6 0 R >> /XObject << /Im1 7 0 R >> >> ' +
+      `/Resources << /Font << /F1 5 0 R /F2 6 0 R >> /XObject << ${xobjects} >> >> ` +
       '/Contents 4 0 R >>\nendobj\n',
   );
 
@@ -224,15 +265,17 @@ export function buildPdf(
       '/Encoding /WinAnsiEncoding >>\nendobj\n',
   );
 
-  startObject();
-  push(
-    '7 0 obj\n<< /Type /XObject /Subtype /Image ' +
-      `/Width ${image.width} /Height ${image.height} ` +
-      '/ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode ' +
-      `/Length ${image.data.length} >>\nstream\n`,
-  );
-  push(image.data);
-  push('\nendstream\nendobj\n');
+  embedded.forEach(([, image], i) => {
+    startObject();
+    push(
+      `${7 + i} 0 obj\n<< /Type /XObject /Subtype /Image ` +
+        `/Width ${image.width} /Height ${image.height} ` +
+        '/ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode ' +
+        `/Length ${image.data.length} >>\nstream\n`,
+    );
+    push(image.data);
+    push('\nendstream\nendobj\n');
+  });
 
   const xrefAt = length;
   const count = offsets.length + 1;

@@ -50,7 +50,7 @@ export default function BastListScreen() {
 
   return (
     <Screen>
-      <Text style={[t.type.screenTitle, { color: t.color.text }]}>BAST</Text>
+      <Text style={[t.type.screenTitle, { color: t.color.text }]}>E-BAST</Text>
       <Text style={[t.type.bodySmall, styles.countLine, { color: t.color.sub }]}>
         {`${total} document${total === 1 ? '' : 's'} · ${scopeLabel}`}
       </Text>
@@ -86,14 +86,14 @@ export default function BastListScreen() {
       ) : list.isError ? (
         <EmptyState
           variant="error"
-          title="Could not load BAST documents"
+          title="Could not load E-BAST documents"
           description={(list.error as Error).message}
           actionLabel="Try again"
           onAction={() => list.refetch()}
         />
       ) : (list.data ?? []).length === 0 ? (
         <EmptyState
-          title="No BAST documents yet"
+          title="No E-BAST documents yet"
           description="Berita Acara Serah Terima records appear here once an assignment generates one."
         />
       ) : (

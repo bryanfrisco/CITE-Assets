@@ -159,7 +159,7 @@ export default function AssetDetailScreen() {
             }
           />
           <Button
-            label="BAST"
+            label="E-BAST"
             variant="secondary"
             icon={<FileText size={15} color={t.color.text} strokeWidth={1.8} />}
             onPress={() => router.push('/bast')}
@@ -508,7 +508,7 @@ function Documents({ detail }: { detail: AssetDetail }) {
     return (
       <EmptyState
         title="No documents yet"
-        description="Invoices, warranty cards and signed BAST scans appear here."
+        description="Invoices, warranty cards and signed E-BAST documents appear here."
       />
     );
   }

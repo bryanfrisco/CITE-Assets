@@ -36,7 +36,7 @@ const TILES: Tile[] = [
   },
   {
     key: 'generate-bast',
-    title: 'Generate BAST',
+    title: 'Generate E-BAST',
     subtitle: 'Berita Acara Serah Terima',
     Icon: FileText,
   },

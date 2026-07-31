@@ -36,3 +36,6 @@ export type { EmptyStateProps } from './EmptyState';
 
 export { PickerSheet } from './PickerSheet';
 export type { PickerSheetProps, PickerOption } from './PickerSheet';
+
+export { SignaturePad } from './SignaturePad';
+export type { SignaturePadProps } from './SignaturePad';
