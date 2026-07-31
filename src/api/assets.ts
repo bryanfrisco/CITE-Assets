@@ -269,6 +269,32 @@ export async function updateAsset(
 }
 
 /**
+ * Change an asset's status, with the reason attached.
+ *
+ * The reason is required by the database, not by this function — it is the one
+ * thing the generic audit trail cannot record, and the reason a retirement is
+ * readable six months later rather than just a row diff.
+ *
+ * Assigning is deliberately not reachable from here: `Assigned` is what
+ * assigning an asset to someone produces, not a label anyone declares.
+ */
+export async function changeAssetStatus(
+  assetId: string,
+  statusId: string,
+  reason: string,
+  conditionId?: string | null,
+): Promise<{ status: string; terminal: boolean }> {
+  const { data, error } = await supabase.rpc('change_asset_status', {
+    p_asset: assetId,
+    p_status: statusId,
+    p_condition: conditionId ?? null,
+    p_reason: reason,
+  });
+  if (error) throw new Error(error.message);
+  return data as { status: string; terminal: boolean };
+}
+
+/**
  * Photo upload — README § Asset Detail replaces the dashed placeholder with
  * "the real image, camera and gallery upload".
  *

@@ -215,15 +215,17 @@ export default function AssetDetailScreen() {
               }}
             />
           ) : null}
-          <Button
-            label="Change status"
-            variant="secondary"
-            block
-            onPress={() => {
-              setOverflowOpen(false);
-              router.push(`/add-asset?edit=${a.assetCode}`);
-            }}
-          />
+          {can('asset.edit') ? (
+            <Button
+              label="Change status"
+              variant="secondary"
+              block
+              onPress={() => {
+                setOverflowOpen(false);
+                router.push(`/asset/status?code=${a.assetCode}`);
+              }}
+            />
+          ) : null}
           <Button
             label="Transfer"
             variant="secondary"
