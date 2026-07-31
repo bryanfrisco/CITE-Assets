@@ -32,7 +32,9 @@ function navKeyFor(pathname: string): NavKey {
     pathname.startsWith('/asset/') ||
     pathname.startsWith('/add-asset') ||
     pathname.startsWith('/assign') ||
-    pathname.startsWith('/transfer')
+    pathname.startsWith('/transfer') ||
+    pathname.startsWith('/scan') ||
+    pathname.startsWith('/labels')
   ) {
     return 'assets';
   }

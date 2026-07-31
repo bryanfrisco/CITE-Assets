@@ -38,6 +38,7 @@ import {
   updateAsset,
   type Option,
 } from '@/api/assets';
+import { tagAsset } from '@/api/tags';
 import { queryKeys } from '@/lib/queryClient';
 import { useToast } from '@/store/useUiStore';
 import { usePermissions } from '@/auth';
@@ -62,8 +63,11 @@ export default function AddAssetScreen() {
 
   // `?edit=<assetCode>` turns this screen into the Edit form. Same fields, same
   // validation — only the write path and the copy differ.
-  const { edit } = useLocalSearchParams<{ edit?: string }>();
+  const { edit, tag } = useLocalSearchParams<{ edit?: string; tag?: string }>();
   const isEdit = Boolean(edit);
+  // Arrived from the scanner: the sticker is already on the device, and
+  // saving has to claim it in the same transaction that creates the asset.
+  const isTagging = Boolean(tag) && !isEdit;
 
   const options = useQuery({
     queryKey: ['assetFormOptions'],
@@ -179,7 +183,7 @@ export default function AddAssetScreen() {
   };
 
   const save = useMutation({
-    mutationFn: () => {
+    mutationFn: (): Promise<{ id?: string; assetCode: string }> => {
       const input = {
         name,
         categoryId: values.category!.id,
@@ -199,15 +203,22 @@ export default function AddAssetScreen() {
         notes: notes || null,
         assetCode: canEditCode && assetCode.trim() ? assetCode.trim() : null,
       };
-      return isEdit && existing.data
-        ? updateAsset(existing.data.asset.id, input)
-        : createAsset(input);
+      if (isEdit && existing.data) return updateAsset(existing.data.asset.id, input);
+      if (isTagging) return tagAsset(tag!, input);
+      return createAsset(input);
     },
     onSuccess: (asset) => {
-      toast(isEdit ? `${asset.assetCode} updated` : `${asset.assetCode} added`);
+      toast(
+        isEdit
+          ? `${asset.assetCode} updated`
+          : isTagging
+            ? `${asset.assetCode} registered on ${tag}`
+            : `${asset.assetCode} added`,
+      );
       void queryClient.invalidateQueries({ queryKey: ['assets'] });
       void queryClient.invalidateQueries({ queryKey: queryKeys.asset(asset.assetCode) });
       void queryClient.invalidateQueries({ queryKey: ['assetCount'] });
+      void queryClient.invalidateQueries({ queryKey: ['tags'] });
       router.replace(`/asset/${asset.assetCode}`);
     },
     onError: (e: Error) => {
@@ -288,8 +299,18 @@ export default function AddAssetScreen() {
       </Pressable>
 
       <Text style={[t.type.screenTitle, styles.title, { color: t.color.text }]}>
-        {isEdit ? 'Edit Asset' : 'Add Asset'}
+        {isEdit ? 'Edit Asset' : isTagging ? 'Register Asset' : 'Add Asset'}
       </Text>
+
+      {isTagging ? (
+        <Card padding={13} style={styles.tagBanner}>
+          <Text style={[t.type.sectionLabel, { color: t.color.sub }]}>Label</Text>
+          <Text style={[t.type.assetCode, styles.tagCode, { color: t.color.royal }]}>{tag}</Text>
+          <Text style={[t.type.meta, { color: t.color.sub }]}>
+            Claimed the moment this asset is saved.
+          </Text>
+        </Card>
+      ) : null}
 
       <Section label="Identity">
         <Input
@@ -571,6 +592,8 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
     marginBottom: 14,
   },
+  tagBanner: { marginTop: 12 },
+  tagCode: { marginTop: 5, marginBottom: 3 },
   submit: { marginTop: 22 },
   formError: { marginTop: 10, textAlign: 'center' },
   skeletons: { gap: 12 },

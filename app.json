@@ -41,7 +41,14 @@
           "imageWidth": 180
         }
       ],
-      "expo-system-ui"
+      "expo-system-ui",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "CITE Assets uses the camera to scan asset labels."
+        }
+      ],
+      "expo-sharing"
     ],
     "experiments": {
       "typedRoutes": true
