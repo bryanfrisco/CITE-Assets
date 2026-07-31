@@ -6,9 +6,10 @@
  * over the content with the 64px FAB gap the design calls for.
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import { Slot, usePathname, useRouter } from 'expo-router';
+import { useQuery } from '@tanstack/react-query';
 
 import { useTheme } from '@/theme';
 import {
@@ -19,7 +20,8 @@ import {
   type NavKey,
   type QuickAction,
 } from '@/components/chrome';
-import { useToast } from '@/store/useUiStore';
+import { fetchUnreadCount } from '@/api/notifications';
+import { useUiStore } from '@/store/useUiStore';
 import { usePermissions } from '@/auth';
 
 /**
@@ -43,6 +45,8 @@ function navKeyFor(pathname: string): NavKey {
     pathname.startsWith('/more') ||
     pathname.startsWith('/master') ||
     pathname.startsWith('/settings') ||
+    pathname.startsWith('/notifications') ||
+    pathname.startsWith('/maintenance') ||
     pathname.startsWith('/accounts') ||
     pathname.startsWith('/account-edit') ||
     pathname.startsWith('/audit')
@@ -63,11 +67,26 @@ export default function TabsLayout() {
   const t = useTheme();
   const router = useRouter();
   const pathname = usePathname();
-  const toast = useToast();
   const { isReadOnly } = usePermissions();
 
   const [scopeOpen, setScopeOpen] = useState(false);
   const [fabOpen, setFabOpen] = useState(false);
+
+  // The bell's red dot. Refetched on an interval rather than pushed, because
+  // the notifications that matter here are written overnight by a cron job —
+  // a realtime subscription would hold a socket open all day to deliver one
+  // row at 05:00.
+  const setUnreadCount = useUiStore((s) => s.setUnreadCount);
+  const unread = useQuery({
+    queryKey: ['notificationsUnread'],
+    queryFn: fetchUnreadCount,
+    refetchInterval: 120_000,
+    refetchOnWindowFocus: true,
+  });
+
+  useEffect(() => {
+    if (typeof unread.data === 'number') setUnreadCount(unread.data);
+  }, [unread.data, setUnreadCount]);
 
   const active = navKeyFor(pathname);
 
@@ -89,7 +108,7 @@ export default function TabsLayout() {
       <AppHeader
         scopeOpen={scopeOpen}
         onPressScope={() => setScopeOpen((open) => !open)}
-        onPressBell={() => toast('Notifications arrive in Phase 6')}
+        onPressBell={() => router.push('/notifications')}
         onPressAvatar={() => router.push('/more')}
       />
 

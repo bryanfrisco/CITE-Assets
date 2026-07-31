@@ -12,12 +12,21 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { Animated, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Image, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
-import { Camera, ChevronLeft, Download, FileText, MoreHorizontal } from 'lucide-react-native';
+import * as DocumentPicker from 'expo-document-picker';
+import {
+  Camera,
+  ChevronLeft,
+  Download,
+  FileText,
+  MoreHorizontal,
+  Upload,
+  Wrench,
+} from 'lucide-react-native';
 
 import { useTheme } from '@/theme';
 import {
@@ -28,7 +37,9 @@ import {
   Chip,
   ChipRow,
   EmptyState,
+  PickerSheet,
   Screen,
+  SelectField,
   Skeleton,
 } from '@/components/ui';
 import { Avatar } from '@/components/chrome';
@@ -40,6 +51,15 @@ import {
   type AssetDetail,
   type TimelineKind,
 } from '@/api/assets';
+import {
+  DOCUMENT_KINDS,
+  DOCUMENT_KIND_LABEL,
+  MAX_DOCUMENT_BYTES,
+  addDocument,
+  signedDocumentUrl,
+  uploadDocumentFile,
+  type DocumentKind,
+} from '@/api/documents';
 import { queryKeys } from '@/lib/queryClient';
 import { useToast } from '@/store/useUiStore';
 import { usePermissions } from '@/auth';
@@ -498,7 +518,13 @@ function Timeline({ detail }: { detail: AssetDetail }) {
 function Documents({ detail }: { detail: AssetDetail }) {
   const t = useTheme();
   const toast = useToast();
+  const queryClient = useQueryClient();
+  const { can } = usePermissions();
   const docs = detail.documents ?? [];
+
+  const [progress, setProgress] = useState<number | null>(null);
+  const [kindOpen, setKindOpen] = useState(false);
+  const [kind, setKind] = useState<DocumentKind>('invoice');
 
   const extColor = (doc: { kind: string; mimeType: string | null }) => {
     if (doc.kind === 'signed_bast') return t.documentChip.signedBast;
@@ -506,17 +532,101 @@ function Documents({ detail }: { detail: AssetDetail }) {
     return t.documentChip.jpg;
   };
 
+  const upload = useMutation({
+    mutationFn: async () => {
+      const picked = await DocumentPicker.getDocumentAsync({
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+      if (picked.canceled || !picked.assets?.[0]) return null;
+
+      const file = picked.assets[0];
+      if ((file.size ?? 0) > MAX_DOCUMENT_BYTES) {
+        throw new Error('The file is larger than 20 MB');
+      }
+
+      setProgress(0);
+      const response = await fetch(file.uri);
+      const blob = await response.blob();
+
+      const stored = await uploadDocumentFile(detail.asset.id, blob, file.name, setProgress);
+      // The title defaults to the file name: it is what the person chose, and
+      // making them type it again is a step that adds nothing.
+      return addDocument(
+        detail.asset.id,
+        kind,
+        file.name.replace(/\.[^.]+$/, ''),
+        stored.path,
+        stored.size,
+        stored.mimeType,
+      );
+    },
+    onSuccess: (result) => {
+      setProgress(null);
+      if (!result) return;
+      toast('Document added');
+      void queryClient.invalidateQueries({ queryKey: queryKeys.asset(detail.asset.assetCode) });
+    },
+    onError: (e: Error) => {
+      setProgress(null);
+      toast(e.message, 'error');
+    },
+  });
+
+  const open = async (path: string, title: string) => {
+    const url = await signedDocumentUrl(path);
+    if (!url) {
+      toast(`Could not open ${title}`, 'error');
+      return;
+    }
+    await Linking.openURL(url);
+  };
+
+  const uploader = can('asset.edit') ? (
+    <Card padding={13} style={styles.docUpload}>
+      <SelectField
+        label="Kind"
+        value={DOCUMENT_KIND_LABEL[kind]}
+        onPress={() => setKindOpen(true)}
+      />
+      <Button
+        label={progress === null ? 'Add a document' : `Uploading · ${progress}%`}
+        block
+        loading={upload.isPending}
+        icon={<Upload size={15} color={t.color.onNavy} strokeWidth={1.8} />}
+        onPress={() => upload.mutate()}
+        style={styles.docUploadButton}
+      />
+    </Card>
+  ) : null;
+
+  const picker = (
+    <PickerSheet
+      visible={kindOpen}
+      title="Document kind"
+      options={DOCUMENT_KINDS.map((k) => ({ id: k.id, name: k.name }))}
+      selectedId={kind}
+      onSelect={(o) => setKind(o.id as DocumentKind)}
+      onDismiss={() => setKindOpen(false)}
+    />
+  );
+
   if (docs.length === 0) {
     return (
-      <EmptyState
-        title="No documents yet"
-        description="Invoices, warranty cards and signed E-BAST documents appear here."
-      />
+      <View>
+        {uploader}
+        <EmptyState
+          title="No documents yet"
+          description="Invoices, warranty cards and signed E-BAST documents appear here."
+        />
+        {picker}
+      </View>
     );
   }
 
   return (
     <View style={styles.docList}>
+      {uploader}
       {docs.map((doc) => (
         <Card key={doc.id} padding={13} style={styles.docRow}>
           <View style={[styles.extChip, { backgroundColor: extColor(doc), borderRadius: 7 }]}>
@@ -530,7 +640,7 @@ function Documents({ detail }: { detail: AssetDetail }) {
             </Text>
             <Text style={[t.type.meta, { color: t.color.sub, marginTop: 2 }]}>
               {[
-                doc.kind.replace(/_/g, ' '),
+                DOCUMENT_KIND_LABEL[doc.kind as DocumentKind] ?? doc.kind.replace(/_/g, ' '),
                 doc.fileSize ? `${(doc.fileSize / 1_048_576).toFixed(1)} MB` : null,
                 new Date(doc.createdAt).toLocaleDateString('en-GB'),
               ]
@@ -539,15 +649,16 @@ function Documents({ detail }: { detail: AssetDetail }) {
             </Text>
           </View>
           <Pressable
-            onPress={() => toast('Document download arrives in Phase 6')}
+            onPress={() => void open(doc.filePath, doc.title)}
             accessibilityRole="button"
-            accessibilityLabel={`Download ${doc.title}`}
+            accessibilityLabel={`Open ${doc.title}`}
             hitSlop={8}
           >
             <Download size={17} color={t.color.sub} strokeWidth={1.8} />
           </Pressable>
         </Card>
       ))}
+      {picker}
     </View>
   );
 }
@@ -595,8 +706,12 @@ function Assignments({ detail }: { detail: AssetDetail }) {
 
 function Maintenance({ detail }: { detail: AssetDetail }) {
   const t = useTheme();
+  const router = useRouter();
+  const { can } = usePermissions();
   const rows = detail.maintenance ?? [];
 
+  // The tab's badge vocabulary is the asset's, not the ticket's: a device in
+  // for repair reads as "Maintenance" to everyone looking at it.
   const stateLabel: Record<string, string> = {
     open: 'Maintenance',
     in_progress: 'Maintenance',
@@ -604,31 +719,55 @@ function Maintenance({ detail }: { detail: AssetDetail }) {
     cancelled: 'Retired',
   };
 
+  const opener = can('asset.edit') ? (
+    <Button
+      label="Open a job"
+      variant="secondary"
+      block
+      icon={<Wrench size={15} color={t.color.text} strokeWidth={1.8} />}
+      onPress={() => router.push(`/maintenance-log?asset=${detail.asset.assetCode}`)}
+      style={styles.maintenanceOpen}
+    />
+  ) : null;
+
   if (rows.length === 0) {
     return (
-      <EmptyState title="No service records" description="Maintenance history appears here." />
+      <View>
+        {opener}
+        <EmptyState title="No service records" description="Maintenance history appears here." />
+      </View>
     );
   }
 
   return (
     <View style={styles.docList}>
+      {opener}
       {rows.map((row) => (
-        <Card key={row.id} padding={14}>
-          <View style={styles.timelineHead}>
-            <Badge label={stateLabel[row.state] ?? 'Maintenance'} />
-            <Text style={[t.type.meta, { color: t.color.sub }]}>{row.startedAt}</Text>
-          </View>
-          <Text style={[t.type.body, { color: t.color.text, marginTop: 9 }]}>{row.title}</Text>
-          {row.detail ? (
-            <Text style={[t.type.meta, { color: t.color.sub, marginTop: 3 }]}>{row.detail}</Text>
-          ) : null}
-          <View style={[styles.maintFooter, { borderTopColor: t.color.line }]}>
-            <Text style={[t.type.meta, { color: t.color.sub }]}>
-              Vendor · {row.vendorName ?? 'Internal'}
-            </Text>
-            <Text style={[t.type.meta, { color: t.color.sub }]}>Cost · {formatIdr(row.cost)}</Text>
-          </View>
-        </Card>
+        <Pressable
+          key={row.id}
+          onPress={() => router.push(`/maintenance-log?id=${row.id}`)}
+          accessibilityRole="button"
+          accessibilityLabel={row.title}
+        >
+          <Card padding={14}>
+            <View style={styles.timelineHead}>
+              <Badge label={stateLabel[row.state] ?? 'Maintenance'} />
+              <Text style={[t.type.meta, { color: t.color.sub }]}>{row.startedAt}</Text>
+            </View>
+            <Text style={[t.type.body, { color: t.color.text, marginTop: 9 }]}>{row.title}</Text>
+            {row.detail ? (
+              <Text style={[t.type.meta, { color: t.color.sub, marginTop: 3 }]}>{row.detail}</Text>
+            ) : null}
+            <View style={[styles.maintFooter, { borderTopColor: t.color.line }]}>
+              <Text style={[t.type.meta, { color: t.color.sub }]}>
+                Vendor · {row.vendorName ?? 'Internal'}
+              </Text>
+              <Text style={[t.type.meta, { color: t.color.sub }]}>
+                Cost · {formatIdr(row.cost)}
+              </Text>
+            </View>
+          </Card>
+        </Pressable>
       ))}
     </View>
   );
@@ -701,6 +840,9 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderWidth: 1,
   },
+  maintenanceOpen: { marginBottom: 12 },
+  docUpload: { marginBottom: 12 },
+  docUploadButton: { marginTop: 12 },
   docList: { gap: 9 },
   docRow: { flexDirection: 'row', alignItems: 'center', gap: 11 },
   extChip: { paddingHorizontal: 8, paddingVertical: 6 },

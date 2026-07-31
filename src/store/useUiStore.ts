@@ -35,7 +35,9 @@ export const useUiStore = create<UiState>((set, get) => ({
   language: 'EN',
   // Placeholder until the notifications query lands in Phase 6; the prototype
   // opens with three unread items.
-  unreadCount: 3,
+  // Starts at zero and is replaced by the real count as soon as the session
+  // is up. A seeded number here would show a red dot on an empty inbox.
+  unreadCount: 0,
 
   showToast: (message, variant = 'success') =>
     set({ toast: { message, variant, nonce: (get().toast?.nonce ?? 0) + 1 } }),

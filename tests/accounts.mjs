@@ -268,11 +268,16 @@ async function run() {
     const dewi = me.data?.[0];
     check('the seeded Super Admin is found', dewi?.role === 'super_admin', JSON.stringify(dewi));
 
-    const others = await admin.rpc('other_super_admins', { p_except: dewi.id });
+    // Derived from the list rather than by calling other_super_admins(), which
+    // migration 0021 closed to clients — an internal guard is not an API.
+    const all = await admin.rpc('accounts_list', { p_search: null });
+    const admins = (all.data ?? []).filter(
+      (a) => a.role === 'super_admin' && a.is_active && a.can_login,
+    );
     check(
       'and is currently the only one',
-      others.error ? false : others.data === 0,
-      others.error?.message ?? `${others.data} others`,
+      admins.length === 1 && admins[0].id === dewi.id,
+      JSON.stringify(admins.map((a) => a.full_name)),
     );
 
     const demote = await admin.rpc('update_account', {

@@ -10,7 +10,6 @@ import {
   ArrowLeftRight,
   BarChart3,
   FileSpreadsheet,
-  FileText,
   Grid3x3,
   QrCode,
   Settings as SettingsIcon,
@@ -39,7 +38,7 @@ export default function MoreScreen() {
     title: string;
     subtitle: string;
     phase?: string;
-    route?: '/master' | '/labels' | '/transfer' | '/accounts';
+    route?: '/master' | '/labels' | '/transfer' | '/accounts' | '/maintenance';
   }[] = [
     {
       icon: <ArrowLeftRight {...iconProps} />,
@@ -57,13 +56,7 @@ export default function MoreScreen() {
       icon: <Wrench {...iconProps} />,
       title: 'Maintenance',
       subtitle: 'Open tickets and service records',
-      phase: 'Phase 6',
-    },
-    {
-      icon: <FileText {...iconProps} />,
-      title: 'Documents',
-      subtitle: 'Per-asset document library',
-      phase: 'Phase 6',
+      route: '/maintenance' as const,
     },
     {
       icon: <BarChart3 {...iconProps} />,
