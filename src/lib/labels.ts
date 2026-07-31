@@ -1,32 +1,62 @@
 /**
- * Label sheets for the Epson LW-1700P.
+ * Label output for the Epson LW-700.
  *
- * WHY A FILE AND NOT DIRECT PRINTING
- * ----------------------------------
- * The LW-1700P is a tape printer. Driving it from inside this app would mean
- * Epson's Bluetooth SDK, a custom native build, and a hard dependency on one
- * printer model — and it fails in the field the moment the team buys a
- * different unit. Producing a correctly sized PDF and handing it to the Epson
- * app (or any printer) works today and keeps working.
+ * WHAT THE HARDWARE ACTUALLY ALLOWS
+ * ---------------------------------
+ * The LW-700 is a standalone keyboard label maker that connects to a PC over
+ * USB (the laptop key puts it in PC-link mode). It has no Bluetooth and no
+ * Wi-Fi — only the "P" models such as the LW-600P do. So nothing can print to
+ * it from a phone, by any route. That is a property of the printer, not a
+ * shortcut taken here.
  *
- * The page is sized to the TAPE, not to A4: one label per page, so the printer
- * feeds and cuts exactly once per sticker.
+ * The workflow that does work:
+ *
+ *   1. Print a batch in the app -> the codes are issued in the database
+ *   2. Export from the phone (share sheet -> email/Drive/USB) to the PC
+ *   3. On the PC, open Epson Label Editor, connect the LW-700 over USB, print
+ *
+ * Two files are produced because Label Editor and everything else want
+ * different things:
+ *
+ *   CSV   for Label Editor's data-merge. Put a QR object and a text object on
+ *         one template, bind them to the columns, and it prints the whole
+ *         batch in one run. This is the route for the LW-700.
+ *   PDF   already laid out, one page per label, sized to the tape. For any
+ *         ordinary printer, or for a reprint when Label Editor is not to hand.
+ *
+ * Tape: the machine takes 6-24 mm. The cassette in the unit is 24 mm
+ * (LK-6WBVN, black on white vinyl), which is the default below.
  */
 
 import QRCode from 'qrcode';
 
-/** LW-1700P tape widths, in millimetres. */
-export const TAPE_WIDTHS = [12, 18, 24, 36] as const;
+/** Cassette widths the LW-700 accepts, in millimetres. */
+export const TAPE_WIDTHS = [6, 9, 12, 18, 24] as const;
 export type TapeWidth = (typeof TAPE_WIDTHS)[number];
 
+export const DEFAULT_TAPE: TapeWidth = 24;
+
 /**
- * Printable height is smaller than the tape itself — the head cannot reach the
- * edges. These are Epson's usable heights for each cassette.
+ * Printable height per cassette. Smaller than the tape itself — the print head
+ * cannot reach the edges — so laying out against the nominal width would push
+ * the QR off the sticker.
  */
-const PRINTABLE_MM: Record<TapeWidth, number> = { 12: 9, 18: 13.5, 24: 18, 36: 27 };
+const PRINTABLE_MM: Record<TapeWidth, number> = {
+  6: 4.2,
+  9: 6.4,
+  12: 9,
+  18: 13.5,
+  24: 18,
+};
 
 /** Enough tape for the QR plus the code printed beside it. */
-const LABEL_LENGTH_MM: Record<TapeWidth, number> = { 12: 32, 18: 40, 24: 48, 36: 62 };
+const LABEL_LENGTH_MM: Record<TapeWidth, number> = {
+  6: 22,
+  9: 26,
+  12: 32,
+  18: 40,
+  24: 48,
+};
 
 export interface LabelSheetOptions {
   tape?: TapeWidth;
@@ -42,12 +72,33 @@ function escapeHtml(value: string): string {
 }
 
 /**
- * One page per label, each page exactly one label long, so the printer's
- * auto-cut lands between stickers rather than through them.
+ * Data-merge sheet for Epson Label Editor — the route to the LW-700.
+ *
+ * Label Editor reads the header row as field names, so the columns are named
+ * for what they are rather than abbreviated. `qr` and `code` carry the same
+ * value on purpose: one is bound to the QR object on the template, the other
+ * to the text object beneath it.
+ */
+export function buildLabelCsv(codes: string[], caption?: string): string {
+  const rows = [
+    ['qr', 'code', 'caption'],
+    ...codes.map((code) => [code, code, caption ?? 'CITE ASSETS']),
+  ];
+
+  // CRLF and quoted fields: Label Editor is a Windows application and is
+  // stricter about both than a spreadsheet would be.
+  return (
+    rows.map((r) => r.map((v) => `"${v.replace(/"/g, '""')}"`).join(',')).join('\r\n') + '\r\n'
+  );
+}
+
+/**
+ * One page per label, each page exactly one label long, so a printer's cut
+ * lands between stickers rather than through them.
  */
 export async function buildLabelSheetHtml(
   codes: string[],
-  { tape = 24, caption }: LabelSheetOptions = {},
+  { tape = DEFAULT_TAPE, caption }: LabelSheetOptions = {},
 ): Promise<string> {
   const height = PRINTABLE_MM[tape];
   const length = LABEL_LENGTH_MM[tape];

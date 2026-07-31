@@ -22,14 +22,14 @@ prototype showing the intended look, copy, and behavior. It is **not production 
 The task is to **recreate these designs in the target codebase's environment**, using its
 established patterns and libraries. If no codebase exists yet, the recommended stack is:
 
-| Layer | Recommendation | Why |
-|---|---|---|
-| Mobile app | **React Native + Expo** (TypeScript) | one codebase for iOS + Android, fastest path |
-| Backend | **Supabase** (Postgres + Auth + Storage + Edge Functions) | RLS gives per-role/per-location security in the DB; Storage handles BAST scans and documents |
-| PDF generation | Edge Function rendering HTML → PDF (Puppeteer/Playwright or `pdf-lib`) | BAST must be generated server-side so numbering and content are authoritative |
-| Excel import/export | `xlsx` (SheetJS) in an Edge Function | validation must run server-side before insert |
-| Charts | `react-native-svg` (or `victory-native`) | donut + horizontal bars only |
-| State/data | TanStack Query + a small Zustand store for the scope selector | scope is global and read by every query |
+| Layer               | Recommendation                                                         | Why                                                                                          |
+| ------------------- | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Mobile app          | **React Native + Expo** (TypeScript)                                   | one codebase for iOS + Android, fastest path                                                 |
+| Backend             | **Supabase** (Postgres + Auth + Storage + Edge Functions)              | RLS gives per-role/per-location security in the DB; Storage handles BAST scans and documents |
+| PDF generation      | Edge Function rendering HTML → PDF (Puppeteer/Playwright or `pdf-lib`) | BAST must be generated server-side so numbering and content are authoritative                |
+| Excel import/export | `xlsx` (SheetJS) in an Edge Function                                   | validation must run server-side before insert                                                |
+| Charts              | `react-native-svg` (or `victory-native`)                               | donut + horizontal bars only                                                                 |
+| State/data          | TanStack Query + a small Zustand store for the scope selector          | scope is global and read by every query                                                      |
 
 Flutter + Firebase is a valid alternative, but the audit-log and RLS requirements below are much
 simpler to satisfy on Postgres.
@@ -41,6 +41,7 @@ behavior in the prototype are final. Recreate the UI pixel-perfectly using the t
 component library. Where a value is not listed in this README, read it from the prototype file.
 
 Two things in the prototype are intentionally placeholders:
+
 - The **asset photo** area on Asset Detail (dashed frame) — replace with the real image, camera and
   gallery upload.
 - Screens reachable only via a toast message ("Prototype: action not wired yet"): **Add Asset form,
@@ -53,28 +54,28 @@ Two things in the prototype are intentionally placeholders:
 
 ### Colors
 
-| Token | Light | Dark | Usage |
-|---|---|---|---|
-| `bg` | `#F6F8FB` | `#080C15` | app canvas |
-| `card` | `#FFFFFF` | `#131A26` | cards, sheets, list containers |
-| `soft` | `#F0F3F9` | `#1B2432` | icon chips, inputs, segmented tracks |
-| `line` | `#E6EAF2` | `#232C3C` | 1px borders and dividers |
-| `text` | `#0B1220` | `#EAEEF6` | primary text |
-| `sub` | `#5A6478` | `#93A0B8` | secondary text, labels |
-| `navy` (primary) | `#00072D` | `#0E1A3D` | primary buttons, active nav, FAB |
+| Token               | Light     | Dark      | Usage                                       |
+| ------------------- | --------- | --------- | ------------------------------------------- |
+| `bg`                | `#F6F8FB` | `#080C15` | app canvas                                  |
+| `card`              | `#FFFFFF` | `#131A26` | cards, sheets, list containers              |
+| `soft`              | `#F0F3F9` | `#1B2432` | icon chips, inputs, segmented tracks        |
+| `line`              | `#E6EAF2` | `#232C3C` | 1px borders and dividers                    |
+| `text`              | `#0B1220` | `#EAEEF6` | primary text                                |
+| `sub`               | `#5A6478` | `#93A0B8` | secondary text, labels                      |
+| `navy` (primary)    | `#00072D` | `#0E1A3D` | primary buttons, active nav, FAB            |
 | `royal` (secondary) | `#2B57C4` | `#7FA2F0` | links, asset codes, accents, selection ring |
-| `gold` (accent) | `#D4AF37` | `#D4AF37` | warranty card, FAB glyph, Super Admin badge |
+| `gold` (accent)     | `#D4AF37` | `#D4AF37` | warranty card, FAB glyph, Super Admin badge |
 
 Semantic / status colors (badge = `background`, `foreground`, `border`):
 
-| Status | bg | fg | border |
-|---|---|---|---|
-| Assigned / Active | `rgba(43,87,196,.10)` | `#2B57C4` | `rgba(43,87,196,.26)` |
-| Available / Signed / Good | `rgba(18,164,93,.11)` | `#0C6B3F` | `rgba(18,164,93,.26)` |
-| Maintenance / Awaiting signature / Fair | `rgba(178,106,0,.12)` | `#8A5300` | `rgba(178,106,0,.26)` |
-| Broken / Poor | `rgba(224,57,62,.10)` | `#B3312F` | `rgba(224,57,62,.26)` |
-| Lost | `rgba(107,78,230,.11)` | `#5138C4` | `rgba(107,78,230,.26)` |
-| Retired / Draft / No login | `rgba(107,114,128,.12)` | `#4B5563` | `rgba(107,114,128,.26)` |
+| Status                                  | bg                      | fg        | border                  |
+| --------------------------------------- | ----------------------- | --------- | ----------------------- |
+| Assigned / Active                       | `rgba(43,87,196,.10)`   | `#2B57C4` | `rgba(43,87,196,.26)`   |
+| Available / Signed / Good               | `rgba(18,164,93,.11)`   | `#0C6B3F` | `rgba(18,164,93,.26)`   |
+| Maintenance / Awaiting signature / Fair | `rgba(178,106,0,.12)`   | `#8A5300` | `rgba(178,106,0,.26)`   |
+| Broken / Poor                           | `rgba(224,57,62,.10)`   | `#B3312F` | `rgba(224,57,62,.26)`   |
+| Lost                                    | `rgba(107,78,230,.11)`  | `#5138C4` | `rgba(107,78,230,.26)`  |
+| Retired / Draft / No login              | `rgba(107,114,128,.12)` | `#4B5563` | `rgba(107,114,128,.26)` |
 
 Error red `#E0393E`; success gradient `linear-gradient(150deg,#0F7A47,#12A45D)`.
 Navy header/hero gradient: `linear-gradient(135deg,#00072D,#0A1547 62%,#132766)`.
@@ -85,20 +86,20 @@ In dark mode badge foreground becomes `#E6ECF9` (backgrounds/borders unchanged).
 Font stack: **SF Pro Display / -apple-system** on iOS, **Inter** on Android (ship Inter as the
 bundled fallback so both platforms match). `-webkit-font-smoothing: antialiased`.
 
-| Role | Size | Weight | Letter-spacing |
-|---|---|---|---|
-| Screen title ("Assets", "Settings") | 22 | 680 (≈700) | −0.6 |
-| App name "CITE Assets" | 16 | 650 | −0.35 |
-| App subtitle "IT ASSET MANAGEMENT" | 10.5 | 500, uppercase | +0.28 |
-| Card/section heading | 13.5 | 650 | −0.2 |
-| Section label (uppercase eyebrow) | 11 | 700, uppercase | +0.42 |
-| KPI number | 22 | 680, tabular-nums | −0.9 |
-| Hero number (warranty "23") | 34 | 700 | −1.4 |
-| Body / list primary | 12.5–13.5 | 560–610 | −0.15 |
-| Secondary / meta | 11–11.5 | 400–520 | 0 |
-| Asset code | 10.5 | 700, tabular-nums, royal | +0.5 |
-| Badge text | 10 | 650 | +0.2 |
-| Bottom-nav label | 9.5 | 620 | +0.1 |
+| Role                                | Size      | Weight                   | Letter-spacing |
+| ----------------------------------- | --------- | ------------------------ | -------------- |
+| Screen title ("Assets", "Settings") | 22        | 680 (≈700)               | −0.6           |
+| App name "CITE Assets"              | 16        | 650                      | −0.35          |
+| App subtitle "IT ASSET MANAGEMENT"  | 10.5      | 500, uppercase           | +0.28          |
+| Card/section heading                | 13.5      | 650                      | −0.2           |
+| Section label (uppercase eyebrow)   | 11        | 700, uppercase           | +0.42          |
+| KPI number                          | 22        | 680, tabular-nums        | −0.9           |
+| Hero number (warranty "23")         | 34        | 700                      | −1.4           |
+| Body / list primary                 | 12.5–13.5 | 560–610                  | −0.15          |
+| Secondary / meta                    | 11–11.5   | 400–520                  | 0              |
+| Asset code                          | 10.5      | 700, tabular-nums, royal | +0.5           |
+| Badge text                          | 10        | 650                      | +0.2           |
+| Bottom-nav label                    | 9.5       | 620                      | +0.1           |
 
 All numeric columns use `font-variant-numeric: tabular-nums`.
 
@@ -115,13 +116,13 @@ All numeric columns use `font-variant-numeric: tabular-nums`.
 
 ### Motion
 
-| Name | Value | Used for |
-|---|---|---|
-| fade in | 180–200ms ease | screen and tab-content changes |
-| rise | 200–250ms ease, `translateY(10px) → 0` | toast, scope dropdown, success state, inline forms |
-| sheet | 240ms `cubic-bezier(.22,.9,.3,1)`, `translateY(100%) → 0` | FAB quick-action sheet |
-| shimmer | 1.2s linear infinite, 320px gradient sweep | skeleton loading |
-| toggle | 180ms | switch knob + track |
+| Name    | Value                                                     | Used for                                           |
+| ------- | --------------------------------------------------------- | -------------------------------------------------- |
+| fade in | 180–200ms ease                                            | screen and tab-content changes                     |
+| rise    | 200–250ms ease, `translateY(10px) → 0`                    | toast, scope dropdown, success state, inline forms |
+| sheet   | 240ms `cubic-bezier(.22,.9,.3,1)`, `translateY(100%) → 0` | FAB quick-action sheet                             |
+| shimmer | 1.2s linear infinite, 320px gradient sweep                | skeleton loading                                   |
+| toggle  | 180ms                                                     | switch knob + track                                |
 
 ---
 
@@ -134,8 +135,8 @@ unread) · **scope chip** (pin icon + label) · avatar 34×34 navy with initials
 **Scope chip label:** `HO + Site` when both selected, `Head Office` / `Site` when one, `None` when
 zero. Tapping opens a dropdown (absolute, 18px insets, top 98px) listing each location with a 22px
 checkbox (royal when checked), name, and meta (`Jakarta · 812 assets`, `Konawe operations · 472
-assets`), plus the footer note: *"Dashboard, Assets, BAST, Documents and Reports all follow this
-scope."* Selection is **multi-select** and persisted per user (see `account_scope_preferences`).
+assets`), plus the footer note: _"Dashboard, Assets, BAST, Documents and Reports all follow this
+scope."_ Selection is **multi-select** and persisted per user (see `account_scope_preferences`).
 
 **Bottom navigation** — floating bar, 12px side insets, 26px from bottom:
 `Home` · `Assets` · **(64px gap for FAB)** · `BAST` · `More`.
@@ -143,8 +144,8 @@ Active = `navy` (dark: white); inactive = `#8B94A7` (dark `#93A0B8`). "Assets" s
 Detail; "More" stays active on Master data, Settings, Audit log.
 
 **Center FAB** (60×60, navy gradient, gold `+`) opens the **Quick actions** bottom sheet with four
-2-column tiles: *Add Asset · Register new equipment* / *Assign Asset · Handover to employee* /
-*Transfer Asset · HO ↔ Site movement* / *Generate BAST · Berita Acara Serah Terima*.
+2-column tiles: _Add Asset · Register new equipment_ / _Assign Asset · Handover to employee_ /
+_Transfer Asset · HO ↔ Site movement_ / _Generate BAST · Berita Acara Serah Terima_.
 Backdrop `rgba(4,8,22,.42)` + 3px blur; tap backdrop to dismiss.
 
 **Toast** — 16px insets, 104px from bottom, `rgba(11,18,32,.94)`, radius 15, green check chip,
@@ -235,7 +236,7 @@ Header: "Cancel" link, title `Assign Asset` / `Return Asset`, `Step n of 3 · Em
 and a 3-segment progress bar (4px, navy when reached).
 
 - **Step 1 — Employee**: selectable rows (36px navy initials avatar, name, `Department · Location ·
-  NIK`). Selected row: 1.5px royal border + `0 0 0 3px rgba(43,87,196,.13)` ring + check icon.
+NIK`). Selected row: 1.5px royal border + `0 0 0 3px rgba(43,87,196,.13)` ring + check icon.
 - **Step 2 — Asset**: rows filtered to `Available` (assign mode) or `Assigned` (return mode) **within
   the current scope**; shows code, name, `location · condition`.
 - **Step 3 — Details**: summary card (employee + asset), then
@@ -265,9 +266,9 @@ then record cards: BAST number (royal, tabular), status badge, date right-aligne
 `soft` background: white sheet, radius 8, `0 6px 18px rgba(11,18,32,.08)`, containing
 CITE logo + "CORPORATE IT — CITE" / "IT ASSET MANAGEMENT" over a 2px navy rule; centered underlined
 title **BERITA ACARA SERAH TERIMA** + `No. <number>`; the Indonesian sentence
-*"Pada hari ini, <hari, tanggal>, telah dilakukan serah terima aset IT sebagai berikut:"*;
+_"Pada hari ini, <hari, tanggal>, telah dilakukan serah terima aset IT sebagai berikut:"_;
 a bordered table (Asset Code, Nama Aset, Penerima, Departemen, Lokasi, Kondisi); and two signature
-blocks — *Yang Menyerahkan* (Corporate IT staff) and *Yang Menerima* (employee + department).
+blocks — _Yang Menyerahkan_ (Corporate IT staff) and _Yang Menerima_ (employee + department).
 Actions: `PDF` (download, navy) and `Preview`.
 
 **Signed BAST card** — dashed upload target ("Upload scanned signed BAST", "PDF or JPG · max 10 MB")
@@ -314,9 +315,9 @@ FK notes in `DATABASE.md`. Empty state: "No records yet / Add the first one usin
   `Department` + `Location` selects, a **`Can sign in`** switch
   ("Off = record only, assets can still be assigned"), and — only when the switch is on — role chips
   `Super Admin · Corporate IT · Site IT · Viewer`. Submit = `Create account`; empty name → red border
-  + "Full name is required". Toasts: `<name> can now sign in` / `<name> added as assignable record`.
-  The account list shows a navy avatar for sign-in-capable accounts, grey for record-only, plus the
-  role badge or a `No login` badge.
+  - "Full name is required". Toasts: `<name> can now sign in` / `<name> added as assignable record`.
+    The account list shows a navy avatar for sign-in-capable accounts, grey for record-only, plus the
+    role badge or a `No login` badge.
 - **General** — `Notification settings` (6 types on), `Default data scope` (opens the scope
   dropdown), `About CITE Assets` (v1.0.0).
 - Destructive `Log out` button, then `CITE Assets v1.0.0 · Build 2026.07`.
@@ -331,10 +332,10 @@ FK notes in `DATABASE.md`. Empty state: "No records yet / Add the first one usin
 ### 11. Add Asset — to build
 
 Modal/stack form, grouped sections, all fields from the register:
-*Identity* (Asset Code — auto-generated, editable by Super Admin; Asset Name; Category; Brand; Model;
-Serial Number) · *Procurement* (Vendor, Purchase Date, Purchase Price, Warranty Start, Warranty End) ·
-*Placement* (Department, Current Location, Assigned To — optional, Status, Condition) ·
-*Details* (Specifications key/value repeater, Notes, Asset Photo).
+_Identity_ (Asset Code — auto-generated, editable by Super Admin; Asset Name; Category; Brand; Model;
+Serial Number) · _Procurement_ (Vendor, Purchase Date, Purchase Price, Warranty Start, Warranty End) ·
+_Placement_ (Department, Current Location, Assigned To — optional, Status, Condition) ·
+_Details_ (Specifications key/value repeater, Notes, Asset Photo).
 Required: name, category, brand, serial number, location, status, condition. Serial number must be
 unique — show "Serial number already registered" inline. Save → toast + navigate to the new
 Asset Detail. Reuse the wizard's field styling (44px inputs, radius 13, 11.5/600 `sub` labels).
@@ -368,17 +369,17 @@ Export runs server-side and returns a signed URL; show a progress toast then a d
 
 ## Interactions & Behavior Summary
 
-| Trigger | Behavior |
-|---|---|
-| Scope checkbox | Updates the global scope; every list, count, and chart refetches. Zero locations selected → all lists show the empty state. |
-| Tab / chip change | Content cross-fades 180ms; no scroll reset on Asset Detail. |
-| Navigating to Home or Assets | 620ms skeleton, then content. Other screens render immediately. |
-| Any mutation | Optimistic UI + toast; on failure roll back and show a red error toast. |
-| Asset Detail primary button | `Assigned` → Return flow (asset pre-selected); otherwise → Assign flow. |
-| BAST upload complete | BAST status → Signed, version history gains an entry, document appears in the asset's Documents tab. |
-| Notification tap | Marks read, deep-links to the entity (asset, BAST, or the relevant tab). |
-| Dark-mode switch | Instant theme swap, persisted per device. |
-| Permissions | Viewer sees no mutating buttons; Site IT is locked to its own location scope; Corporate IT may not manage accounts; only Super Admin can delete master data or edit an asset code. |
+| Trigger                      | Behavior                                                                                                                                                                           |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Scope checkbox               | Updates the global scope; every list, count, and chart refetches. Zero locations selected → all lists show the empty state.                                                        |
+| Tab / chip change            | Content cross-fades 180ms; no scroll reset on Asset Detail.                                                                                                                        |
+| Navigating to Home or Assets | 620ms skeleton, then content. Other screens render immediately.                                                                                                                    |
+| Any mutation                 | Optimistic UI + toast; on failure roll back and show a red error toast.                                                                                                            |
+| Asset Detail primary button  | `Assigned` → Return flow (asset pre-selected); otherwise → Assign flow.                                                                                                            |
+| BAST upload complete         | BAST status → Signed, version history gains an entry, document appears in the asset's Documents tab.                                                                               |
+| Notification tap             | Marks read, deep-links to the entity (asset, BAST, or the relevant tab).                                                                                                           |
+| Dark-mode switch             | Instant theme swap, persisted per device.                                                                                                                                          |
+| Permissions                  | Viewer sees no mutating buttons; Site IT is locked to its own location scope; Corporate IT may not manage accounts; only Super Admin can delete master data or edit an asset code. |
 
 ## State Management
 
@@ -401,15 +402,15 @@ Server state via TanStack Query, keyed with the scope so cache invalidation is a
   (32px), the BAST paper preview (22px), and the app icon / splash screen.
 - All other icons are 24×24 outlined strokes (1.6–1.8px, round caps) drawn inline in the prototype —
   match them with Lucide (`home, box, file-text, grid, plus, user, move, wrench, bar-chart,
-  upload, download, settings, shield-check, bell, laptop, printer, monitor, server, network, clock,
-  file-spreadsheet, arrow-left-right`).
+upload, download, settings, shield-check, bell, laptop, printer, monitor, server, network, clock,
+file-spreadsheet, arrow-left-right`).
 - No illustrations are used; empty states are icon + text only.
 
 ## Files
 
-| File | What it is |
-|---|---|
-| `CITE Assets.dc.html` | The full interactive hi-fi prototype (all screens, states, and flows). Open in a browser. |
-| `DATABASE.md` | Postgres/Supabase schema: DDL, enums, indexes, triggers, RLS policies, seed data. |
-| `IMPLEMENTATION_PLAN.md` | Build order, per-module acceptance criteria, and ready-to-paste prompts for Claude Code. |
-| `assets/cite-logo.png` | Brand mark. |
+| File                     | What it is                                                                                |
+| ------------------------ | ----------------------------------------------------------------------------------------- |
+| `CITE Assets.dc.html`    | The full interactive hi-fi prototype (all screens, states, and flows). Open in a browser. |
+| `DATABASE.md`            | Postgres/Supabase schema: DDL, enums, indexes, triggers, RLS policies, seed data.         |
+| `IMPLEMENTATION_PLAN.md` | Build order, per-module acceptance criteria, and ready-to-paste prompts for Claude Code.  |
+| `assets/cite-logo.png`   | Brand mark.                                                                               |

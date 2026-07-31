@@ -71,12 +71,14 @@ export default function TabsLayout() {
 
   const handleQuickAction = (action: QuickAction) => {
     setFabOpen(false);
-    const routes: Record<QuickAction, '/add-asset' | '/assign' | '/transfer' | '/bast'> = {
-      'add-asset': '/add-asset',
-      'assign-asset': '/assign',
-      'transfer-asset': '/transfer',
-      'generate-bast': '/bast',
-    };
+    const routes: Record<QuickAction, '/add-asset' | '/assign' | '/transfer' | '/bast' | '/scan'> =
+      {
+        'scan-label': '/scan',
+        'add-asset': '/add-asset',
+        'assign-asset': '/assign',
+        'transfer-asset': '/transfer',
+        'generate-bast': '/bast',
+      };
     router.push(routes[action]);
   };
 

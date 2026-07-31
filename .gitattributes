@@ -1,0 +1,13 @@
+# Keep line endings LF in the repository regardless of the platform checked out
+# on. Without this, Git rewrites source files to CRLF on Windows and Prettier
+# then reports every line of them as changed — which buried a real lint signal
+# under 115 spurious warnings.
+* text=auto eol=lf
+
+# Binary: never touched.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.pdf binary
+*.ttf binary
+*.otf binary

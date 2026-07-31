@@ -522,7 +522,7 @@ Repeat the `*_read` / `*_write` pattern for `assignments`, `movements`, `bast`, 
 `select` for all authenticated users, `insert/update` for `super_admin` + `corporate_it`,
 `delete` for `super_admin` only.
 
-> **Note on the client-side scope selector:** it is a *filter*, not a security boundary — RLS is what
+> **Note on the client-side scope selector:** it is a _filter_, not a security boundary — RLS is what
 > actually restricts Site IT and Viewer. The app must intersect the user's chosen scope with the
 > locations RLS allows.
 
@@ -555,20 +555,20 @@ returns setof assets language sql stable as $$ … $$;
 
 ### Scheduled jobs (`pg_cron` or a scheduled Edge Function)
 
-| Schedule | Job |
-|---|---|
+| Schedule         | Job                                                                                                                         |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | daily 06:00 WITA | insert `warranty_expiring` notifications for assets with `warranty_end` within 30 days (dedupe per asset per 30-day window) |
-| daily 06:05 WITA | insert `maintenance_reminder` for `maintenance_records.next_due_at <= today + 7` |
-| weekly | refresh dashboard materialized view, if you choose to materialize it |
+| daily 06:05 WITA | insert `maintenance_reminder` for `maintenance_records.next_due_at <= today + 7`                                            |
+| weekly           | refresh dashboard materialized view, if you choose to materialize it                                                        |
 
 ## 12. Storage buckets
 
-| Bucket | Contents | Access |
-|---|---|---|
-| `asset-photos` | `<asset_id>/<uuid>.jpg` | authenticated read within scope, write for IT roles |
-| `asset-documents` | `<asset_id>/<uuid>.<ext>` — invoice, PO, warranty card, manual, photos, other | same |
-| `bast` | `<bast_id>/v<n>.pdf` — generated and signed versions | same; signed URLs for download |
-| `imports` | `<batch_id>/<file>.xlsx` | write for IT roles, read for admins |
+| Bucket            | Contents                                                                      | Access                                              |
+| ----------------- | ----------------------------------------------------------------------------- | --------------------------------------------------- |
+| `asset-photos`    | `<asset_id>/<uuid>.jpg`                                                       | authenticated read within scope, write for IT roles |
+| `asset-documents` | `<asset_id>/<uuid>.<ext>` — invoice, PO, warranty card, manual, photos, other | same                                                |
+| `bast`            | `<bast_id>/v<n>.pdf` — generated and signed versions                          | same; signed URLs for download                      |
+| `imports`         | `<batch_id>/<file>.xlsx`                                                      | write for IT roles, read for admins                 |
 
 All buckets private; the app fetches short-lived signed URLs. Max upload 10 MB
 (BAST scan / document), 5 MB (import file).

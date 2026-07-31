@@ -189,7 +189,7 @@ production, in order:
 1. **Hosted Supabase.** The app points at a laptop on the Wi-Fi. Create a
    project, `supabase link` + `supabase db push` (the migrations are additive
    and ordered, so they apply as-is), `supabase functions deploy
-   generate-bast-pdf`, then move the URL and anon key into EAS environment
+generate-bast-pdf`, then move the URL and anon key into EAS environment
    variables instead of `eas.json`.
 2. **Turn the cleartext escapes off.** `usesCleartextTraffic` and
    `NSAllowsLocalNetworking` exist only because the local stack is plain HTTP.

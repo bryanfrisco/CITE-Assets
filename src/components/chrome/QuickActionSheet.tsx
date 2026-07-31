@@ -7,12 +7,13 @@
 
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { ArrowLeftRight, FileText, Plus, UserPlus } from 'lucide-react-native';
+import { ArrowLeftRight, FileText, Plus, QrCode, UserPlus } from 'lucide-react-native';
 
 import { useTheme } from '@/theme';
 import { BottomSheet } from '@/components/ui';
 
-export type QuickAction = 'add-asset' | 'assign-asset' | 'transfer-asset' | 'generate-bast';
+export type QuickAction =
+  'scan-label' | 'add-asset' | 'assign-asset' | 'transfer-asset' | 'generate-bast';
 
 interface Tile {
   key: QuickAction;
@@ -22,6 +23,9 @@ interface Tile {
 }
 
 const TILES: Tile[] = [
+  // First: with labels in play, scanning is how most assets now enter the
+  // register, and it is the action done standing next to the device.
+  { key: 'scan-label', title: 'Scan Label', subtitle: 'Register or look up by QR', Icon: QrCode },
   { key: 'add-asset', title: 'Add Asset', subtitle: 'Register new equipment', Icon: Plus },
   { key: 'assign-asset', title: 'Assign Asset', subtitle: 'Handover to employee', Icon: UserPlus },
   {

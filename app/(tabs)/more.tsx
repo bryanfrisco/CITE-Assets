@@ -9,9 +9,10 @@ import { useRouter } from 'expo-router';
 import {
   ArrowLeftRight,
   BarChart3,
-  FileText,
   FileSpreadsheet,
+  FileText,
   Grid3x3,
+  QrCode,
   Settings as SettingsIcon,
   ShieldCheck,
   Wrench,
@@ -37,13 +38,19 @@ export default function MoreScreen() {
     title: string;
     subtitle: string;
     phase?: string;
-    route?: '/master';
+    route?: '/master' | '/labels' | '/transfer';
   }[] = [
     {
       icon: <ArrowLeftRight {...iconProps} />,
       title: 'Movement',
       subtitle: 'Transfer history between HO and Site',
-      phase: 'Phase 4',
+      route: '/transfer' as const,
+    },
+    {
+      icon: <QrCode {...iconProps} />,
+      title: 'Labels',
+      subtitle: 'Print blank stickers and see what is issued',
+      route: '/labels' as const,
     },
     {
       icon: <Wrench {...iconProps} />,

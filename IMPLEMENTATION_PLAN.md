@@ -20,20 +20,20 @@ starts. Do **not** ask an AI assistant to "build the whole app" — the result i
 Supabase Auth (email + password), `accounts` linked by `auth_user_id`, session bootstrap that loads
 role + `account_scope_preferences`, a `usePermissions()` hook, and route/action gating:
 
-| | Super Admin | Corporate IT | Site IT | Viewer |
-|---|---|---|---|---|
-| View assets | all | all | own location | own location |
-| Create / edit asset | ✓ | ✓ | ✓ (own location) | — |
-| Delete asset | ✓ | — | — | — |
-| Assign / return | ✓ | ✓ | ✓ | — |
-| Movement | ✓ | ✓ | ✓ | — |
-| Generate / upload BAST | ✓ | ✓ | ✓ | — |
-| Master data | ✓ (incl. delete) | ✓ (no delete) | — | — |
-| Accounts | ✓ | — | — | — |
-| Audit log | ✓ | ✓ | — | — |
+|                        | Super Admin      | Corporate IT  | Site IT          | Viewer       |
+| ---------------------- | ---------------- | ------------- | ---------------- | ------------ |
+| View assets            | all              | all           | own location     | own location |
+| Create / edit asset    | ✓                | ✓             | ✓ (own location) | —            |
+| Delete asset           | ✓                | —             | —                | —            |
+| Assign / return        | ✓                | ✓             | ✓                | —            |
+| Movement               | ✓                | ✓             | ✓                | —            |
+| Generate / upload BAST | ✓                | ✓             | ✓                | —            |
+| Master data            | ✓ (incl. delete) | ✓ (no delete) | —                | —            |
+| Accounts               | ✓                | —             | —                | —            |
+| Audit log              | ✓                | ✓             | —                | —            |
 
 **Done when** a Viewer sees no mutating buttons and a Site IT user's asset list is location-limited
-*by RLS* (verify by querying with their token, not just by hiding UI).
+_by RLS_ (verify by querying with their token, not just by hiding UI).
 
 ## Phase 2 — Master data (1 day)
 
@@ -65,7 +65,7 @@ even with a raw SQL call from the client.
 
 - `next_bast_number()` numbering; BAST record created by `assign_asset()` when Auto-BAST is on.
 - Edge Function `generate-bast-pdf`: renders the exact letterhead layout from the prototype's paper
-  preview (CITE logo, navy rule, underlined *BERITA ACARA SERAH TERIMA*, Indonesian body sentence,
+  preview (CITE logo, navy rule, underlined _BERITA ACARA SERAH TERIMA_, Indonesian body sentence,
   bordered detail table, two signature blocks), stores `bast/<id>/v1.pdf`, inserts `bast_versions`.
 - Signed-scan upload with real progress, status → `signed`, version history, and a mirrored
   `documents` row of kind `signed_bast`.
