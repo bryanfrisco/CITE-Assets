@@ -15,6 +15,7 @@ import {
   QrCode,
   Settings as SettingsIcon,
   ShieldCheck,
+  Users,
   Wrench,
 } from 'lucide-react-native';
 
@@ -38,7 +39,7 @@ export default function MoreScreen() {
     title: string;
     subtitle: string;
     phase?: string;
-    route?: '/master' | '/labels' | '/transfer';
+    route?: '/master' | '/labels' | '/transfer' | '/accounts';
   }[] = [
     {
       icon: <ArrowLeftRight {...iconProps} />,
@@ -83,6 +84,16 @@ export default function MoreScreen() {
             title: 'Master data',
             subtitle: 'Categories, brands, models, vendors',
             route: '/master' as const,
+          },
+        ]
+      : []),
+    ...(can('account.manage')
+      ? [
+          {
+            icon: <Users {...iconProps} />,
+            title: 'Accounts',
+            subtitle: 'People, roles, and who can sign in',
+            route: '/accounts' as const,
           },
         ]
       : []),

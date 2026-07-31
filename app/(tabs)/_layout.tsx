@@ -43,6 +43,8 @@ function navKeyFor(pathname: string): NavKey {
     pathname.startsWith('/more') ||
     pathname.startsWith('/master') ||
     pathname.startsWith('/settings') ||
+    pathname.startsWith('/accounts') ||
+    pathname.startsWith('/account-edit') ||
     pathname.startsWith('/audit')
   ) {
     return 'more';

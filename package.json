@@ -25,9 +25,10 @@
     "test:tags": "node --env-file-if-exists=.env tests/asset-tags.mjs",
     "test:signature": "node --env-file-if-exists=.env tests/ebast-signature.mjs",
     "test:status": "node --env-file-if-exists=.env tests/status-changes.mjs",
-    "test": "npm run test:rls && npm run test:master && npm run test:register && npm run test:assign && npm run test:bast && npm run test:tags && npm run test:signature && npm run test:status",
+    "test": "npm run test:rls && npm run test:master && npm run test:register && npm run test:assign && npm run test:bast && npm run test:tags && npm run test:signature && npm run test:status && npm run test:accounts",
     "build:bast-logo": "node scripts/build-bast-logo.mjs",
-    "eas-build-pre-install": "node scripts/eas-build-pre-install.mjs"
+    "eas-build-pre-install": "node scripts/eas-build-pre-install.mjs",
+    "test:accounts": "node --env-file-if-exists=.env tests/accounts.mjs"
   },
   "dependencies": {
     "@expo-google-fonts/inter": "^0.4.2",
