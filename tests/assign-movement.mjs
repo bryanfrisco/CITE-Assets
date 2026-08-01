@@ -274,7 +274,10 @@ async function run() {
     check(
       'an audit entry is written',
       auditAfter.count === before.count + 1,
-      `${before.count} → ${auditAfter.count}`,
+      // The error is included because a null count is otherwise
+      // indistinguishable from a count that is genuinely wrong, and the two
+      // need completely different fixes.
+      auditAfter.error?.message ?? `${before.count} → ${auditAfter.count}`,
     );
 
     const twice = await admin.rpc('assign_asset', {
