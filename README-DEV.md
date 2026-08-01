@@ -286,3 +286,57 @@ tests/                  acceptance scripts, one per phase
 | Function            | What it does                                                                                                                                                                                                                                                                                                                                                                          |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `generate-bast-pdf` | Renders the BAST letterhead to `bast/<id>/v1.pdf` and records the version. Runs under the **caller's** JWT, never the service role, so RLS and the storage policies still apply. Dependency-free: the PDF writer is `pdf.ts`, and `logo.ts` is the CITE mark baked into a PDF image stream by `node scripts/build-bast-logo.mjs` (re-run that after changing `assets/cite-logo.png`). |
+
+---
+
+## Where this got to (2026-08-01)
+
+Phases 0–7 are done and in production. The register is empty by design; the
+team fills it via the scanner or the CSV import.
+
+### Migrations
+
+| # | What |
+| --- | --- |
+| 0001–0014 | Schema, RLS, master data, assets, assign/return/movement, BAST, asset tags |
+| 0015 | E-BAST signatures — strokes, signatories, `sign_bast()` |
+| 0016 | Status changes with a required reason; disposal guards |
+| 0017 | Account management RPCs; direct writes to `accounts` withdrawn |
+| 0018 | **Fix:** `audit_row()` had no `search_path` and broke auth-user deletion |
+| 0019 | Documents, maintenance, notifications, pg_cron schedules |
+| 0020 | `scheduled_jobs()` — so a missing cron entry is visible |
+| 0021 | **Fix:** revoke EXECUTE from PUBLIC on the internal functions |
+| 0022 | **Fix:** 0021 broke `create_asset()`; counters granted back |
+| 0023 | `run_notification_jobs_now()` — the guarded door for a Super Admin |
+| 0024 | CSV import — one function, preview and commit |
+| 0025 | Reports and export |
+
+### Edge Functions
+
+- `generate-bast-pdf` — renders the letterhead and the signature strokes;
+  `finalize: true` produces the signed version.
+- `manage-account` — the only place the service_role key is used. Checks the
+  caller is a Super Admin **with the caller's own token** first.
+
+### Tests
+
+`npm test` runs twelve suites against a **local** stack. `tests/_guard.mjs`
+refuses to run against anything that is not localhost, keyed on the URL rather
+than a flag, because the dangerous case is exactly the one where nobody
+remembered to set the flag.
+
+Every suite must pass **twice in a row without a `db reset`**. Nothing is
+cleaned up — movements, BAST versions, signatures and status changes are all
+append-only — so no assertion may depend on a total.
+
+### Before this ships more widely
+
+1. `assets/aspire-logo.png` is a 1×1 placeholder. Drop the real artwork in and
+   run `npm run build:bast-logo`; the letterhead prints without the mark until
+   then.
+2. Rotate the service_role key and the database password.
+3. Move to pnpm or Yarn and delete `scripts/eas-build-pre-install.mjs` — builds
+   are not byte-reproducible while it exists.
+4. Add CI. The suites are fast and the guard makes them safe to run anywhere.
+5. Date pickers instead of `YYYY-MM-DD` text fields.
+6. Trigram indexes on brand/model/holder/department once the register is large.
