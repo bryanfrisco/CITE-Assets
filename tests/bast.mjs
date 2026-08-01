@@ -240,7 +240,17 @@ async function run() {
     const entries = [...text.slice(startxref).matchAll(/^(\d{10}) 00000 n $/gm)].map((m) =>
       Number(m[1]),
     );
-    check('every object is in the table', entries.length === 7, `${entries.length} entries`);
+    // Derived from the file, not fixed: the object count changes with how many
+    // logos the letterhead actually has, and a hard number here failed the
+    // moment the ASPIRE mark was supplied — which is a change to the document,
+    // not a fault in it.
+    const declared = Number(text.match(/\/Size (\d+)/)?.[1]);
+    const objects = [...text.matchAll(/^(\d+) 0 obj/gm)].length;
+    check(
+      'every object is in the table',
+      entries.length === objects && declared === objects + 1,
+      `${entries.length} entries, ${objects} objects, /Size ${declared}`,
+    );
     check(
       'every offset lands on its object header',
       entries.every((offset, i) => text.startsWith(`${i + 1} 0 obj`, offset)),
