@@ -83,7 +83,7 @@ export default function NotificationsScreen() {
   };
 
   return (
-    <Screen>
+    <Screen refreshing={inbox.isFetching} onRefresh={() => void inbox.refetch()}>
       <Pressable
         onPress={() => router.back()}
         accessibilityRole="button"

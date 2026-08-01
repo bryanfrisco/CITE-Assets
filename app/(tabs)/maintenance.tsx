@@ -65,7 +65,13 @@ export default function MaintenanceScreen() {
   const rows = list.data ?? [];
 
   return (
-    <Screen>
+    <Screen
+      refreshing={list.isFetching || stats.isFetching}
+      onRefresh={() => {
+        void list.refetch();
+        void stats.refetch();
+      }}
+    >
       <Pressable
         onPress={() => router.back()}
         accessibilityRole="button"

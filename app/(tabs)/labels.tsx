@@ -114,7 +114,13 @@ export default function LabelsScreen() {
   });
 
   return (
-    <Screen>
+    <Screen
+      refreshing={tags.isFetching || stock.isFetching}
+      onRefresh={() => {
+        void tags.refetch();
+        void stock.refetch();
+      }}
+    >
       <Pressable
         onPress={() => router.back()}
         accessibilityRole="button"

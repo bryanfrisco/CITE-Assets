@@ -39,7 +39,7 @@ export default function AccountsScreen() {
   const recordOnly = rows.filter((r) => !r.can_login);
 
   return (
-    <Screen>
+    <Screen refreshing={accounts.isFetching} onRefresh={() => void accounts.refetch()}>
       <Pressable
         onPress={() => router.back()}
         accessibilityRole="button"

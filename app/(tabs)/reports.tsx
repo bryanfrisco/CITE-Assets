@@ -138,7 +138,13 @@ export default function ReportsScreen() {
   );
 
   return (
-    <Screen>
+    <Screen
+      refreshing={rows.isFetching || summary.isFetching}
+      onRefresh={() => {
+        void rows.refetch();
+        void summary.refetch();
+      }}
+    >
       <Pressable
         onPress={() => router.back()}
         accessibilityRole="button"
