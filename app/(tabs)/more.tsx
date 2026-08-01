@@ -38,7 +38,8 @@ export default function MoreScreen() {
     title: string;
     subtitle: string;
     phase?: string;
-    route?: '/master' | '/labels' | '/transfer' | '/accounts' | '/maintenance';
+    route?:
+      '/master' | '/labels' | '/transfer' | '/accounts' | '/maintenance' | '/import' | '/reports';
   }[] = [
     {
       icon: <ArrowLeftRight {...iconProps} />,
@@ -61,14 +62,14 @@ export default function MoreScreen() {
     {
       icon: <BarChart3 {...iconProps} />,
       title: 'Reports & Export',
-      subtitle: 'Excel and PDF with filters',
-      phase: 'Phase 7',
+      subtitle: 'CSV and PDF with filters',
+      route: '/reports' as const,
     },
     {
       icon: <FileSpreadsheet {...iconProps} />,
-      title: 'Import Excel',
-      subtitle: 'Template → validate → import',
-      phase: 'Phase 7',
+      title: 'Import assets',
+      subtitle: 'Template → check → import',
+      route: '/import' as const,
     },
     ...(can('master.write')
       ? [

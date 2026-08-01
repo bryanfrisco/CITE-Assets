@@ -47,6 +47,8 @@ function navKeyFor(pathname: string): NavKey {
     pathname.startsWith('/settings') ||
     pathname.startsWith('/notifications') ||
     pathname.startsWith('/maintenance') ||
+    pathname.startsWith('/import') ||
+    pathname.startsWith('/reports') ||
     pathname.startsWith('/accounts') ||
     pathname.startsWith('/account-edit') ||
     pathname.startsWith('/audit')
