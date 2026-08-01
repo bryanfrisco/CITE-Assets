@@ -457,7 +457,7 @@ function PaperPreview({ bast }: { bast: BastDetail }) {
           <>
             <Image
               source={ASPIRE}
-              style={[styles.paperAspire, { width: 18 * ASPIRE_RATIO }]}
+              style={[styles.paperAspire, { width: 34 * ASPIRE_RATIO }]}
               resizeMode="contain"
             />
             {/* A hairline, not a gap: ASPIRE is the company and CITE is the
@@ -631,8 +631,11 @@ const styles = StyleSheet.create({
     paddingBottom: 10,
     borderBottomWidth: 2,
   },
-  paperAspire: { height: 18 },
-  paperDivider: { width: 1, height: 18, marginHorizontal: 2 },
+  // Taller than the CITE mark on purpose: the ASPIRE artwork is a stacked
+  // lockup whose bottom line is "member of ASTRA", and matching the CITE
+  // height would render that line as a smudge. Same proportion as the PDF.
+  paperAspire: { height: 34 },
+  paperDivider: { width: 1, height: 30, marginHorizontal: 2 },
   paperLogo: { width: 22, height: 22 },
   paperBrand: { fontSize: 9.5, fontWeight: '700', letterSpacing: 0.4 },
   paperBrandSub: { fontSize: 7.5, letterSpacing: 0.5, textTransform: 'uppercase' },

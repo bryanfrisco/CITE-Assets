@@ -154,18 +154,24 @@ function render(doc: BastDocument): Uint8Array {
   // Client instruction: the ASPIRE mark comes first, then CITE. The two are
   // separated by a hairline so that neither reads as a sub-brand of the other:
   // ASPIRE is the company, CITE is the department raising the document.
-  const bandH = 30;
+  //
+  // The band is 46pt tall because the ASPIRE artwork is a STACKED LOCKUP —
+  // roundel over "ASPIRE stargate" over "member of ASTRA" — not a wordmark.
+  // Its bottom line is about 8% of its height, so at the 24pt this band used to
+  // be, "member of ASTRA" would print at roughly 1.5pt and read as a smudge. A
+  // company lockup nobody can read is worse on a letterhead than no lockup.
+  const bandH = 46;
   const bandTop = top;
   const bandBottom = bandTop - bandH;
   let x = MARGIN;
 
   if (aspireLogoWidth > 0) {
-    const aspireH = 24;
+    const aspireH = 40;
     const aspireW = (aspireH * aspireLogoWidth) / aspireLogoHeight;
     c.image('Im2', x, bandBottom + (bandH - aspireH) / 2, aspireW, aspireH);
     x += aspireW + 14;
 
-    c.line(x, bandBottom + 3, x, bandTop - 3, 0.8, TABLE_BORDER);
+    c.line(x, bandBottom + 4, x, bandTop - 4, 0.8, TABLE_BORDER);
     x += 14;
   }
 
@@ -176,8 +182,11 @@ function render(doc: BastDocument): Uint8Array {
     x += citeW + 10;
   }
 
-  c.text('CORPORATE IT — CITE', x, bandBottom + 16, { size: 11, face: 'bold', color: INK });
-  c.text('IT ASSET MANAGEMENT', x, bandBottom + 4, { size: 7.5, color: MUTED });
+  // The CITE wordmark sits on the band's centre line rather than its floor, so
+  // it stays optically level with the taller lockup beside it.
+  const citeTextY = bandBottom + bandH / 2;
+  c.text('CORPORATE IT — CITE', x, citeTextY + 1, { size: 11, face: 'bold', color: INK });
+  c.text('IT ASSET MANAGEMENT', x, citeTextY - 11, { size: 7.5, color: MUTED });
 
   const ruleY = bandBottom - 12;
   c.line(MARGIN, ruleY, MARGIN + CONTENT_W, ruleY, 2, NAVY);
