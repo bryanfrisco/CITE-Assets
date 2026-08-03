@@ -1,4 +1,4 @@
-# Cara Mencetak Label QR — Epson LW-700
+# Cara Mencetak Label Barcode — Epson LW-700
 
 Panduan ini khusus untuk mencetak stiker label. Untuk hal lain, lihat
 `PANDUAN-PENGGUNA.md`.
@@ -11,7 +11,7 @@ atas putih vinyl).
 ## Ringkasan dalam satu kalimat
 
 Aplikasi menerbitkan kode → kirim file CSV ke PC → Epson Label Editor menggambar
-QR-nya dan mencetak seluruh batch sekali jalan lewat kabel USB.
+barcode-nya dan mencetak seluruh batch sekali jalan lewat kabel USB.
 
 ---
 
@@ -21,9 +21,15 @@ QR-nya dan mencetak seluruh batch sekali jalan lewat kabel USB.
 Bluetooth, tidak ada Wi-Fi. Yang bisa dicetak dari HP itu seri berakhiran "P"
 seperti LW-600P. Ini batas mesinnya, bukan batasan aplikasi.
 
-**QR-nya digambar oleh Label Editor, bukan oleh aplikasi.** File CSV hanya
-berisi teks. Label Editor yang mengubah teks itu jadi QR saat mencetak — dan itu
-justru bagus, karena dia menggambarnya di resolusi printer, bukan resolusi HP.
+**Barcode-nya digambar oleh Label Editor, bukan oleh aplikasi.** File CSV hanya
+berisi teks. Label Editor yang mengubah teks itu jadi barcode saat mencetak —
+dan itu justru bagus, karena dia menggambarnya di resolusi printer, bukan
+resolusi HP.
+
+**Jenisnya Code 128.** Aplikasi juga bisa QR kalau Anda pilih di layar Labels,
+dan scanner membaca keduanya. Barcode jadi default karena pada pita 24 mm
+batangnya bisa memakai seluruh lebar, kodenya terbaca di bawahnya, dan scanner
+laser murah membacanya dari jarak lebih jauh daripada QR.
 
 **Kode diterbitkan sebelum file dibuat.** Begitu Anda menekan tombol, kode-kode
 itu sudah tercatat di database sebagai stiker kosong. Kalau proses cetaknya
@@ -74,21 +80,27 @@ Template ini dibuat **satu kali**, lalu disimpan dan dipakai selamanya.
 
 1. Buka **Epson Label Editor**.
 2. Buat label baru. Pilih lebar pita **24 mm**.
-3. Atur panjang label: **Fixed length**, isi **48 mm**.
+3. Atur panjang label: **Fixed length**, isi **62 mm**.
    (Kalau dibiarkan "Auto", panjang tiap stiker akan berbeda-beda mengikuti
-   isinya, dan hasilnya tidak rapi saat ditempel berjajar.)
+   isinya, dan hasilnya tidak rapi saat ditempel berjajar. 62 mm bukan angka
+   sembarangan: barcode `CT-000123` butuh 134 modul, dan di bawah lebar itu
+   tiap modul jadi lebih tipis daripada yang bisa dicetak bersih oleh kepala
+   thermal 180 dpi. Barcode yang terlalu rapat kelihatan baik-baik saja dan
+   tidak mau di-scan.)
 4. Taruh **dua objek** di atas kanvas:
 
-   **Objek pertama — QR**
+   **Objek pertama — barcode**
    - Menu **Insert → Barcode** (atau ikon barcode di toolbar)
-   - Jenis: **QR Code**
-   - Ukuran: sekitar **16 × 16 mm**
-   - Posisi: rapat ke kiri, beri jarak ±2 mm dari tepi
+   - Jenis: **CODE128** — bukan CODE39, bukan EAN
+   - Lebar: hampir selebar label, sisakan **2 mm** di kiri dan kanan
+   - Tinggi: sekitar **10 mm**
+   - Matikan opsi "print human readable text" kalau ada — teksnya kita taruh
+     sendiri di objek kedua supaya fontnya bisa diatur
 
    **Objek kedua — teks**
    - Menu **Insert → Text**
-   - Posisi: di sebelah kanan QR
-   - Font: apa saja yang jelas, ukuran ±14–16 pt, tebal
+   - Posisi: di bawah barcode, rata tengah
+   - Font: apa saja yang jelas, ukuran ±10–12 pt, tebal
    - Isi sementara: ketik `CT-000000` supaya Anda bisa melihat ukurannya
 
 5. Simpan template ini, misalnya `cite-label-24mm.lbl`.
@@ -109,14 +121,15 @@ Ini bagian yang membuat pencetakan jadi bulk.
 4. Setelah terhubung, Label Editor menampilkan daftar kolom: **qr**, **code**,
    **caption**.
 5. Ikat objek ke kolom:
-   - Klik objek **QR** → cari properti **Field** / **Data source** → pilih
-     kolom **`qr`**
-   - Klik objek **teks** → pilih kolom **`code`**
+   - Klik objek **barcode** → cari properti **Field** / **Data source** → pilih
+     kolom **`code`**
+   - Klik objek **teks** → pilih kolom **`code`** juga
 6. Simpan template lagi.
 
-Kolom `qr` dan `code` isinya sama persis. Dipisah supaya Anda bisa mengubah
-salah satunya tanpa mengganggu yang lain — misalnya nanti ingin teksnya
-dipendekkan tapi QR-nya tetap penuh.
+Kolom `qr` dan `code` isinya sama persis. Dipisah supaya template QR dan
+template barcode bisa hidup berdampingan tanpa saling mengganggu: kalau suatu
+saat Anda ingin kembali ke QR, ikat objek QR ke kolom `qr` dan sisanya tidak
+berubah.
 
 ---
 
@@ -140,8 +153,9 @@ dan aplikasi membuka form aset baru, berarti sudah benar.
 
 ## Langkah 5 — Kalau tidak ada LW-700
 
-Pakai file **PDF** dari Langkah 1. Ukurannya sudah pas: **48 × 18 mm** per
-halaman untuk pita 24 mm, satu label per halaman.
+Pakai file **PDF** dari Langkah 1. Ukurannya sudah pas: **62 × 18 mm** per
+halaman untuk pita 24 mm dengan barcode, satu label per halaman. (Kalau Anda
+pilih QR, jadi 48 × 18 mm.)
 
 Cetak di kertas stiker A4 biasa dengan pengaturan:
 
@@ -158,7 +172,7 @@ lepas dari bodi laptop; stiker kertas A4 akan mengelupas dalam hitungan minggu.
 
 1. Tempel di barangnya. Untuk laptop, tempat yang bagus adalah bagian bawah
    dekat engsel — tidak terkena tangan, tidak terkelupas di dalam tas.
-2. Buka aplikasi → **+ → Scan Label** → arahkan ke QR.
+2. Buka aplikasi → **+ → Scan Label** → arahkan ke barcode.
 3. Aplikasi membuka form aset baru. Isi datanya, simpan.
 
 Stiker itu berubah dari **Blank** menjadi **In use**, dan sejak itu menempel
@@ -172,16 +186,16 @@ Sisa stiker yang belum tertempel tetap terhitung di **More → Labels** sebagai
 
 ## Kalau bermasalah
 
-| Gejala                             | Penyebab dan solusi                                                                                     |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| Stiker pertama isinya tulisan `qr` | Opsi _first row contains field names_ belum dicentang. Ulangi Langkah 3 poin 3.                         |
-| Hanya 1 stiker yang keluar         | Anda menekan Print biasa, bukan _Print all records_.                                                    |
-| QR terpotong di tepi               | Objek QR terlalu dekat ke tepi. Beri jarak minimal 2 mm dari semua sisi.                                |
-| QR tidak terbaca saat di-scan      | Ukuran QR terlalu kecil. Minimal 14 mm untuk pita 24 mm.                                                |
-| Panjang stiker berbeda-beda        | Panjang label masih "Auto". Ubah ke Fixed 48 mm.                                                        |
-| Mesin tidak terdeteksi             | Belum ditekan tombol PC-link, atau kabel USB hanya kabel charge tanpa jalur data.                       |
-| Karakter aneh di kolom             | CSV dibuka dulu di Excel lalu disimpan ulang. Pakai file aslinya, jangan lewat Excel.                   |
-| File CSV hilang di HP              | Buka **More → Labels**, filter **Blank**, tekan **Re-export these labels**. Kode yang sama keluar lagi. |
+| Gejala                               | Penyebab dan solusi                                                                                                  |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| Stiker pertama isinya tulisan `code` | Opsi _first row contains field names_ belum dicentang. Ulangi Langkah 3 poin 3.                                      |
+| Hanya 1 stiker yang keluar           | Anda menekan Print biasa, bukan _Print all records_.                                                                 |
+| Barcode terpotong di tepi            | Objeknya terlalu dekat ke tepi. Beri jarak minimal 2 mm kiri-kanan — itu _quiet zone_, dan scanner butuh melihatnya. |
+| Barcode tidak terbaca saat di-scan   | Terlalu rapat, atau quiet zone-nya hilang. Panjangkan label ke 62 mm dan sisakan 2 mm kosong di kedua ujung.         |
+| Panjang stiker berbeda-beda          | Panjang label masih "Auto". Ubah ke Fixed 62 mm.                                                                     |
+| Mesin tidak terdeteksi               | Belum ditekan tombol PC-link, atau kabel USB hanya kabel charge tanpa jalur data.                                    |
+| Karakter aneh di kolom               | CSV dibuka dulu di Excel lalu disimpan ulang. Pakai file aslinya, jangan lewat Excel.                                |
+| File CSV hilang di HP                | Buka **More → Labels**, filter **Blank**, tekan **Re-export these labels**. Kode yang sama keluar lagi.              |
 
 ---
 
