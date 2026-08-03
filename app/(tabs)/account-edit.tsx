@@ -235,8 +235,12 @@ export default function AccountEditScreen() {
             label="NIK"
             value={form.nik}
             onChangeText={(v) => set('nik', v)}
-            placeholder="Employee number"
-            keyboardType="number-pad"
+            placeholder="e.g. 20481 or HO-2481"
+            // Letters allowed: the column has always been text, and a
+            // number-pad was the only thing insisting otherwise. Employee
+            // numbers carry site prefixes here.
+            autoCapitalize="characters"
+            autoCorrect={false}
             containerStyle={styles.field}
           />
           <Input
