@@ -65,10 +65,14 @@ const QR_LENGTH_MM: Record<TapeWidth, number> = {
 /**
  * Longer, because a linear barcode needs width the way a QR needs area.
  *
- * A `CT-000123` symbol is 134 modules including the quiet zones. At 48 mm that
- * is a 0.36 mm module, which is below what a thermal head at 180 dpi can hold
- * cleanly; at 60 mm it is 0.45 mm, which it can. A barcode printed too narrow
- * looks perfectly fine and simply refuses to scan.
+ * A `CT-000123` symbol is 134 modules, 154 with both quiet zones. Decoded with
+ * zxing-cpp from a clean 180 dpi render, 48 mm still reads and 40 mm does not.
+ * So 48 would work on paper — 62 is chosen for the margin between a synthetic
+ * bitmap and a real sticker: thermal ink spreads, vinyl stretches over a curved
+ * laptop lid, and a phone camera reads at an angle in bad light. None of that
+ * is in the test, and all of it eats the same modules.
+ *
+ * A barcode printed too narrow looks perfectly fine and simply refuses to scan.
  */
 const BARCODE_LENGTH_MM: Record<TapeWidth, number> = {
   6: 46,
@@ -101,6 +105,18 @@ export interface LabelSheetOptions {
   caption?: string;
   symbology?: Symbology;
 }
+
+/**
+ * How the PDF is laid out.
+ *
+ *   tape  one label per page, each page exactly one label. For a label printer,
+ *         and for checking a single sticker.
+ *   a4    a grid on A4 with cut guides. For an ordinary office printer — and
+ *         the only sensible way to test the whole flow before the LW-700 is set
+ *         up, because forty 62×18mm pages is not something anyone wants to
+ *         print or handle.
+ */
+export type LabelLayout = 'tape' | 'a4';
 
 function escapeHtml(value: string): string {
   return value.replace(
@@ -184,6 +200,92 @@ export async function buildLabelSheetHtml(
   .caption { font-size: ${(height * 0.12).toFixed(2)}mm; color: #444; letter-spacing: .02em; }
   .code {
     font-size: ${(height * 0.22).toFixed(2)}mm; font-weight: 700;
+    letter-spacing: .12em; font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+</style></head>
+<body>${pages.join('')}</body></html>`;
+}
+
+/**
+ * A grid of labels on A4, with a hairline round each one to cut along.
+ *
+ * Same symbol, same proportions and the same real code as the tape layout —
+ * only the paper differs. That matters: a test print that is subtly different
+ * from the real thing tests the wrong artefact.
+ *
+ * 8 mm margins because most office printers cannot reach closer than about
+ * 5 mm and clipping the outer column would waste a row of real codes.
+ */
+export async function buildLabelSheetA4Html(
+  codes: string[],
+  { tape = DEFAULT_TAPE, caption, symbology = DEFAULT_SYMBOLOGY }: LabelSheetOptions = {},
+): Promise<string> {
+  const labelH = PRINTABLE_MM[tape];
+  const labelW = labelLengthMm(tape, symbology);
+
+  const margin = 8;
+  const gap = 3;
+  const usableW = 210 - margin * 2;
+  const usableH = 297 - margin * 2;
+
+  const columns = Math.max(1, Math.floor((usableW + gap) / (labelW + gap)));
+  const rows = Math.max(1, Math.floor((usableH + gap) / (labelH + gap)));
+  const perPage = columns * rows;
+
+  const cells = await Promise.all(
+    codes.map(async (code) => {
+      const symbol =
+        symbology === 'qr'
+          ? await qrMarkup(code, labelH - 1.5)
+          : code128Svg(code, { widthMm: labelW - 3, heightMm: labelH * 0.6 });
+
+      return `<div class="label ${symbology}">
+        <div class="symbol">${symbol}</div>
+        <div class="text">
+          ${caption ? `<div class="caption">${escapeHtml(caption)}</div>` : ''}
+          <div class="code">${escapeHtml(code)}</div>
+        </div>
+      </div>`;
+    }),
+  );
+
+  // Chunked by hand rather than left to the browser: a page break landing
+  // inside a row would split a sticker across two sheets.
+  const pages: string[] = [];
+  for (let i = 0; i < cells.length; i += perPage) {
+    pages.push(`<section class="page">${cells.slice(i, i + perPage).join('')}</section>`);
+  }
+
+  return `<!doctype html>
+<html><head><meta charset="utf-8" />
+<style>
+  @page { size: A4; margin: ${margin}mm; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: Helvetica, Arial, sans-serif; color: #000; }
+  .page {
+    display: grid;
+    grid-template-columns: repeat(${columns}, ${labelW}mm);
+    gap: ${gap}mm;
+    page-break-after: always;
+  }
+  .page:last-child { page-break-after: auto; }
+  .label {
+    width: ${labelW}mm; height: ${labelH}mm;
+    padding: 0.6mm 1.2mm;
+    /* A guide to cut along, not a border on the sticker. */
+    outline: 0.1mm dashed #BBB;
+    overflow: hidden;
+  }
+  .label.qr { display: flex; align-items: center; gap: 1.6mm; }
+  .label.qr .text { flex: 1; min-width: 0; text-align: left; }
+  .label.barcode { display: flex; flex-direction: column; justify-content: center; }
+  .label.barcode .text { text-align: center; }
+  .symbol { line-height: 0; }
+  .symbol svg { display: block; margin: 0 auto; }
+  .caption { font-size: ${(labelH * 0.12).toFixed(2)}mm; color: #444; letter-spacing: .02em; }
+  .code {
+    font-size: ${(labelH * 0.22).toFixed(2)}mm; font-weight: 700;
     letter-spacing: .12em; font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }

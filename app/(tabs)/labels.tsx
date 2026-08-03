@@ -39,11 +39,12 @@ import {
   DEFAULT_TAPE,
   TAPE_WIDTHS,
   buildLabelCsv,
+  buildLabelSheetA4Html,
   buildLabelSheetHtml,
   labelLengthMm,
   symbolSvg,
 } from '@/lib/labels';
-import type { Symbology, TapeWidth } from '@/lib/labels';
+import type { LabelLayout, Symbology, TapeWidth } from '@/lib/labels';
 import { useToast } from '@/store/useUiStore';
 import { usePermissions } from '@/auth';
 
@@ -64,6 +65,7 @@ export default function LabelsScreen() {
   const [count, setCount] = useState('20');
   const [tape, setTape] = useState<TapeWidth>(DEFAULT_TAPE);
   const [symbology, setSymbology] = useState<Symbology>(DEFAULT_SYMBOLOGY);
+  const [layout, setLayout] = useState<LabelLayout>('tape');
   const [filter, setFilter] = useState<TagStatus | 'all'>('all');
   const [error, setError] = useState('');
 
@@ -80,7 +82,11 @@ export default function LabelsScreen() {
     csv.create();
     csv.write(buildLabelCsv(codes, 'CITE ASSETS'));
 
-    const html = await buildLabelSheetHtml(codes, { tape, caption: 'CITE ASSETS', symbology });
+    const options = { tape, caption: 'CITE ASSETS', symbology };
+    const html =
+      layout === 'a4'
+        ? await buildLabelSheetA4Html(codes, options)
+        : await buildLabelSheetHtml(codes, options);
     const { uri: pdfPath } = await Print.printToFileAsync({ html });
 
     if (await Sharing.isAvailableAsync()) {
@@ -183,6 +189,14 @@ export default function LabelsScreen() {
               onPress={() => setSymbology('barcode')}
             />
             <Chip label="QR" active={symbology === 'qr'} onPress={() => setSymbology('qr')} />
+          </ChipRow>
+
+          <Text style={[t.type.fieldLabel, styles.tapeLabel, { color: t.color.sub }]}>
+            PDF layout
+          </Text>
+          <ChipRow style={styles.tapes}>
+            <Chip label="Tape roll" active={layout === 'tape'} onPress={() => setLayout('tape')} />
+            <Chip label="A4 sheet" active={layout === 'a4'} onPress={() => setLayout('a4')} />
           </ChipRow>
 
           <Text style={[t.type.fieldLabel, styles.tapeLabel, { color: t.color.sub }]}>

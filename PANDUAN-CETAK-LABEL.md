@@ -82,11 +82,16 @@ Template ini dibuat **satu kali**, lalu disimpan dan dipakai selamanya.
 2. Buat label baru. Pilih lebar pita **24 mm**.
 3. Atur panjang label: **Fixed length**, isi **62 mm**.
    (Kalau dibiarkan "Auto", panjang tiap stiker akan berbeda-beda mengikuti
-   isinya, dan hasilnya tidak rapi saat ditempel berjajar. 62 mm bukan angka
-   sembarangan: barcode `CT-000123` butuh 134 modul, dan di bawah lebar itu
-   tiap modul jadi lebih tipis daripada yang bisa dicetak bersih oleh kepala
-   thermal 180 dpi. Barcode yang terlalu rapat kelihatan baik-baik saja dan
-   tidak mau di-scan.)
+   isinya, dan hasilnya tidak rapi saat ditempel berjajar.
+
+   Kenapa 62 mm: barcode `CT-000123` terdiri dari 134 modul, 154 dengan quiet
+   zone. Diuji dengan dekoder zxing-cpp pada render bersih 180 dpi, 48 mm masih
+   terbaca dan 40 mm tidak. Jadi 48 mm sebenarnya cukup — 62 mm dipilih sebagai
+   margin antara render bersih dan stiker sungguhan: tinta thermal melebar,
+   vinyl meregang di tutup laptop yang melengkung, dan kamera HP membaca dari
+   sudut miring dengan cahaya seadanya. Tidak satu pun dari itu ada di dalam
+   pengujian, dan semuanya memakan modul yang sama.)
+
 4. Taruh **dua objek** di atas kanvas:
 
    **Objek pertama — barcode**
