@@ -25,6 +25,7 @@ import { useTheme } from '@/theme';
 import {
   Button,
   Card,
+  DateField,
   EmptyState,
   Input,
   PickerSheet,
@@ -39,6 +40,7 @@ import {
   type MovementRow,
 } from '@/api/assignments';
 import { fetchAssetFormOptions, searchAssets, type Option } from '@/api/assets';
+import { todayIso } from '@/lib/dates';
 import { queryKeys } from '@/lib/queryClient';
 import { useScopeStore } from '@/store/useScopeStore';
 import { useToast } from '@/store/useUiStore';
@@ -59,7 +61,7 @@ export default function TransferScreen() {
 
   const assets = useQuery({
     queryKey: ['transferAssets', scope],
-    queryFn: () => searchAssets(scope, '', null),
+    queryFn: () => searchAssets(scope),
     enabled: scope.length > 0,
   });
   const options = useQuery({ queryKey: ['assetFormOptions'], queryFn: fetchAssetFormOptions });
@@ -216,13 +218,14 @@ export default function TransferScreen() {
           containerStyle={styles.field}
         />
 
-        <Input
+        <DateField
           label="Date"
           required
-          value={date}
-          onChangeText={setDate}
+          value={date || null}
+          onChange={(value) => setDate(value ?? '')}
           error={errors.date}
-          placeholder={DATE_HINT}
+          clearable={false}
+          maximum={todayIso()}
           containerStyle={styles.field}
         />
 

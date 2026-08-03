@@ -55,22 +55,65 @@ export interface AssetListRow {
   warranty_end: string | null;
 }
 
+/** The sort orders offered on the register. */
+export type AssetSort = 'code' | 'name' | 'newest' | 'oldest' | 'status' | 'location' | 'warranty';
+
+export const ASSET_SORTS: { key: AssetSort; label: string }[] = [
+  { key: 'code', label: 'Asset code' },
+  { key: 'name', label: 'Name' },
+  { key: 'newest', label: 'Newest first' },
+  { key: 'oldest', label: 'Oldest first' },
+  { key: 'status', label: 'Status' },
+  { key: 'location', label: 'Location' },
+  { key: 'warranty', label: 'Warranty ending' },
+];
+
+export interface AssetSearch {
+  query?: string;
+  statusId?: string | null;
+  categoryId?: string | null;
+  sort?: AssetSort;
+}
+
 /**
  * README § Assets. `scope` is the user's chosen locations; RLS narrows it
  * further for Site IT and Viewer, so the two are not interchangeable.
+ *
+ * Category narrows BEFORE the text search rather than filtering its results —
+ * pick Laptop, then type a name, and the name is only looked for among laptops.
+ * That is what the client asked for ("seperti odoo") and it is also the cheaper
+ * query: the category is an indexed equality, the text is seven ILIKEs.
+ *
+ * The sort is a keyword, not a column name. It reaches a whitelist in SQL; any
+ * other value falls through to asset code.
  */
 export async function searchAssets(
   scope: string[],
-  query: string,
-  statusId: string | null,
+  search: AssetSearch = {},
 ): Promise<AssetListRow[]> {
   const { data, error } = await supabase.rpc('search_assets', {
     p_locations: scope,
-    p_query: query,
-    p_status: statusId,
+    p_query: search.query ?? null,
+    p_status: search.statusId ?? null,
+    p_category: search.categoryId ?? null,
+    p_sort: search.sort ?? 'code',
   });
   if (error) throw new Error(error.message);
   return (data ?? []) as AssetListRow[];
+}
+
+/**
+ * Deletes an asset outright — Super Admin only, and refused for anything with
+ * history behind it. See migration 0026: the point of the refusal is that an
+ * assignment or an E-BAST stops making sense once the asset row is gone.
+ */
+export async function deleteAsset(assetId: string, reason: string): Promise<{ assetCode: string }> {
+  const { data, error } = await supabase.rpc('delete_asset', {
+    p_asset: assetId,
+    p_reason: reason,
+  });
+  if (error) throw new Error(error.message);
+  return data as { assetCode: string };
 }
 
 /** Feeds the "4 of 7 in scope · HO + Site" line. */

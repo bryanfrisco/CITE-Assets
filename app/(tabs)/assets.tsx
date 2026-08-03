@@ -13,7 +13,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronRight, Search, X } from 'lucide-react-native';
+import { ArrowDownUp, ChevronRight, Search, SlidersHorizontal, X } from 'lucide-react-native';
 
 import { useTheme } from '@/theme';
 import {
@@ -23,11 +23,12 @@ import {
   ChipRow,
   EmptyState,
   Input,
+  PickerSheet,
   Screen,
   SkeletonRows,
 } from '@/components/ui';
 import { CategoryIcon } from '@/components/CategoryIcon';
-import { countAssetsInScope, searchAssets } from '@/api/assets';
+import { ASSET_SORTS, countAssetsInScope, searchAssets, type AssetSort } from '@/api/assets';
 import { listMaster } from '@/api/masterData';
 import { queryKeys } from '@/lib/queryClient';
 import { useScopeLabel, useScopeStore } from '@/store/useScopeStore';
@@ -43,6 +44,9 @@ export default function AssetsScreen() {
 
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState<string>(ALL);
+  const [category, setCategory] = useState<string | null>(null);
+  const [sort, setSort] = useState<AssetSort>('code');
+  const [sheet, setSheet] = useState<'category' | 'sort' | null>(null);
   const [debounced, setDebounced] = useState('');
 
   // Typing must not fire a query per keystroke.
@@ -56,14 +60,19 @@ export default function AssetsScreen() {
     queryFn: () => listMaster('status'),
   });
 
+  const categories = useQuery({
+    queryKey: queryKeys.master('category'),
+    queryFn: () => listMaster('category'),
+  });
+
   const statusId = useMemo(() => {
     if (status === ALL) return null;
     return statuses.data?.find((s) => s.name === status)?.id ?? null;
   }, [status, statuses.data]);
 
   const assets = useQuery({
-    queryKey: queryKeys.assets(scope, debounced, status),
-    queryFn: () => searchAssets(scope, debounced, statusId),
+    queryKey: [...queryKeys.assets(scope, debounced, status), category, sort],
+    queryFn: () => searchAssets(scope, { query: debounced, statusId, categoryId: category, sort }),
     enabled: scope.length > 0,
   });
 
@@ -73,16 +82,21 @@ export default function AssetsScreen() {
     enabled: scope.length > 0,
   });
 
-  const filtering = debounced.trim() !== '' || status !== ALL;
+  const filtering = debounced.trim() !== '' || status !== ALL || category !== null;
 
   const resetFilters = () => {
     setQuery('');
     setStatus(ALL);
+    setCategory(null);
+    setSort('code');
     // README § Assets: Reset filters also "restores both scope locations".
     resetScope();
   };
 
   const statusChips = [ALL, ...(statuses.data ?? []).filter((s) => s.isActive).map((s) => s.name)];
+
+  const categoryName = (categories.data ?? []).find((c) => c.id === category)?.name ?? null;
+  const sortLabel = ASSET_SORTS.find((o) => o.key === sort)?.label ?? 'Asset code';
 
   return (
     <Screen>
@@ -91,11 +105,71 @@ export default function AssetsScreen() {
         {`${assets.data?.length ?? 0} of ${total.data ?? 0} in scope · ${scopeLabel}`}
       </Text>
 
+      <View style={styles.narrowRow}>
+        <Pressable
+          onPress={() => setSheet('category')}
+          accessibilityRole="button"
+          accessibilityLabel="Filter by category"
+          style={({ pressed }) => [
+            styles.narrowButton,
+            {
+              borderRadius: t.radii.inputLarge,
+              borderColor: category ? t.color.royal : t.color.line,
+              borderWidth: category ? 1.5 : 1,
+              backgroundColor: pressed ? t.color.soft : t.color.card,
+            },
+          ]}
+        >
+          <SlidersHorizontal size={14} color={t.color.sub} strokeWidth={1.8} />
+          <Text
+            numberOfLines={1}
+            style={[t.type.metaStrong, styles.narrowLabel, { color: t.color.text }]}
+          >
+            {categoryName ?? 'All categories'}
+          </Text>
+          {category ? (
+            <Pressable
+              onPress={() => setCategory(null)}
+              accessibilityRole="button"
+              accessibilityLabel="Clear category"
+              hitSlop={10}
+            >
+              <X size={14} color={t.color.sub} strokeWidth={2} />
+            </Pressable>
+          ) : null}
+        </Pressable>
+
+        <Pressable
+          onPress={() => setSheet('sort')}
+          accessibilityRole="button"
+          accessibilityLabel="Sort"
+          style={({ pressed }) => [
+            styles.narrowButton,
+            styles.sortButton,
+            {
+              borderRadius: t.radii.inputLarge,
+              borderColor: t.color.line,
+              backgroundColor: pressed ? t.color.soft : t.color.card,
+            },
+          ]}
+        >
+          <ArrowDownUp size={14} color={t.color.sub} strokeWidth={1.8} />
+          <Text
+            numberOfLines={1}
+            style={[t.type.metaStrong, styles.narrowLabel, { color: t.color.text }]}
+          >
+            {sortLabel}
+          </Text>
+        </Pressable>
+      </View>
+
       <Input
         size="search"
         value={query}
         onChangeText={setQuery}
-        placeholder="Asset code, serial, name, user…"
+        placeholder={
+          categoryName ? `Search in ${categoryName}…` : 'Asset code, serial, name, user…'
+        }
         autoCapitalize="none"
         autoCorrect={false}
         icon={<Search size={17} color={t.color.sub} strokeWidth={1.8} />}
@@ -216,11 +290,42 @@ export default function AssetsScreen() {
           ))}
         </View>
       )}
+      <PickerSheet
+        visible={sheet === 'category'}
+        title="Category"
+        options={(categories.data ?? [])
+          .filter((c) => c.isActive)
+          .map((c) => ({ id: c.id, name: c.name }))}
+        selectedId={category}
+        onSelect={(o) => setCategory(o.id)}
+        onDismiss={() => setSheet(null)}
+        emptyMessage="No categories in master data yet"
+      />
+
+      <PickerSheet
+        visible={sheet === 'sort'}
+        title="Sort by"
+        options={ASSET_SORTS.map((o) => ({ id: o.key, name: o.label }))}
+        selectedId={sort}
+        onSelect={(o) => setSort(o.id as AssetSort)}
+        onDismiss={() => setSheet(null)}
+      />
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
+  narrowRow: { flexDirection: 'row', gap: 8, marginBottom: 10 },
+  narrowButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    minHeight: 40,
+    paddingHorizontal: 12,
+  },
+  sortButton: { flex: 0.9 },
+  narrowLabel: { flex: 1, minWidth: 0 },
   countLine: { marginTop: 5, marginBottom: 14 },
   search: { marginBottom: 12 },
   chips: { marginBottom: 14 },

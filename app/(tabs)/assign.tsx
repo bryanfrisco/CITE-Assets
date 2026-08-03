@@ -26,6 +26,7 @@ import { useTheme } from '@/theme';
 import {
   Button,
   Card,
+  DateField,
   EmptyState,
   Input,
   PickerSheet,
@@ -45,12 +46,12 @@ import {
   type EmployeeRow,
 } from '@/api/assignments';
 import { fetchAssetFormOptions, type Option } from '@/api/assets';
+import { todayIso } from '@/lib/dates';
 import { queryKeys } from '@/lib/queryClient';
 import { useScopeStore } from '@/store/useScopeStore';
 import { useToast } from '@/store/useUiStore';
 
 const STEP_NAMES = ['Employee', 'Asset', 'Details'] as const;
-const DATE_HINT = 'YYYY-MM-DD';
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 function today(): string {
@@ -421,16 +422,17 @@ export default function AssignScreen() {
               </Card>
 
               <View style={styles.fields}>
-                <Input
+                <DateField
                   label={isReturn ? 'Return date' : 'Assignment date'}
                   required
-                  value={date}
-                  onChangeText={(value) => {
-                    setDate(value);
+                  value={date || null}
+                  onChange={(value) => {
+                    setDate(value ?? '');
                     if (dateError) setDateError('');
                   }}
                   error={dateError || null}
-                  placeholder={DATE_HINT}
+                  clearable={false}
+                  maximum={todayIso()}
                 />
 
                 {isReturn ? (
@@ -442,11 +444,12 @@ export default function AssignScreen() {
                     onPress={() => setConditionOpen(true)}
                   />
                 ) : (
-                  <Input
+                  <DateField
                     label="Expected return (optional)"
-                    value={expectedReturn}
-                    onChangeText={setExpectedReturn}
-                    placeholder={DATE_HINT}
+                    value={expectedReturn || null}
+                    onChange={(value) => setExpectedReturn(value ?? '')}
+                    // Nothing is due back before it goes out.
+                    minimum={date || null}
                   />
                 )}
 

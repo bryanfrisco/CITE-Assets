@@ -23,8 +23,8 @@ import { useTheme } from '@/theme';
 import {
   Button,
   Card,
+  DateField,
   EmptyState,
-  Input,
   PickerSheet,
   Screen,
   SelectField,
@@ -38,10 +38,9 @@ import {
   type ReportFilters,
 } from '@/api/reports';
 import { fetchAssetFormOptions } from '@/api/assets';
+import { todayIso } from '@/lib/dates';
 import { useScopeLabel, useScopeStore } from '@/store/useScopeStore';
 import { useToast } from '@/store/useUiStore';
-
-const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 function money(value: string | number | null | undefined): string {
   const n = Number(value ?? 0);
@@ -71,8 +70,8 @@ export default function ReportsScreen() {
 
   const applied: ReportFilters = {
     ...filters,
-    from: DATE_PATTERN.test(from) ? from : null,
-    to: DATE_PATTERN.test(to) ? to : null,
+    from: from || null,
+    to: to || null,
   };
 
   const rows = useQuery({
@@ -80,8 +79,6 @@ export default function ReportsScreen() {
     queryFn: () => fetchReport(scope, applied),
     enabled: scope.length > 0,
   });
-
-  const badDate = (from && !DATE_PATTERN.test(from)) || (to && !DATE_PATTERN.test(to));
 
   const exportCsv = useMutation({
     mutationFn: async () => {
@@ -229,29 +226,24 @@ export default function ReportsScreen() {
         />
 
         <View style={styles.dates}>
-          <Input
+          <DateField
             label="Bought from"
-            value={from}
-            onChangeText={setFrom}
-            placeholder="YYYY-MM-DD"
-            autoCapitalize="none"
+            value={from || null}
+            onChange={(value) => setFrom(value ?? '')}
+            placeholder="Any"
+            maximum={to || todayIso()}
             containerStyle={styles.dateField}
           />
-          <Input
+          <DateField
             label="Bought to"
-            value={to}
-            onChangeText={setTo}
-            placeholder="YYYY-MM-DD"
-            autoCapitalize="none"
+            value={to || null}
+            onChange={(value) => setTo(value ?? '')}
+            placeholder="Any"
+            minimum={from || null}
+            maximum={todayIso()}
             containerStyle={styles.dateField}
           />
         </View>
-
-        {badDate ? (
-          <Text style={[t.type.meta, styles.hint, { color: t.color.sub }]}>
-            Dates are ignored until they read YYYY-MM-DD.
-          </Text>
-        ) : null}
 
         {clearable ? (
           <Button

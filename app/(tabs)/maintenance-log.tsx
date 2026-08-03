@@ -31,6 +31,7 @@ import {
   Badge,
   Button,
   Card,
+  DateField,
   EmptyState,
   Input,
   PickerSheet,
@@ -46,15 +47,12 @@ import {
   type MaintenanceState,
 } from '@/api/maintenance';
 import { fetchAssetDetail, fetchAssetFormOptions } from '@/api/assets';
+import { todayIso } from '@/lib/dates';
 import { queryKeys } from '@/lib/queryClient';
 import { useScopeStore } from '@/store/useScopeStore';
 import { useToast } from '@/store/useUiStore';
 
 const STATES: MaintenanceState[] = ['open', 'in_progress', 'completed', 'cancelled'];
-
-/** YYYY-MM-DD, which is what the database wants and what people can read. */
-const DATE_HINT = 'YYYY-MM-DD';
-const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 export default function MaintenanceLogScreen() {
   const t = useTheme();
@@ -116,10 +114,6 @@ export default function MaintenanceLogScreen() {
 
   const save = useMutation({
     mutationFn: async () => {
-      if (nextDue && !DATE_PATTERN.test(nextDue)) {
-        throw new Error(`Write the next due date as ${DATE_HINT}`);
-      }
-
       if (editing) {
         return updateMaintenance(id!, {
           state,
@@ -281,12 +275,11 @@ export default function MaintenanceLogScreen() {
               containerStyle={styles.field}
             />
           ) : null}
-          <Input
+          <DateField
             label="Next service due"
-            value={nextDue}
-            onChangeText={setNextDue}
-            placeholder={DATE_HINT}
-            autoCapitalize="none"
+            value={nextDue || null}
+            onChange={(value) => setNextDue(value ?? '')}
+            minimum={todayIso()}
             helper="A reminder lands a week before this date"
           />
         </Card>

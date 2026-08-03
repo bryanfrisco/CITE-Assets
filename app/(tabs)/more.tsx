@@ -1,6 +1,8 @@
 /**
  * More — README § 7. The module list with its exact labels and sub-labels.
- * Only Settings is navigable in Phase 0; the rest land in their own phases.
+ *
+ * Every entry now goes somewhere. There is no longer a `phase` fallback that
+ * toasts "arrives later", because there is nothing left behind one.
  */
 
 import React from 'react';
@@ -20,26 +22,31 @@ import {
 
 import { useTheme } from '@/theme';
 import { ListCard, ListRow, Screen } from '@/components/ui';
-import { useToast } from '@/store/useUiStore';
 import { usePermissions } from '@/auth';
 
 export default function MoreScreen() {
   const t = useTheme();
   const router = useRouter();
-  const toast = useToast();
   const { can } = usePermissions();
 
   const iconProps = { size: 17, color: t.color.royal, strokeWidth: 1.7 } as const;
 
-  // Master data and Audit log are role-gated (IMPLEMENTATION_PLAN.md § Phase 1).
-  // A module with `route` is built; the rest toast the phase they land in.
+  // Master data, Accounts and the Audit log are role-gated
+  // (IMPLEMENTATION_PLAN.md § Phase 1). `route` is required: every module now
+  // goes somewhere, so there is nothing left to toast "arrives later" about.
   const modules: {
     icon: React.ReactNode;
     title: string;
     subtitle: string;
-    phase?: string;
-    route?:
-      '/master' | '/labels' | '/transfer' | '/accounts' | '/maintenance' | '/import' | '/reports';
+    route:
+      | '/master'
+      | '/labels'
+      | '/transfer'
+      | '/accounts'
+      | '/maintenance'
+      | '/import'
+      | '/reports'
+      | '/audit';
   }[] = [
     {
       icon: <ArrowLeftRight {...iconProps} />,
@@ -97,7 +104,7 @@ export default function MoreScreen() {
             icon: <ShieldCheck {...iconProps} />,
             title: 'Audit log',
             subtitle: 'Immutable record of every action',
-            phase: 'Phase 1',
+            route: '/audit' as const,
           },
         ]
       : []),
@@ -114,9 +121,7 @@ export default function MoreScreen() {
             icon={m.icon}
             title={m.title}
             subtitle={m.subtitle}
-            onPress={() =>
-              m.route ? router.push(m.route) : toast(`${m.title} arrives in ${m.phase}`)
-            }
+            onPress={() => router.push(m.route)}
           />
         ))}
         <ListRow

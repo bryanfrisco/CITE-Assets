@@ -11,7 +11,8 @@
  * category is usable in this form with no release. Two pieces wait for Phase 3:
  *   - Asset Photo (needs the asset-photos Storage bucket, DATABASE.md §12)
  *   - the post-save jump to Asset Detail, which does not exist yet
- * Dates are typed as YYYY-MM-DD; a native date picker also lands with Phase 3.
+ * Dates use the platform's own picker and are shown in the device's locale;
+ * what is stored is always YYYY-MM-DD (src/lib/dates.ts).
  */
 
 import React, { useMemo, useState } from 'react';
@@ -24,6 +25,7 @@ import { useTheme } from '@/theme';
 import {
   Button,
   Card,
+  DateField,
   EmptyState,
   Input,
   PickerSheet,
@@ -39,6 +41,7 @@ import {
   type Option,
 } from '@/api/assets';
 import { tagAsset } from '@/api/tags';
+import { todayIso } from '@/lib/dates';
 import { queryKeys } from '@/lib/queryClient';
 import { useToast } from '@/store/useUiStore';
 import { usePermissions } from '@/auth';
@@ -384,12 +387,12 @@ export default function AddAssetScreen() {
           onPress={() => setPicker('vendor')}
           containerStyle={styles.field}
         />
-        <Input
+        <DateField
           label="Purchase date"
-          value={purchaseDate}
-          onChangeText={setPurchaseDate}
+          value={purchaseDate || null}
+          onChange={(value) => setPurchaseDate(value ?? '')}
           error={errors.purchaseDate}
-          placeholder={DATE_HINT}
+          maximum={todayIso()}
           containerStyle={styles.field}
         />
         <Input
@@ -400,20 +403,20 @@ export default function AddAssetScreen() {
           keyboardType="number-pad"
           containerStyle={styles.field}
         />
-        <Input
+        <DateField
           label="Warranty start"
-          value={warrantyStart}
-          onChangeText={setWarrantyStart}
+          value={warrantyStart || null}
+          onChange={(value) => setWarrantyStart(value ?? '')}
           error={errors.warrantyStart}
-          placeholder={DATE_HINT}
           containerStyle={styles.field}
         />
-        <Input
+        <DateField
           label="Warranty end"
-          value={warrantyEnd}
-          onChangeText={setWarrantyEnd}
+          value={warrantyEnd || null}
+          onChange={(value) => setWarrantyEnd(value ?? '')}
           error={errors.warrantyEnd}
-          placeholder={DATE_HINT}
+          // Cannot end before it starts, so the calendar will not offer it.
+          minimum={warrantyStart || null}
           containerStyle={styles.field}
         />
       </Section>

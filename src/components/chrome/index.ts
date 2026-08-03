@@ -13,4 +13,6 @@ export type { BottomNavProps, NavKey } from './BottomNav';
 export { QuickActionSheet } from './QuickActionSheet';
 export type { QuickActionSheetProps, QuickAction } from './QuickActionSheet';
 
+export { OfflineBanner } from './OfflineBanner';
+
 export { ToastHost } from './ToastHost';

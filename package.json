@@ -25,17 +25,20 @@
     "test:tags": "node --env-file-if-exists=.env tests/asset-tags.mjs",
     "test:signature": "node --env-file-if-exists=.env tests/ebast-signature.mjs",
     "test:status": "node --env-file-if-exists=.env tests/status-changes.mjs",
-    "test": "npm run test:rls && npm run test:master && npm run test:register && npm run test:assign && npm run test:bast && npm run test:tags && npm run test:signature && npm run test:status && npm run test:accounts && npm run test:phase6 && npm run test:import && npm run test:reports",
+    "test": "npm run test:rls && npm run test:master && npm run test:register && npm run test:assign && npm run test:bast && npm run test:tags && npm run test:signature && npm run test:status && npm run test:accounts && npm run test:phase6 && npm run test:import && npm run test:reports && npm run test:audit",
     "build:bast-logo": "node scripts/build-bast-logo.mjs",
     "eas-build-pre-install": "node scripts/eas-build-pre-install.mjs",
     "test:accounts": "node --env-file-if-exists=.env tests/accounts.mjs",
     "test:phase6": "node --env-file-if-exists=.env tests/phase6.mjs",
     "test:import": "node --env-file-if-exists=.env tests/import.mjs",
-    "test:reports": "node --env-file-if-exists=.env tests/reports.mjs"
+    "test:reports": "node --env-file-if-exists=.env tests/reports.mjs",
+    "test:audit": "node --env-file-if-exists=.env tests/audit-delete-search.mjs"
   },
   "dependencies": {
     "@expo-google-fonts/inter": "^0.4.2",
     "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-native-community/datetimepicker": "9.1.0",
+    "@react-native-community/netinfo": "12.0.1",
     "@supabase/supabase-js": "^2.111.0",
     "@tanstack/react-query": "^5.101.4",
     "expo": "^57.0.8",

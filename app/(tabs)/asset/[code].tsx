@@ -37,6 +37,7 @@ import {
   Chip,
   ChipRow,
   EmptyState,
+  Input,
   PickerSheet,
   Screen,
   SelectField,
@@ -45,6 +46,7 @@ import {
 import { Avatar } from '@/components/chrome';
 import { CategoryIcon } from '@/components/CategoryIcon';
 import {
+  deleteAsset,
   fetchAssetDetail,
   signedPhotoUrl,
   uploadAssetPhoto,
@@ -77,11 +79,32 @@ export default function AssetDetailScreen() {
 
   const [tab, setTab] = useState<Tab>('Overview');
   const [overflowOpen, setOverflowOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteReason, setDeleteReason] = useState('');
+  const [deleteError, setDeleteError] = useState('');
 
   const detail = useQuery({
     queryKey: queryKeys.asset(code ?? ''),
     queryFn: () => fetchAssetDetail(code ?? ''),
     enabled: Boolean(code),
+  });
+
+  // The database refuses this for anything with an assignment, a movement, an
+  // E-BAST, a document, a maintenance record, a label or a status change behind
+  // it, and says which. That message is shown verbatim rather than softened,
+  // because it names the thing the person needs to look at.
+  const remove = useMutation({
+    mutationFn: () => deleteAsset(detail.data!.asset.id, deleteReason),
+    onSuccess: (result) => {
+      setDeleteOpen(false);
+      setDeleteReason('');
+      void queryClient.invalidateQueries({ queryKey: ['assets'] });
+      void queryClient.invalidateQueries({ queryKey: ['assetCount'] });
+      void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      toast(`${result.assetCode} deleted`);
+      router.replace('/assets');
+    },
+    onError: (e: Error) => setDeleteError(e.message),
   });
 
   if (detail.isPending) {
@@ -262,10 +285,53 @@ export default function AssetDetailScreen() {
               block
               onPress={() => {
                 setOverflowOpen(false);
-                toast('Asset deletion arrives with the audit review in Phase 8');
+                setDeleteError('');
+                setDeleteOpen(true);
               }}
             />
           ) : null}
+        </View>
+      </BottomSheet>
+
+      <BottomSheet
+        visible={deleteOpen}
+        onDismiss={() => setDeleteOpen(false)}
+        title={`Delete ${a.assetCode}?`}
+      >
+        <View style={styles.sheetActions}>
+          <Text style={[t.type.bodySmall, { color: t.color.text, lineHeight: 18 }]}>
+            This removes the record entirely. It is for something entered by mistake — anything with
+            history behind it is refused, and should be retired instead.
+          </Text>
+
+          <Input
+            label="Why"
+            required
+            value={deleteReason}
+            onChangeText={(value) => {
+              setDeleteReason(value);
+              setDeleteError('');
+            }}
+            placeholder="e.g. Duplicate of LPT004-26-011, entered twice"
+            multiline
+            numberOfLines={2}
+          />
+
+          {deleteError ? (
+            <Text style={[t.type.meta, { color: t.color.error, lineHeight: 16 }]}>
+              {deleteError}
+            </Text>
+          ) : null}
+
+          <Button
+            label="Delete permanently"
+            variant="destructive"
+            block
+            disabled={deleteReason.trim().length === 0}
+            loading={remove.isPending}
+            onPress={() => remove.mutate()}
+          />
+          <Button label="Keep it" variant="secondary" block onPress={() => setDeleteOpen(false)} />
         </View>
       </BottomSheet>
     </Screen>

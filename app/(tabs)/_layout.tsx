@@ -16,6 +16,7 @@ import {
   AppHeader,
   BottomNav,
   QuickActionSheet,
+  OfflineBanner,
   ScopeDropdown,
   type NavKey,
   type QuickAction,
@@ -49,6 +50,7 @@ function navKeyFor(pathname: string): NavKey {
     pathname.startsWith('/maintenance') ||
     pathname.startsWith('/import') ||
     pathname.startsWith('/reports') ||
+    pathname.startsWith('/audit') ||
     pathname.startsWith('/accounts') ||
     pathname.startsWith('/account-edit') ||
     pathname.startsWith('/audit')
@@ -107,6 +109,8 @@ export default function TabsLayout() {
 
   return (
     <View style={{ flex: 1, backgroundColor: t.color.bg }}>
+      <OfflineBanner />
+
       <AppHeader
         scopeOpen={scopeOpen}
         onPressScope={() => setScopeOpen((open) => !open)}
