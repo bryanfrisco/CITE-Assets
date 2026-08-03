@@ -247,11 +247,7 @@ async function run() {
 
     // The whole point of the change: the asset's own status is untouched, so a
     // closed repair cannot leave it out of the assign picker.
-    const asset = await admin
-      .from('assets')
-      .select('status_id')
-      .eq('id', maintAsset.id)
-      .single();
+    const asset = await admin.from('assets').select('status_id').eq('id', maintAsset.id).single();
     check(
       'the asset status was never touched by any of this',
       asset.data?.status_id === available,
