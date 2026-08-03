@@ -204,7 +204,6 @@ function IOSDevice({
   title, keyboard = false,
 }) {
   return (
-    // data-om-starter: inert presence marker — Claude Design's starter-usage
     // probe reads it; it renders nothing. Keep it on this root element.
     <div data-om-starter="ios-frame" style={{
       width, height, borderRadius: 48, overflow: 'hidden',

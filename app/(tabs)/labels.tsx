@@ -11,7 +11,7 @@
  * Label Editor on a PC over USB.
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -19,6 +19,7 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { File, Paths } from 'expo-file-system';
 import { AlertCircle, ChevronLeft, FileDown, Printer } from 'lucide-react-native';
+import { SvgXml } from 'react-native-svg';
 
 import { useTheme } from '@/theme';
 import {
@@ -33,8 +34,16 @@ import {
   Skeleton,
 } from '@/components/ui';
 import { createTagBatch, fetchTagStock, listTags, type TagRow, type TagStatus } from '@/api/tags';
-import { DEFAULT_TAPE, TAPE_WIDTHS, buildLabelCsv, buildLabelSheetHtml } from '@/lib/labels';
-import type { TapeWidth } from '@/lib/labels';
+import {
+  DEFAULT_SYMBOLOGY,
+  DEFAULT_TAPE,
+  TAPE_WIDTHS,
+  buildLabelCsv,
+  buildLabelSheetHtml,
+  labelLengthMm,
+  symbolSvg,
+} from '@/lib/labels';
+import type { Symbology, TapeWidth } from '@/lib/labels';
 import { useToast } from '@/store/useUiStore';
 import { usePermissions } from '@/auth';
 
@@ -54,6 +63,7 @@ export default function LabelsScreen() {
 
   const [count, setCount] = useState('20');
   const [tape, setTape] = useState<TapeWidth>(DEFAULT_TAPE);
+  const [symbology, setSymbology] = useState<Symbology>(DEFAULT_SYMBOLOGY);
   const [filter, setFilter] = useState<TagStatus | 'all'>('all');
   const [error, setError] = useState('');
 
@@ -70,7 +80,7 @@ export default function LabelsScreen() {
     csv.create();
     csv.write(buildLabelCsv(codes, 'CITE ASSETS'));
 
-    const html = await buildLabelSheetHtml(codes, { tape, caption: 'CITE ASSETS' });
+    const html = await buildLabelSheetHtml(codes, { tape, caption: 'CITE ASSETS', symbology });
     const { uri: pdfPath } = await Print.printToFileAsync({ html });
 
     if (await Sharing.isAvailableAsync()) {
@@ -165,6 +175,16 @@ export default function LabelsScreen() {
             containerStyle={styles.field}
           />
 
+          <Text style={[t.type.fieldLabel, styles.tapeLabel, { color: t.color.sub }]}>Symbol</Text>
+          <ChipRow style={styles.tapes}>
+            <Chip
+              label="Barcode"
+              active={symbology === 'barcode'}
+              onPress={() => setSymbology('barcode')}
+            />
+            <Chip label="QR" active={symbology === 'qr'} onPress={() => setSymbology('qr')} />
+          </ChipRow>
+
           <Text style={[t.type.fieldLabel, styles.tapeLabel, { color: t.color.sub }]}>
             Tape width
           </Text>
@@ -179,6 +199,8 @@ export default function LabelsScreen() {
             ))}
           </ChipRow>
 
+          <LabelPreview tape={tape} symbology={symbology} />
+
           <Button
             label="Issue and export"
             block
@@ -190,7 +212,9 @@ export default function LabelsScreen() {
 
           <Text style={[t.type.meta, styles.hint, { color: t.color.sub }]}>
             Two files are shared: a CSV for Epson Label Editor on a PC — the LW-700 has no
-            Bluetooth, so it prints over USB — and a ready-made PDF for any other printer.
+            Bluetooth, so it prints over USB — and a ready-made PDF for any other printer. In Label
+            Editor the symbol is drawn at printer resolution from the `code` column, so it comes out
+            sharper than any picture this phone could send.
           </Text>
         </Card>
       ) : null}
@@ -264,6 +288,76 @@ export default function LabelsScreen() {
   );
 }
 
+/**
+ * What one sticker will look like, at the proportions of the chosen tape.
+ *
+ * Rendered from the same builder the PDF uses, so this is a preview rather than
+ * an impression of one. The code shown is a placeholder — real codes are only
+ * issued when the button is pressed, and drawing an unissued code here would
+ * put a number on screen that does not exist yet.
+ */
+function LabelPreview({ tape, symbology }: { tape: TapeWidth; symbology: Symbology }) {
+  const t = useTheme();
+  const [svg, setSvg] = useState<string | null>(null);
+  const [width, setWidth] = useState(0);
+
+  const lengthMm = labelLengthMm(tape, symbology);
+  const heightMm = tape * 0.75;
+  const height = width > 0 ? (width * heightMm) / lengthMm : 0;
+
+  const symbolWidth = symbology === 'qr' ? height * 0.7 : width * 0.9;
+  const symbolHeight = symbology === 'qr' ? height * 0.7 : height * 0.5;
+
+  useEffect(() => {
+    if (width <= 0) return;
+    let live = true;
+    void symbolSvg('CT-000123', symbology, symbolWidth, symbolHeight).then((markup) => {
+      if (live) setSvg(markup);
+    });
+    return () => {
+      live = false;
+    };
+  }, [symbology, symbolWidth, symbolHeight, width]);
+
+  return (
+    <View style={styles.previewWrap}>
+      <Text style={[t.type.fieldLabel, styles.tapeLabel, { color: t.color.sub }]}>
+        {`Preview · ${lengthMm} × ${tape} mm`}
+      </Text>
+
+      <View
+        onLayout={(event) => setWidth(event.nativeEvent.layout.width)}
+        style={[
+          styles.preview,
+          {
+            height: height || undefined,
+            backgroundColor: t.paper.sheet,
+            borderColor: t.color.line,
+            borderRadius: t.radii.inputLarge,
+            flexDirection: symbology === 'qr' ? 'row' : 'column',
+          },
+        ]}
+      >
+        {svg ? <SvgXml xml={svg} /> : null}
+        <Text
+          numberOfLines={1}
+          style={[
+            styles.previewCode,
+            {
+              color: t.paper.ink,
+              fontSize: Math.max(8, height * 0.16),
+              marginTop: symbology === 'qr' ? 0 : 4,
+              marginLeft: symbology === 'qr' ? 8 : 0,
+            },
+          ]}
+        >
+          CT-000123
+        </Text>
+      </View>
+    </View>
+  );
+}
+
 function TagRowView({ row, last, onPress }: { row: TagRow; last: boolean; onPress?: () => void }) {
   const t = useTheme();
   const label = row.status === 'untagged' ? 'Blank' : row.status === 'tagged' ? 'In use' : 'Voided';
@@ -301,7 +395,18 @@ const styles = StyleSheet.create({
   statLabel: { marginTop: 3 },
   field: { marginBottom: 12 },
   tapeLabel: { marginBottom: 6, marginLeft: 2 },
-  tapes: { marginBottom: 4 },
+  tapes: { marginBottom: 12 },
+  previewWrap: { marginTop: 4 },
+  // Always white with black ink: it is a preview of something printed, and
+  // a dark-mode sticker would be a preview of nothing.
+  preview: {
+    alignItems: 'center',
+    justifyContent: 'center',
+
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  previewCode: { fontWeight: '700', letterSpacing: 1.2 },
   action: { marginTop: 14 },
   hint: { marginTop: 10, lineHeight: 16 },
   errorRow: {

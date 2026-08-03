@@ -351,7 +351,10 @@ async function run() {
   {
     const inbox = await admin.rpc('notifications_list', { p_limit: 200 });
     const backup = (inbox.data ?? []).filter((n) => n.title.startsWith('Weekly backup'));
-    check('it lands in the Super Admin’s inbox', backup.length === 1, String(backup.length));
+    // Stated by presence, not by count: this database keeps every week's
+    // reminder, so a total here would be a claim about how long the local
+    // stack has been running.
+    check('it lands in the Super Admin’s inbox', backup.length >= 1, String(backup.length));
     check(
       'and says what to actually do',
       (backup[0]?.body ?? '').includes('off this phone'),

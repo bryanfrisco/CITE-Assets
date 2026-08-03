@@ -7,16 +7,17 @@
  * Phase 1 and Phase 8.
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { ChevronLeft } from 'lucide-react-native';
 
 import { useTheme, useThemeContext } from '@/theme';
-import { Badge, Button, Card, Screen, Skeleton, Switch } from '@/components/ui';
-import { signOut } from '@/api/session';
+import { Badge, Button, Card, Input, Screen, Skeleton, Switch } from '@/components/ui';
+import { changeOwnPassword, signOut } from '@/api/session';
 import { fetchScheduledJobs, runNotificationJobsNow } from '@/api/notifications';
+import { MIN_PASSWORD_LENGTH } from '@/api/accounts';
 import { Avatar } from '@/components/chrome';
 import { roleLabels, useSessionStore } from '@/store/useSessionStore';
 import { useToast, useUiStore, type Language } from '@/store/useUiStore';
@@ -109,6 +110,11 @@ export default function SettingsScreen() {
         </View>
       </Card>
 
+      <Text style={[t.type.sectionLabel, styles.sectionLabel, { color: t.color.sub }]}>
+        Password
+      </Text>
+      <ChangePassword />
+
       {can('account.manage') ? (
         <>
           <Text style={[t.type.sectionLabel, styles.sectionLabel, { color: t.color.sub }]}>
@@ -143,6 +149,85 @@ export default function SettingsScreen() {
  * exercises the same code the schedule runs, which is the only way to find out
  * the pipeline works without waiting until 22:00 and hoping.
  */
+/**
+ * Changing your own password.
+ *
+ * Separate from the Accounts screen on purpose: a Super Admin resetting
+ * somebody's password means that Super Admin knows it. This path means nobody
+ * does, which is the only version worth having once more than one person can
+ * sign in.
+ */
+function ChangePassword() {
+  const t = useTheme();
+  const toast = useToast();
+
+  const [next, setNext] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [error, setError] = useState('');
+
+  const change = useMutation({
+    mutationFn: () => changeOwnPassword(next),
+    onSuccess: () => {
+      setNext('');
+      setConfirm('');
+      setError('');
+      toast('Password changed');
+    },
+    onError: (e: Error) => setError(e.message),
+  });
+
+  const tooShort = next.length > 0 && next.length < MIN_PASSWORD_LENGTH;
+  const mismatch = confirm.length > 0 && next !== confirm;
+  const ready = next.length >= MIN_PASSWORD_LENGTH && next === confirm;
+
+  return (
+    <Card padding={15}>
+      <Input
+        label="New password"
+        value={next}
+        onChangeText={(value) => {
+          setNext(value);
+          setError('');
+        }}
+        placeholder={`At least ${MIN_PASSWORD_LENGTH} characters`}
+        secureTextEntry
+        autoCapitalize="none"
+        error={tooShort ? `At least ${MIN_PASSWORD_LENGTH} characters` : null}
+        containerStyle={styles.passwordField}
+      />
+      <Input
+        label="Repeat it"
+        value={confirm}
+        onChangeText={(value) => {
+          setConfirm(value);
+          setError('');
+        }}
+        placeholder="Type it again"
+        secureTextEntry
+        autoCapitalize="none"
+        error={mismatch ? 'These do not match' : null}
+      />
+
+      {error ? (
+        <Text style={[t.type.meta, styles.passwordHint, { color: t.color.error }]}>{error}</Text>
+      ) : null}
+
+      <Button
+        label="Change password"
+        variant="secondary"
+        block
+        disabled={!ready}
+        loading={change.isPending}
+        onPress={() => change.mutate()}
+        style={styles.passwordAction}
+      />
+      <Text style={[t.type.meta, styles.passwordHint, { color: t.color.sub }]}>
+        You stay signed in on this phone. Anywhere else you are signed in will need the new one.
+      </Text>
+    </Card>
+  );
+}
+
 function ScheduledJobs() {
   const t = useTheme();
   const toast = useToast();
@@ -214,6 +299,9 @@ function ScheduledJobs() {
 }
 
 const styles = StyleSheet.create({
+  passwordField: { marginBottom: 12 },
+  passwordAction: { marginTop: 14 },
+  passwordHint: { marginTop: 9, lineHeight: 16 },
   jobRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8 },
   jobText: { flex: 1, minWidth: 0 },
   jobRun: { marginTop: 12 },

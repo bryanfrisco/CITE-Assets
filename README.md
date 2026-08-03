@@ -412,5 +412,5 @@ file-spreadsheet, arrow-left-right`).
 | ------------------------ | ----------------------------------------------------------------------------------------- |
 | `CITE Assets.dc.html`    | The full interactive hi-fi prototype (all screens, states, and flows). Open in a browser. |
 | `DATABASE.md`            | Postgres/Supabase schema: DDL, enums, indexes, triggers, RLS policies, seed data.         |
-| `IMPLEMENTATION_PLAN.md` | Build order, per-module acceptance criteria, and ready-to-paste prompts for Claude Code.  |
+| `IMPLEMENTATION_PLAN.md` | Build order, per-module acceptance criteria, and the prompt for each phase.               |
 | `assets/cite-logo.png`   | Brand mark.                                                                               |

@@ -86,3 +86,16 @@ function mapAuthError(message: string): string {
   if (/network|fetch/i.test(message)) return 'Cannot reach the server — check your connection';
   return message;
 }
+
+/**
+ * Changes the signed-in user's own password.
+ *
+ * Nothing privileged is involved: Supabase lets a session update its own user,
+ * so this needs no service role and no Super Admin. That matters — until now
+ * the only way to change a password was to ask a Super Admin to reset it, which
+ * means somebody else knew it.
+ */
+export async function changeOwnPassword(password: string): Promise<void> {
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) throw new Error(error.message);
+}

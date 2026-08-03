@@ -178,7 +178,13 @@ export default function SignBastScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <ScrollView
-        contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 32 }]}
+        contentContainerStyle={[
+          styles.scroll,
+          // The floating nav sits OVER the content, so the last control on
+          // the form would otherwise be underneath it. Same reserve the
+          // Screen component uses.
+          { paddingBottom: insets.bottom + t.spacing.screenBottom },
+        ]}
         keyboardShouldPersistTaps="handled"
       >
         <Pressable

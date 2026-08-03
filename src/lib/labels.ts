@@ -18,9 +18,11 @@
  * Two files are produced because Label Editor and everything else want
  * different things:
  *
- *   CSV   for Label Editor's data-merge. Put a QR object and a text object on
- *         one template, bind them to the columns, and it prints the whole
- *         batch in one run. This is the route for the LW-700.
+ *   CSV   for Label Editor's data-merge. Put a barcode object and a text
+ *         object on one template, bind them to the columns, and it prints the
+ *         whole batch in one run. This is the route for the LW-700, and the
+ *         symbol is drawn by Label Editor at printer resolution rather than
+ *         sent as a picture.
  *   PDF   already laid out, one page per label, sized to the tape. For any
  *         ordinary printer, or for a reprint when Label Editor is not to hand.
  *
@@ -29,6 +31,8 @@
  */
 
 import QRCode from 'qrcode';
+
+import { code128Svg } from './barcode';
 
 /** Cassette widths the LW-700 accepts, in millimetres. */
 export const TAPE_WIDTHS = [6, 9, 12, 18, 24] as const;
@@ -49,8 +53,8 @@ const PRINTABLE_MM: Record<TapeWidth, number> = {
   24: 18,
 };
 
-/** Enough tape for the QR plus the code printed beside it. */
-const LABEL_LENGTH_MM: Record<TapeWidth, number> = {
+/** Enough tape for a QR plus the code printed beside it. */
+const QR_LENGTH_MM: Record<TapeWidth, number> = {
   6: 22,
   9: 26,
   12: 32,
@@ -58,10 +62,44 @@ const LABEL_LENGTH_MM: Record<TapeWidth, number> = {
   24: 48,
 };
 
+/**
+ * Longer, because a linear barcode needs width the way a QR needs area.
+ *
+ * A `CT-000123` symbol is 134 modules including the quiet zones. At 48 mm that
+ * is a 0.36 mm module, which is below what a thermal head at 180 dpi can hold
+ * cleanly; at 60 mm it is 0.45 mm, which it can. A barcode printed too narrow
+ * looks perfectly fine and simply refuses to scan.
+ */
+const BARCODE_LENGTH_MM: Record<TapeWidth, number> = {
+  6: 46,
+  9: 50,
+  12: 54,
+  18: 58,
+  24: 62,
+};
+
+export function labelLengthMm(tape: TapeWidth, symbology: Symbology): number {
+  return symbology === 'qr' ? QR_LENGTH_MM[tape] : BARCODE_LENGTH_MM[tape];
+}
+
+/**
+ * Which symbol goes on the sticker.
+ *
+ * Client instruction, 2026-08-03: "ganti juga qr menjadi barcode yang bisa di
+ * scan". Code 128 is the default now. QR stays available because the scanner
+ * reads both and a stack of stickers already printed must keep working — and
+ * because on the narrow cassettes a linear symbol runs out of width before a
+ * square one runs out of height.
+ */
+export type Symbology = 'barcode' | 'qr';
+
+export const DEFAULT_SYMBOLOGY: Symbology = 'barcode';
+
 export interface LabelSheetOptions {
   tape?: TapeWidth;
   /** Printed above the code — which print run this sticker belongs to. */
   caption?: string;
+  symbology?: Symbology;
 }
 
 function escapeHtml(value: string): string {
@@ -98,29 +136,25 @@ export function buildLabelCsv(codes: string[], caption?: string): string {
  */
 export async function buildLabelSheetHtml(
   codes: string[],
-  { tape = DEFAULT_TAPE, caption }: LabelSheetOptions = {},
+  { tape = DEFAULT_TAPE, caption, symbology = DEFAULT_SYMBOLOGY }: LabelSheetOptions = {},
 ): Promise<string> {
   const height = PRINTABLE_MM[tape];
-  const length = LABEL_LENGTH_MM[tape];
-  const qrSize = height - 1.5;
+  const length = labelLengthMm(tape, symbology);
 
   const pages = await Promise.all(
     codes.map(async (code) => {
-      // `margin: 0` because the tape has its own unprintable border already;
-      // adding a quiet zone here would shrink the QR below scanning size.
-      const svg = await QRCode.toString(code, {
-        type: 'svg',
-        errorCorrectionLevel: 'M',
-        margin: 0,
-      });
-      const qr = svg.replace('<svg', `<svg width="${qrSize}mm" height="${qrSize}mm"`);
+      const symbol =
+        symbology === 'qr'
+          ? await qrMarkup(code, height - 1.5)
+          : // Bars take the height they can spare after the text underneath;
+            // 60% keeps the code readable without starving the symbol.
+            code128Svg(code, { widthMm: length - 3, heightMm: height * 0.6 });
 
-      return `<section class="label">
-        <div class="qr">${qr}</div>
+      return `<section class="label ${symbology}">
+        <div class="symbol">${symbol}</div>
         <div class="text">
           ${caption ? `<div class="caption">${escapeHtml(caption)}</div>` : ''}
           <div class="code">${escapeHtml(code)}</div>
-          <div class="brand">CITE ASSETS</div>
         </div>
       </section>`;
     }),
@@ -134,23 +168,53 @@ export async function buildLabelSheetHtml(
   body { margin: 0; font-family: Helvetica, Arial, sans-serif; color: #000; }
   .label {
     width: ${length}mm; height: ${height}mm;
-    display: flex; align-items: center; gap: 1.6mm;
     padding: 0.6mm 1.2mm;
     page-break-after: always;
   }
   .label:last-child { page-break-after: auto; }
-  .qr { flex: none; line-height: 0; }
-  .qr svg { display: block; }
-  .text { flex: 1; min-width: 0; }
-  .caption { font-size: ${(height * 0.13).toFixed(2)}mm; color: #444; letter-spacing: .02em; }
+
+  /* A QR sits beside its code; a barcode sits above it. */
+  .label.qr { display: flex; align-items: center; gap: 1.6mm; }
+  .label.qr .text { flex: 1; min-width: 0; text-align: left; }
+  .label.barcode { display: flex; flex-direction: column; justify-content: center; }
+  .label.barcode .text { text-align: center; }
+
+  .symbol { line-height: 0; }
+  .symbol svg { display: block; margin: 0 auto; }
+  .caption { font-size: ${(height * 0.12).toFixed(2)}mm; color: #444; letter-spacing: .02em; }
   .code {
-    font-size: ${(height * 0.26).toFixed(2)}mm; font-weight: 700;
-    letter-spacing: .04em; font-variant-numeric: tabular-nums;
+    font-size: ${(height * 0.22).toFixed(2)}mm; font-weight: 700;
+    letter-spacing: .12em; font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
-  .brand { font-size: ${(height * 0.11).toFixed(2)}mm; color: #666; letter-spacing: .16em; }
 </style></head>
 <body>${pages.join('')}</body></html>`;
+}
+
+async function qrMarkup(code: string, sizeMm: number): Promise<string> {
+  // `margin: 0` because the tape has its own unprintable border already;
+  // adding a quiet zone here would shrink the QR below scanning size.
+  const svg = await QRCode.toString(code, {
+    type: 'svg',
+    errorCorrectionLevel: 'M',
+    margin: 0,
+  });
+  return svg.replace('<svg', `<svg width="${sizeMm}mm" height="${sizeMm}mm"`);
+}
+
+/** One symbol as an SVG string, for showing a label on screen. */
+export async function symbolSvg(
+  code: string,
+  symbology: Symbology,
+  widthPx: number,
+  heightPx: number,
+): Promise<string> {
+  if (symbology === 'barcode') {
+    // The helper thinks in millimetres; at screen scale the unit is arbitrary
+    // as long as the aspect is right, so pixels are passed straight through.
+    return code128Svg(code, { widthMm: widthPx, heightMm: heightPx }).replace(/mm"/g, '"');
+  }
+  return qrSvg(code, Math.min(widthPx, heightPx));
 }
 
 /** A single QR as an SVG string — for showing a label on screen. */

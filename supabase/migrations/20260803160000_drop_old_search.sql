@@ -1,0 +1,24 @@
+-- ============================================================================
+-- CITE Assets — 0029 Drop the three-argument search_assets()
+--
+-- THE BUG
+-- -------
+-- Migration 0026 added `p_category` and `p_sort`. Because that changes the
+-- signature, `create or replace` created a SECOND function rather than
+-- replacing the first, and both were left callable:
+--
+--   search_assets(uuid[], text, uuid)
+--   search_assets(uuid[], text, uuid, uuid, text)
+--
+-- A PostgREST call naming only the first three matches both — the new one's
+-- extra parameters have defaults — and the request fails to resolve. Every
+-- search in the app broke, which the register suite caught immediately.
+--
+-- Dropping the old one is the fix rather than renaming the new one: callers
+-- that pass three arguments keep working against the five-argument version,
+-- because the last two default. Nothing has to change on the client.
+--
+-- Separate migration because 0026 has already been applied — working rule #1.
+-- ============================================================================
+
+drop function if exists search_assets(uuid[], text, uuid);

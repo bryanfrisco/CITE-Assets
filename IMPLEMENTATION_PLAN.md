@@ -100,7 +100,7 @@ testing.
 
 ---
 
-## Prompts to paste into Claude Code
+## Prompts for each phase
 
 Give the assistant this whole folder first:
 
