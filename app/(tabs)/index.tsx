@@ -115,6 +115,7 @@ export default function HomeScreen() {
                 data.addedThisMonth > 0 ? `+${data.addedThisMonth} this month` : 'none this month'
               }
               dot={t.color.royal}
+              onPress={() => router.push('/assets')}
             />
             {data.byStatus.slice(0, 5).map((s) => (
               <KpiTile
@@ -254,15 +255,20 @@ function KpiTile({
   value,
   delta,
   dot,
+  onPress,
 }: {
   label: string;
   value: number;
   delta: string;
   dot: string;
+  onPress?: () => void;
 }) {
   const t = useTheme();
-  return (
-    <Card radius="kpiTile" padding={12} style={styles.kpiTile}>
+
+  // A number on a dashboard is a question. Making it open the list that answers
+  // it is the difference between a report and a place to work from.
+  const body = (
+    <Card radius="kpiTile" padding={12} style={styles.kpiInner}>
       <View style={[styles.kpiDot, { backgroundColor: dot }]} />
       <Text numberOfLines={1} style={[t.type.kpiLabel, { color: t.color.sub }]}>
         {label.toUpperCase()}
@@ -274,6 +280,18 @@ function KpiTile({
         </Text>
       ) : null}
     </Card>
+  );
+
+  if (!onPress) return body;
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${label}, ${value}`}
+      style={({ pressed }) => [styles.kpiTile, { opacity: pressed ? 0.7 : 1 }]}
+    >
+      {body}
+    </Pressable>
   );
 }
 
@@ -440,6 +458,7 @@ const styles = StyleSheet.create({
 
   kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 9 },
   kpiTile: { width: '31.5%' },
+  kpiInner: { width: '100%' },
   kpiDot: { width: 7, height: 7, borderRadius: 7, marginBottom: 7 },
   kpiValue: { marginTop: 3, marginBottom: 2 },
 

@@ -174,74 +174,111 @@ async function run() {
   }
 
   // ---- maintenance -------------------------------------------------------
+  // Migration 0030 turned this into a log: a title and a date range, no state
+  // machine. The old ladder is gone because closing a ticket never brought the
+  // asset back into circulation, which is the bug it caused.
   console.log('\nMaintenance');
   const maintAsset = await newAsset('MAINT');
-  let jobId;
   {
-    const noTitle = await admin.rpc('open_maintenance', {
+    const noTitle = await admin.rpc('log_maintenance', {
       p_asset: maintAsset.id,
       p_title: '   ',
+      p_started: isoDaysFromNow(0),
     });
-    check('a job needs a title', Boolean(noTitle.error), noTitle.error?.message);
+    check('a record needs a title', Boolean(noTitle.error), noTitle.error?.message);
 
-    const backwards = await admin.rpc('open_maintenance', {
+    const backwards = await admin.rpc('log_maintenance', {
       p_asset: maintAsset.id,
       p_title: 'Impossible schedule',
       p_started: isoDaysFromNow(0),
-      p_next_due: isoDaysFromNow(-10),
+      p_completed: isoDaysFromNow(-5),
     });
     check(
-      'the next service cannot be due before this one started',
+      'it cannot have finished before it started',
       Boolean(backwards.error),
       backwards.error?.message,
     );
 
-    const opened = await admin.rpc('open_maintenance', {
+    const negative = await admin.rpc('log_maintenance', {
       p_asset: maintAsset.id,
-      p_title: 'Replace swollen battery',
-      p_detail: 'Battery bulging, keyboard lifted',
-      p_is_internal: true,
-      p_next_due: isoDaysFromNow(3),
-    });
-    check('a job opens', !opened.error, opened.error?.message);
-    jobId = opened.data?.id;
-
-    const list = await admin.rpc('maintenance_list', { p_locations: scope, p_state: 'open' });
-    check(
-      'it is on the open list',
-      (list.data ?? []).some((m) => m.id === jobId),
-      list.error?.message,
-    );
-    check(
-      'and every row on that list really is open',
-      (list.data ?? []).every((m) => m.state === 'open'),
-    );
-
-    const negative = await admin.rpc('update_maintenance', {
-      p_id: jobId,
-      p_state: null,
+      p_title: 'Free repair',
+      p_started: isoDaysFromNow(0),
       p_cost: -1,
     });
     check('a negative cost is refused', Boolean(negative.error), negative.error?.message);
 
-    const completed = await admin.rpc('update_maintenance', {
+    const opened = await admin.rpc('log_maintenance', {
+      p_asset: maintAsset.id,
+      p_title: 'Replace swollen battery',
+      p_started: isoDaysFromNow(-4),
+      p_detail: 'Battery bulging, keyboard lifted',
+      p_is_internal: true,
+      p_next_due: isoDaysFromNow(3),
+    });
+    check('a repair is recorded', !opened.error, opened.error?.message);
+    check('with no end date it is still in the shop', opened.data?.ongoing === true);
+    const jobId = opened.data?.id;
+
+    const ongoing = await admin.rpc('maintenance_log', { p_locations: scope, p_ongoing: true });
+    check(
+      'it shows under what is still away',
+      (ongoing.data ?? []).some((m) => m.id === jobId),
+      ongoing.error?.message,
+    );
+    check(
+      'and everything on that list really is still away',
+      (ongoing.data ?? []).every((m) => m.ongoing === true && m.completed_at === null),
+    );
+
+    const row = (ongoing.data ?? []).find((m) => m.id === jobId);
+    check('the elapsed days are counted from the start', row?.days === 4, String(row?.days));
+
+    const done = await admin.rpc('edit_maintenance', {
       p_id: jobId,
-      p_state: 'completed',
+      p_completed: isoDaysFromNow(-1),
       p_cost: 450000,
     });
-    check('it can be completed', !completed.error, completed.error?.message);
+    check('giving it an end date closes it', !done.error, done.error?.message);
+    check('and it reports itself finished', done.data?.ongoing === false);
+
+    const finished = await admin.rpc('maintenance_log', { p_locations: scope, p_ongoing: false });
+    const closed = (finished.data ?? []).find((m) => m.id === jobId);
+    check('the range is what the log now shows', closed?.days === 3, String(closed?.days));
+
+    // The whole point of the change: the asset's own status is untouched, so a
+    // closed repair cannot leave it out of the assign picker.
+    const asset = await admin
+      .from('assets')
+      .select('status_id')
+      .eq('id', maintAsset.id)
+      .single();
     check(
-      'and completing it stamps a date, so reports can date the work',
-      Boolean(completed.data?.completedAt),
-      JSON.stringify(completed.data),
+      'the asset status was never touched by any of this',
+      asset.data?.status_id === available,
+      JSON.stringify(asset.data),
     );
+
+    const reopened = await admin.rpc('edit_maintenance', {
+      p_id: jobId,
+      p_clear_completed: true,
+    });
+    check('clearing the end date puts it back in the shop', reopened.data?.ongoing === true);
+    await admin.rpc('edit_maintenance', { p_id: jobId, p_completed: isoDaysFromNow(-1) });
 
     const stats = await admin.rpc('maintenance_stats', { p_locations: scope });
     check(
-      'the spend counts only completed work',
-      Number(stats.data?.cost ?? 0) >= 450000,
+      'the spend and the days both add up',
+      Number(stats.data?.cost ?? 0) >= 450000 && Number(stats.data?.days ?? 0) >= 3,
       JSON.stringify(stats.data),
     );
+
+    const viewer = await clientFor('andi.prasetyo@cite.co.id');
+    const byViewer = await viewer.rpc('log_maintenance', {
+      p_asset: maintAsset.id,
+      p_title: 'Nope',
+      p_started: isoDaysFromNow(0),
+    });
+    check('a Viewer cannot record one', Boolean(byViewer.error), byViewer.error?.message);
   }
 
   // ---- the acceptance criterion -----------------------------------------

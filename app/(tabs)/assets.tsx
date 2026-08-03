@@ -11,7 +11,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { ArrowDownUp, ChevronRight, Search, SlidersHorizontal, X } from 'lucide-react-native';
 
@@ -42,8 +42,12 @@ export default function AssetsScreen() {
   const resetScope = useScopeStore((s) => s.reset);
   const scopeLabel = useScopeLabel();
 
+  // Arrives from the dashboard's KPI tiles; the chip row then behaves
+  // normally, so the filter is a starting point rather than a mode.
+  const { status: statusParam } = useLocalSearchParams<{ status?: string }>();
+
   const [query, setQuery] = useState('');
-  const [status, setStatus] = useState<string>(ALL);
+  const [status, setStatus] = useState<string>(statusParam ?? ALL);
   const [category, setCategory] = useState<string | null>(null);
   const [sort, setSort] = useState<AssetSort>('code');
   const [sheet, setSheet] = useState<'category' | 'sort' | null>(null);

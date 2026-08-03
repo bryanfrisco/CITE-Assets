@@ -1,14 +1,18 @@
 /**
- * Open or update a maintenance job — Phase 6.
+ * Record a repair, or edit one already recorded.
  *
- * `?asset=<code>` opens a new job against that asset; `?id=<uuid>` updates an
- * existing one. One screen for both because the fields are the same fields, and
- * the only real difference is which of them can still be changed.
+ * `?asset=<code>` records against that asset; `?id=<uuid>` edits an existing
+ * record.
  *
- * "Next due" is the field that matters most and the one people skip. It is what
- * feeds the reminder job — a completed service with no next date will never
- * remind anybody of anything, which is why it is offered on the update side
- * too, not only when opening.
+ * A record is a title and a date range. Leave the end date empty while the
+ * device is still in the shop and fill it in when it comes back — that is the
+ * whole workflow, and it replaces the open/in-progress/completed/cancelled
+ * ladder that used to sit here.
+ *
+ * This screen does not touch the asset's status. If a laptop needs to show as
+ * Maintenance in the register, that is Change status on the asset, with a
+ * reason. Keeping the two apart is what stopped a closed repair leaving an
+ * asset unassignable forever.
  */
 
 import React, { useState } from 'react';
@@ -39,20 +43,12 @@ import {
   Skeleton,
   Switch,
 } from '@/components/ui';
-import {
-  MAINTENANCE_STATE_LABEL,
-  fetchMaintenance,
-  openMaintenance,
-  updateMaintenance,
-  type MaintenanceState,
-} from '@/api/maintenance';
+import { editMaintenance, fetchMaintenance, logMaintenance } from '@/api/maintenance';
 import { fetchAssetDetail, fetchAssetFormOptions } from '@/api/assets';
-import { todayIso } from '@/lib/dates';
+import { formatDate, todayIso } from '@/lib/dates';
 import { queryKeys } from '@/lib/queryClient';
 import { useScopeStore } from '@/store/useScopeStore';
 import { useToast } from '@/store/useUiStore';
-
-const STATES: MaintenanceState[] = ['open', 'in_progress', 'completed', 'cancelled'];
 
 export default function MaintenanceLogScreen() {
   const t = useTheme();
@@ -86,23 +82,26 @@ export default function MaintenanceLogScreen() {
   const [vendorId, setVendorId] = useState<string | null>(null);
   const [internal, setInternal] = useState(false);
   const [warranty, setWarranty] = useState(false);
-  const [nextDue, setNextDue] = useState('');
+  const [started, setStarted] = useState<string | null>(todayIso());
+  const [completed, setCompleted] = useState<string | null>(null);
+  const [nextDue, setNextDue] = useState<string | null>(null);
   const [cost, setCost] = useState('');
-  const [state, setState] = useState<MaintenanceState>('open');
-  const [picker, setPicker] = useState<'vendor' | 'state' | null>(null);
+  const [picker, setPicker] = useState(false);
   const [error, setError] = useState('');
   const [seeded, setSeeded] = useState(false);
 
-  // Seeded from the record the first time it arrives, adjusted during render
-  // rather than in an effect so the first paint is already correct.
+  // Seeded from the record the first time it arrives, adjusted during render so
+  // the first paint is already correct rather than one frame behind.
   if (editing && existing && !seeded) {
     setSeeded(true);
     setTitle(existing.title);
     setDetail(existing.detail ?? '');
-    setState(existing.state);
+    setStarted(existing.started_at);
+    setCompleted(existing.completed_at);
+    setNextDue(existing.next_due_at);
     setCost(String(Number(existing.cost ?? 0) || ''));
-    setNextDue(existing.next_due_at ?? '');
     setWarranty(existing.under_warranty);
+    setInternal(existing.is_internal);
   }
 
   const invalidate = () => {
@@ -114,28 +113,39 @@ export default function MaintenanceLogScreen() {
 
   const save = useMutation({
     mutationFn: async () => {
+      const amount = cost ? Number(cost.replace(/[^\d.]/g, '')) : null;
+
       if (editing) {
-        return updateMaintenance(id!, {
-          state,
-          cost: cost ? Number(cost.replace(/[^\d.]/g, '')) : null,
+        return editMaintenance(id!, {
+          title,
+          startedAt: started,
+          completedAt: completed,
           detail: detail || null,
-          nextDueAt: nextDue || null,
+          vendorId: internal ? null : vendorId,
+          cost: amount,
+          nextDueAt: nextDue,
+          // Emptying the field has to mean "back in the shop", and a null on
+          // its own cannot say that — it also means "unchanged".
+          clearCompleted: completed === null,
         });
       }
 
-      return openMaintenance({
+      return logMaintenance({
         assetId: asset.data!.asset.id,
         title,
+        startedAt: started ?? todayIso(),
+        completedAt: completed,
         detail: detail || null,
         vendorId: internal ? null : vendorId,
         isInternal: internal,
         underWarranty: warranty,
-        nextDueAt: nextDue || null,
+        cost: amount,
+        nextDueAt: nextDue,
       });
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       invalidate();
-      toast(editing ? 'Maintenance updated' : 'Job opened');
+      toast(result.ongoing ? 'Recorded · still in the shop' : 'Recorded');
       router.back();
     },
     onError: (e: Error) => setError(e.message),
@@ -169,10 +179,10 @@ export default function MaintenanceLogScreen() {
   const heading = editing ? existing!.title : asset.data!.asset.name;
   const subheading = editing
     ? `${existing!.asset_code} · ${existing!.asset_name}`
-    : `${asset.data!.asset.assetCode} · opening a new job`;
+    : `${asset.data!.asset.assetCode} · recording a repair`;
 
   const vendors = options.data?.vendors ?? [];
-  const ready = editing ? true : title.trim().length > 0;
+  const ready = title.trim().length > 0 && Boolean(started);
 
   return (
     <KeyboardAvoidingView
@@ -182,9 +192,6 @@ export default function MaintenanceLogScreen() {
       <ScrollView
         contentContainerStyle={[
           styles.scroll,
-          // The floating nav sits OVER the content, so the last control on
-          // the form would otherwise be underneath it. Same reserve the
-          // Screen component uses.
           { paddingBottom: insets.bottom + t.spacing.screenBottom },
         ]}
         keyboardShouldPersistTaps="handled"
@@ -206,61 +213,28 @@ export default function MaintenanceLogScreen() {
         </Text>
 
         {editing ? (
-          <Card padding={15} title="State" style={styles.card}>
-            <View style={styles.stateRow}>
-              <Badge label={MAINTENANCE_STATE_LABEL[existing!.state]} />
-              {existing!.vendor_name ? (
-                <Text style={[t.type.meta, { color: t.color.sub }]}>{existing!.vendor_name}</Text>
-              ) : null}
-            </View>
-            <SelectField
-              label="Change to"
-              value={MAINTENANCE_STATE_LABEL[state]}
-              onPress={() => setPicker('state')}
-              containerStyle={styles.field}
+          <View style={styles.stateRow}>
+            <Badge
+              label={existing!.ongoing ? 'In the shop' : 'Done'}
+              tone={existing!.ongoing ? undefined : 'available'}
             />
             <Text style={[t.type.meta, { color: t.color.sub }]}>
-              Marking it Completed or Cancelled stamps today&apos;s date on it, so a report can tell
-              this month&apos;s work from last year&apos;s.
+              {existing!.ongoing
+                ? `Since ${formatDate(existing!.started_at)}`
+                : `${formatDate(existing!.started_at)} — ${formatDate(existing!.completed_at)}`}
             </Text>
-          </Card>
-        ) : (
-          <Card padding={15} title="What is being done" style={styles.card}>
-            <Input
-              label="Title"
-              required
-              value={title}
-              onChangeText={setTitle}
-              placeholder="e.g. Replace swollen battery"
-              containerStyle={styles.field}
-            />
-            <Switch
-              value={internal}
-              onValueChange={setInternal}
-              label="Handled in-house"
-              description={internal ? 'No vendor' : 'A vendor is doing the work'}
-            />
-            {!internal ? (
-              <SelectField
-                label="Vendor"
-                value={vendors.find((v) => v.id === vendorId)?.name ?? null}
-                placeholder="Choose a vendor"
-                onPress={() => setPicker('vendor')}
-                containerStyle={styles.fieldTop}
-              />
-            ) : null}
-            <View style={styles.switchGap}>
-              <Switch
-                value={warranty}
-                onValueChange={setWarranty}
-                label="Under warranty"
-                description={warranty ? 'The vendor should not charge for this' : 'Chargeable'}
-              />
-            </View>
-          </Card>
-        )}
+          </View>
+        ) : null}
 
-        <Card padding={15} title="Details" style={styles.card}>
+        <Card padding={15} title="What was done" style={styles.card}>
+          <Input
+            label="Title"
+            required
+            value={title}
+            onChangeText={setTitle}
+            placeholder="e.g. Replace swollen battery"
+            containerStyle={styles.field}
+          />
           <Input
             label="Notes"
             value={detail}
@@ -268,24 +242,74 @@ export default function MaintenanceLogScreen() {
             placeholder="What was found, what was done"
             multiline
             numberOfLines={3}
+          />
+        </Card>
+
+        <Card padding={15} title="When" style={styles.card}>
+          <DateField
+            label="Went in"
+            required
+            value={started}
+            onChange={setStarted}
+            clearable={false}
+            maximum={completed ?? todayIso()}
             containerStyle={styles.field}
           />
-          {editing ? (
-            <Input
-              label="Cost"
-              value={cost}
-              onChangeText={setCost}
-              placeholder="0"
-              keyboardType="number-pad"
-              helper="Rupiah, excluding anything the warranty covered"
-              containerStyle={styles.field}
+          <DateField
+            label="Came back"
+            value={completed}
+            onChange={setCompleted}
+            placeholder="Still in the shop"
+            minimum={started}
+            maximum={todayIso()}
+            helper="Leave empty while it is still away. Clearing it puts it back in the shop."
+          />
+        </Card>
+
+        <Card padding={15} title="Who and how much" style={styles.card}>
+          <Switch
+            value={internal}
+            onValueChange={setInternal}
+            label="Handled in-house"
+            description={internal ? 'No vendor' : 'A vendor did the work'}
+          />
+          {!internal ? (
+            <SelectField
+              label="Vendor"
+              value={vendors.find((v) => v.id === vendorId)?.name ?? null}
+              placeholder="Choose a vendor"
+              onPress={() => setPicker(true)}
+              containerStyle={styles.fieldTop}
             />
           ) : null}
+
+          <View style={styles.switchGap}>
+            <Switch
+              value={warranty}
+              onValueChange={setWarranty}
+              label="Under warranty"
+              description={warranty ? 'The vendor should not charge for this' : 'Chargeable'}
+            />
+          </View>
+
+          <Input
+            label="Cost"
+            value={cost}
+            onChangeText={setCost}
+            placeholder="0"
+            keyboardType="number-pad"
+            helper="Rupiah, excluding anything the warranty covered"
+            containerStyle={styles.fieldTop}
+          />
+        </Card>
+
+        <Card padding={15} title="Next service" style={styles.card}>
           <DateField
-            label="Next service due"
-            value={nextDue || null}
-            onChange={(value) => setNextDue(value ?? '')}
-            minimum={todayIso()}
+            label="Due"
+            value={nextDue}
+            onChange={setNextDue}
+            placeholder="No schedule"
+            minimum={started}
             helper="A reminder lands a week before this date"
           />
         </Card>
@@ -298,7 +322,7 @@ export default function MaintenanceLogScreen() {
         ) : null}
 
         <Button
-          label={editing ? 'Save changes' : 'Open the job'}
+          label={editing ? 'Save changes' : 'Record it'}
           block
           disabled={!ready}
           loading={save.isPending}
@@ -307,25 +331,21 @@ export default function MaintenanceLogScreen() {
             save.mutate();
           }}
         />
+
+        <Text style={[t.type.meta, styles.footnote, { color: t.color.sub }]}>
+          This is a record only. To take the asset out of circulation, change its status on the
+          asset itself — that way it comes back when you say so, not when a record closes.
+        </Text>
       </ScrollView>
 
       <PickerSheet
-        visible={picker === 'vendor'}
+        visible={picker}
         title="Vendor"
         options={vendors.map((v) => ({ id: v.id, name: v.name }))}
         selectedId={vendorId}
         onSelect={(o) => setVendorId(o.id)}
-        onDismiss={() => setPicker(null)}
+        onDismiss={() => setPicker(false)}
         emptyMessage="No vendors in master data yet"
-      />
-
-      <PickerSheet
-        visible={picker === 'state'}
-        title="State"
-        options={STATES.map((s) => ({ id: s, name: MAINTENANCE_STATE_LABEL[s] }))}
-        selectedId={state}
-        onSelect={(o) => setState(o.id as MaintenanceState)}
-        onDismiss={() => setPicker(null)}
       />
     </KeyboardAvoidingView>
   );
@@ -337,10 +357,11 @@ const styles = StyleSheet.create({
   centre: { flex: 1, justifyContent: 'center', paddingHorizontal: 16 },
   back: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 12, minHeight: 24 },
   subtitle: { marginTop: 3, marginBottom: 14, lineHeight: 17 },
+  stateRow: { flexDirection: 'row', alignItems: 'center', gap: 9, marginBottom: 14 },
   card: { marginBottom: 12 },
   field: { marginBottom: 12 },
   fieldTop: { marginTop: 14 },
   switchGap: { marginTop: 14 },
-  stateRow: { flexDirection: 'row', alignItems: 'center', gap: 9, marginBottom: 14 },
   errorRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 },
+  footnote: { marginTop: 12, lineHeight: 16 },
 });

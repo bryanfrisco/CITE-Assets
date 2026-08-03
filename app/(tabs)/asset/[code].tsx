@@ -24,6 +24,7 @@ import {
   Download,
   FileText,
   MoreHorizontal,
+  Barcode,
   Upload,
   Wrench,
 } from 'lucide-react-native';
@@ -53,6 +54,7 @@ import {
   type AssetDetail,
   type TimelineKind,
 } from '@/api/assets';
+import { attachTag, fetchAssetTagCode } from '@/api/tags';
 import {
   DOCUMENT_KINDS,
   DOCUMENT_KIND_LABEL,
@@ -82,11 +84,36 @@ export default function AssetDetailScreen() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteReason, setDeleteReason] = useState('');
   const [deleteError, setDeleteError] = useState('');
+  const [labelOpen, setLabelOpen] = useState(false);
+  const [labelCode, setLabelCode] = useState('');
+  const [labelError, setLabelError] = useState('');
 
   const detail = useQuery({
     queryKey: queryKeys.asset(code ?? ''),
     queryFn: () => fetchAssetDetail(code ?? ''),
     enabled: Boolean(code),
+  });
+
+  // The label physically on this device, if any. An asset added through the
+  // form has none — scanning a blank sticker is the other way in, and this is
+  // how the two paths meet.
+  const tag = useQuery({
+    queryKey: ['assetTag', detail.data?.asset.id],
+    queryFn: () => fetchAssetTagCode(detail.data!.asset.id),
+    enabled: Boolean(detail.data?.asset.id),
+  });
+
+  const attach = useMutation({
+    mutationFn: () => attachTag(labelCode.trim().toUpperCase(), detail.data!.asset.id),
+    onSuccess: (result) => {
+      setLabelOpen(false);
+      setLabelCode('');
+      void queryClient.invalidateQueries({ queryKey: ['assetTag'] });
+      void queryClient.invalidateQueries({ queryKey: ['tags'] });
+      void queryClient.invalidateQueries({ queryKey: ['tagStock'] });
+      toast(result.alreadyAttached ? 'That label was already on it' : 'Label attached');
+    },
+    onError: (e: Error) => setLabelError(e.message),
   });
 
   // The database refuses this for anything with an assignment, a movement, an
@@ -186,6 +213,33 @@ export default function AssetDetailScreen() {
         </View>
       </View>
 
+      {tag.data ? (
+        <Pressable
+          onPress={() => router.push('/labels')}
+          accessibilityRole="button"
+          accessibilityLabel={`Label ${tag.data}`}
+          style={styles.labelRow}
+        >
+          <Barcode size={13} color={t.color.sub} strokeWidth={1.8} />
+          <Text style={[t.type.metaStrong, { color: t.color.royal }]}>{tag.data}</Text>
+          <Text style={[t.type.meta, { color: t.color.sub }]}>label on this device</Text>
+        </Pressable>
+      ) : can('asset.edit') ? (
+        <Pressable
+          onPress={() => {
+            setLabelError('');
+            setLabelOpen(true);
+          }}
+          accessibilityRole="button"
+          accessibilityLabel="Attach a label"
+          style={styles.labelRow}
+        >
+          <Barcode size={13} color={t.color.sub} strokeWidth={1.8} />
+          <Text style={[t.type.metaStrong, { color: t.color.royal }]}>Attach a label</Text>
+          <Text style={[t.type.meta, { color: t.color.sub }]}>no barcode on this one yet</Text>
+        </Pressable>
+      ) : null}
+
       {can('assignment.write') ? (
         <View style={styles.actions}>
           <Button
@@ -205,7 +259,13 @@ export default function AssetDetailScreen() {
             label="E-BAST"
             variant="secondary"
             icon={<FileText size={15} color={t.color.text} strokeWidth={1.8} />}
-            onPress={() => router.push('/bast')}
+            onPress={() => {
+              // Newest first, as asset_detail() returns them. One tap should
+              // land on this asset's document, not on a list to search.
+              const newest = data.bast?.[0];
+              if (newest) router.push(`/bast/${newest.id}`);
+              else toast('No E-BAST for this asset yet');
+            }}
           />
           <Pressable
             onPress={() => setOverflowOpen(true)}
@@ -290,6 +350,51 @@ export default function AssetDetailScreen() {
               }}
             />
           ) : null}
+        </View>
+      </BottomSheet>
+
+      <BottomSheet visible={labelOpen} onDismiss={() => setLabelOpen(false)} title="Attach a label">
+        <View style={styles.sheetActions}>
+          <Text style={[t.type.bodySmall, { color: t.color.text, lineHeight: 18 }]}>
+            Type the code printed on a blank sticker, or scan it. The label keeps its own code —
+            attaching it does not rename this asset, and the asset keeps {a.assetCode}.
+          </Text>
+
+          <Input
+            label="Label code"
+            required
+            value={labelCode}
+            onChangeText={(value) => {
+              setLabelCode(value);
+              setLabelError('');
+            }}
+            placeholder="CT-000001"
+            autoCapitalize="characters"
+            autoCorrect={false}
+          />
+
+          {labelError ? (
+            <Text style={[t.type.meta, { color: t.color.error, lineHeight: 16 }]}>
+              {labelError}
+            </Text>
+          ) : null}
+
+          <Button
+            label="Attach"
+            block
+            disabled={labelCode.trim().length === 0}
+            loading={attach.isPending}
+            onPress={() => attach.mutate()}
+          />
+          <Button
+            label="Scan it instead"
+            variant="secondary"
+            block
+            onPress={() => {
+              setLabelOpen(false);
+              router.push('/scan');
+            }}
+          />
         </View>
       </BottomSheet>
 
@@ -906,6 +1011,7 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderWidth: 1,
   },
+  labelRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 10 },
   maintenanceOpen: { marginBottom: 12 },
   docUpload: { marginBottom: 12 },
   docUploadButton: { marginTop: 12 },

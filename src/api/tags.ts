@@ -115,3 +115,69 @@ export async function voidTag(code: string, reason: string): Promise<void> {
   const { error } = await supabase.rpc('void_tag', { p_code: code, p_reason: reason });
   if (error) throw new Error(error.message);
 }
+
+// ---------------------------------------------------------------------------
+// One label, in detail
+// ---------------------------------------------------------------------------
+
+/**
+ * The two identities a label carries, kept apart on purpose.
+ *
+ * `code` is the STICKER — CT-000001, printed once, physically on a device.
+ * `asset.assetCode` is the ASSET — SPRLAP24-HO-006, the register's own name for
+ * the thing. Attaching one to the other renames neither, which is exactly what
+ * makes a mislabelled asset recoverable: void the sticker, attach another, and
+ * the asset's code never moved.
+ */
+export interface TagDetail {
+  code: string;
+  status: TagStatus;
+  batchId: string | null;
+  printedAt: string | null;
+  createdAt: string;
+  taggedAt: string | null;
+  taggedByName: string | null;
+  voidedAt: string | null;
+  voidReason: string | null;
+  voidedByName: string | null;
+  asset: {
+    id: string;
+    assetCode: string;
+    name: string;
+    serialNumber: string;
+    statusName: string;
+    conditionName: string;
+    locationName: string;
+    holderName: string | null;
+  } | null;
+}
+
+export async function fetchTagDetail(code: string): Promise<TagDetail | null> {
+  const { data, error } = await supabase.rpc('tag_detail', { p_code: code });
+  if (error) throw new Error(error.message);
+  return (data ?? null) as TagDetail | null;
+}
+
+/**
+ * Puts a printed sticker on an asset that already exists.
+ *
+ * The other direction — scanning a blank sticker to create an asset — has been
+ * there since the tag lifecycle went in. This is the case an asset added
+ * through the form falls into: it has no label, and until now nothing could
+ * give it one.
+ */
+export async function attachTag(
+  code: string,
+  assetId: string,
+): Promise<{ alreadyAttached: boolean }> {
+  const { data, error } = await supabase.rpc('attach_tag', { p_code: code, p_asset: assetId });
+  if (error) throw new Error(error.message);
+  return data as { alreadyAttached: boolean };
+}
+
+/** The label currently on an asset, or null if it has none. */
+export async function fetchAssetTagCode(assetId: string): Promise<string | null> {
+  const { data, error } = await supabase.rpc('asset_tag_code', { p_asset: assetId });
+  if (error) throw new Error(error.message);
+  return (data ?? null) as string | null;
+}

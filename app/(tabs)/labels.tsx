@@ -24,6 +24,7 @@ import { SvgXml } from 'react-native-svg';
 import { useTheme } from '@/theme';
 import {
   Badge,
+  BottomSheet,
   Button,
   Card,
   Chip,
@@ -33,7 +34,14 @@ import {
   Screen,
   Skeleton,
 } from '@/components/ui';
-import { createTagBatch, fetchTagStock, listTags, type TagRow, type TagStatus } from '@/api/tags';
+import {
+  createTagBatch,
+  fetchTagDetail,
+  fetchTagStock,
+  listTags,
+  type TagRow,
+  type TagStatus,
+} from '@/api/tags';
 import {
   DEFAULT_SYMBOLOGY,
   DEFAULT_TAPE,
@@ -45,6 +53,7 @@ import {
   symbolSvg,
 } from '@/lib/labels';
 import type { LabelLayout, Symbology, TapeWidth } from '@/lib/labels';
+import { formatDate } from '@/lib/dates';
 import { useToast } from '@/store/useUiStore';
 import { usePermissions } from '@/auth';
 
@@ -68,6 +77,7 @@ export default function LabelsScreen() {
   const [layout, setLayout] = useState<LabelLayout>('tape');
   const [filter, setFilter] = useState<TagStatus | 'all'>('all');
   const [error, setError] = useState('');
+  const [openCode, setOpenCode] = useState<string | null>(null);
 
   const stock = useQuery({ queryKey: ['tagStock'], queryFn: fetchTagStock });
   const tags = useQuery({
@@ -280,7 +290,7 @@ export default function LabelsScreen() {
                 key={row.id}
                 row={row}
                 last={i === (tags.data ?? []).length - 1}
-                onPress={row.asset_code ? () => router.push(`/asset/${row.asset_code}`) : undefined}
+                onPress={() => setOpenCode(row.code)}
               />
             ))}
           </Card>
@@ -298,6 +308,7 @@ export default function LabelsScreen() {
           ) : null}
         </>
       )}
+      <LabelSheet code={openCode} onDismiss={() => setOpenCode(null)} />
     </Screen>
   );
 }
@@ -372,6 +383,144 @@ function LabelPreview({ tape, symbology }: { tape: TapeWidth; symbology: Symbolo
   );
 }
 
+/**
+ * One label, and what is on it.
+ *
+ * Shows BOTH identities without suggesting either replaced the other:
+ * `CT-000001` is the sticker, `SPRLAP24-HO-006` is the asset. Attaching one to
+ * the other renames neither — which is exactly what makes a mislabelled device
+ * recoverable, because voiding the sticker leaves the asset's own code alone.
+ */
+function LabelSheet({ code, onDismiss }: { code: string | null; onDismiss: () => void }) {
+  const t = useTheme();
+  const router = useRouter();
+
+  const detail = useQuery({
+    queryKey: ['tagDetail', code],
+    queryFn: () => fetchTagDetail(code!),
+    enabled: Boolean(code),
+  });
+
+  const d = detail.data;
+
+  const status =
+    d?.status === 'untagged'
+      ? { label: 'Blank', tone: 'available' as const }
+      : d?.status === 'void'
+        ? { label: 'Voided', tone: 'retired' as const }
+        : { label: 'In use', tone: undefined };
+
+  return (
+    <BottomSheet visible={Boolean(code)} onDismiss={onDismiss} title={code ?? 'Label'}>
+      {detail.isPending ? (
+        <Skeleton height={120} radius={t.radii.cardMedium} />
+      ) : !d ? (
+        <Text style={[t.type.meta, styles.sheetEmpty, { color: t.color.sub }]}>
+          That label is not one of ours.
+        </Text>
+      ) : (
+        <View style={styles.sheet}>
+          <View style={styles.sheetHead}>
+            <Text style={[t.type.assetCode, { color: t.color.royal }]}>{d.code}</Text>
+            <Badge label={status.label} tone={status.tone} />
+          </View>
+
+          {d.asset ? (
+            <>
+              <Text style={[t.type.sectionLabel, styles.sheetLabel, { color: t.color.sub }]}>
+                On this asset
+              </Text>
+              <Pressable
+                onPress={() => {
+                  onDismiss();
+                  router.push(`/asset/${d.asset!.assetCode}`);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={d.asset.assetCode}
+                style={({ pressed }) => [
+                  styles.sheetAsset,
+                  {
+                    borderColor: t.color.line,
+                    borderRadius: t.radii.inputLarge,
+                    backgroundColor: pressed ? t.color.soft : 'transparent',
+                  },
+                ]}
+              >
+                <Text style={[t.type.assetCode, { color: t.color.royal }]}>
+                  {d.asset.assetCode}
+                </Text>
+                <Text numberOfLines={1} style={[t.type.body, { color: t.color.text }]}>
+                  {d.asset.name}
+                </Text>
+                <Text numberOfLines={1} style={[t.type.meta, { color: t.color.sub }]}>
+                  {`SN ${d.asset.serialNumber}`}
+                </Text>
+                <View style={styles.sheetBadges}>
+                  <Badge label={d.asset.statusName} />
+                  <Badge label={d.asset.conditionName} />
+                </View>
+                <Text style={[t.type.meta, { color: t.color.sub }]}>
+                  {[d.asset.locationName, d.asset.holderName ?? 'Nobody holding it']
+                    .filter(Boolean)
+                    .join(' · ')}
+                </Text>
+              </Pressable>
+            </>
+          ) : (
+            <Text style={[t.type.bodySmall, styles.sheetLabel, { color: t.color.sub }]}>
+              {d.status === 'void'
+                ? 'Voided and out of use. It cannot be attached to anything.'
+                : 'Not on a device yet. Scan it to register what it goes on.'}
+            </Text>
+          )}
+
+          <Text style={[t.type.sectionLabel, styles.sheetLabel, { color: t.color.sub }]}>
+            History
+          </Text>
+          <View style={styles.sheetFacts}>
+            <Fact label="Issued" value={formatDate(d.printedAt ?? d.createdAt)} />
+            {d.taggedAt ? (
+              <Fact
+                label="Attached"
+                value={`${formatDate(d.taggedAt)}${d.taggedByName ? ` · ${d.taggedByName}` : ''}`}
+              />
+            ) : null}
+            {d.voidedAt ? (
+              <Fact
+                label="Voided"
+                value={`${formatDate(d.voidedAt)}${d.voidedByName ? ` · ${d.voidedByName}` : ''}`}
+              />
+            ) : null}
+            {d.voidReason ? <Fact label="Why" value={d.voidReason} /> : null}
+          </View>
+
+          {d.status === 'untagged' ? (
+            <Button
+              label="Scan it onto a device"
+              block
+              onPress={() => {
+                onDismiss();
+                router.push('/scan');
+              }}
+              style={styles.sheetAction}
+            />
+          ) : null}
+        </View>
+      )}
+    </BottomSheet>
+  );
+}
+
+function Fact({ label, value }: { label: string; value: string }) {
+  const t = useTheme();
+  return (
+    <View style={styles.factRow}>
+      <Text style={[t.type.meta, styles.factLabel, { color: t.color.sub }]}>{label}</Text>
+      <Text style={[t.type.metaStrong, styles.factValue, { color: t.color.text }]}>{value}</Text>
+    </View>
+  );
+}
+
 function TagRowView({ row, last, onPress }: { row: TagRow; last: boolean; onPress?: () => void }) {
   const t = useTheme();
   const label = row.status === 'untagged' ? 'Blank' : row.status === 'tagged' ? 'In use' : 'Voided';
@@ -442,4 +591,15 @@ const styles = StyleSheet.create({
   },
   rowText: { flex: 1, minWidth: 0 },
   rowMeta: { marginTop: 3 },
+  sheet: { gap: 4 },
+  sheetEmpty: { paddingVertical: 18, textAlign: 'center' },
+  sheetHead: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 4 },
+  sheetLabel: { marginTop: 14, marginBottom: 8 },
+  sheetAsset: { borderWidth: 1, padding: 13, gap: 4 },
+  sheetBadges: { flexDirection: 'row', gap: 7, marginTop: 4, marginBottom: 4 },
+  sheetFacts: { gap: 7 },
+  sheetAction: { marginTop: 16 },
+  factRow: { flexDirection: 'row', gap: 10 },
+  factLabel: { width: 74 },
+  factValue: { flex: 1, minWidth: 0 },
 });

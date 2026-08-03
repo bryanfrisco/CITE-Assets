@@ -1,11 +1,17 @@
 /**
- * Maintenance — Phase 6.
+ * Maintenance — a log of what went to the shop, and when it came back.
  *
- * Open work first, then everything else. A list sorted purely by date buries
- * the two jobs somebody is meant to be doing today under a year of finished
- * ones, so the ordering is state first and date second — and that ordering
- * lives in maintenance_list(), not here, so a report cannot disagree with the
- * screen.
+ * Client instruction, 2026-08-04: "pencatatan saja. dari tanggal berapa ke
+ * berapa laptop ini di maintenance kan. tidak perlu status open sampai
+ * cancelled."
+ *
+ * So there is no state to move a record through. Ongoing work is whatever has
+ * no end date yet, and it sits at the top because it is the only part anybody
+ * has to do something about.
+ *
+ * Nothing here changes an asset's status. Those were two ideas wearing one
+ * name, and closing a ticket used to leave the asset stuck in Maintenance and
+ * out of the assign picker for good.
  */
 
 import React, { useState } from 'react';
@@ -16,31 +22,19 @@ import { ChevronLeft, Wrench } from 'lucide-react-native';
 
 import { useTheme } from '@/theme';
 import { Badge, Card, Chip, ChipRow, EmptyState, Screen, Skeleton } from '@/components/ui';
-import {
-  MAINTENANCE_STATE_LABEL,
-  fetchMaintenance,
-  fetchMaintenanceStats,
-  type MaintenanceListRow,
-  type MaintenanceState,
-} from '@/api/maintenance';
+import { fetchMaintenance, fetchMaintenanceStats, type MaintenanceRecord } from '@/api/maintenance';
+import { formatDate } from '@/lib/dates';
 import { useScopeStore } from '@/store/useScopeStore';
 
-const FILTERS: { key: MaintenanceState | 'all'; label: string }[] = [
+const FILTERS: { key: 'all' | 'ongoing' | 'finished'; label: string }[] = [
   { key: 'all', label: 'All' },
-  { key: 'open', label: 'Open' },
-  { key: 'in_progress', label: 'In progress' },
-  { key: 'completed', label: 'Completed' },
+  { key: 'ongoing', label: 'In the shop' },
+  { key: 'finished', label: 'Finished' },
 ];
 
 function money(value: string | number | null): string {
   const n = Number(value ?? 0);
-  if (!n) return 'Rp 0';
-  return `Rp ${n.toLocaleString('id-ID')}`;
-}
-
-function shortDate(value: string | null): string | null {
-  if (!value) return null;
-  return new Date(value).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+  return n ? `Rp ${n.toLocaleString('id-ID')}` : 'Rp 0';
 }
 
 export default function MaintenanceScreen() {
@@ -48,7 +42,7 @@ export default function MaintenanceScreen() {
   const router = useRouter();
   const scope = useScopeStore((s) => s.scope);
 
-  const [filter, setFilter] = useState<MaintenanceState | 'all'>('all');
+  const [filter, setFilter] = useState<'all' | 'ongoing' | 'finished'>('all');
 
   const stats = useQuery({
     queryKey: ['maintenanceStats', scope],
@@ -58,7 +52,7 @@ export default function MaintenanceScreen() {
 
   const list = useQuery({
     queryKey: ['maintenance', scope, filter],
-    queryFn: () => fetchMaintenance(scope, filter === 'all' ? undefined : filter),
+    queryFn: () => fetchMaintenance(scope, filter === 'all' ? undefined : filter === 'ongoing'),
     enabled: scope.length > 0,
   });
 
@@ -85,15 +79,15 @@ export default function MaintenanceScreen() {
 
       <Text style={[t.type.screenTitle, { color: t.color.text }]}>Maintenance</Text>
       <Text style={[t.type.bodySmall, styles.subtitle, { color: t.color.sub }]}>
-        Open tickets and service records, across the locations you are viewing
+        A record of what went to the shop and when it came back
       </Text>
 
       <View style={styles.stats}>
         {(
           [
-            ['Open', stats.data?.open ?? 0],
-            ['In progress', stats.data?.inProgress ?? 0],
-            ['Completed', stats.data?.completed ?? 0],
+            ['In the shop', String(stats.data?.ongoing ?? 0)],
+            ['Finished', String(stats.data?.finished ?? 0)],
+            ['Days total', String(stats.data?.days ?? 0)],
           ] as const
         ).map(([label, value]) => (
           <Card key={label} radius="kpiTile" padding={12} style={styles.statTile}>
@@ -106,7 +100,7 @@ export default function MaintenanceScreen() {
       </View>
 
       <Card padding={13} style={styles.spendCard}>
-        <Text style={[t.type.fieldLabel, { color: t.color.sub }]}>Spent on completed work</Text>
+        <Text style={[t.type.fieldLabel, { color: t.color.sub }]}>Spent on repairs</Text>
         <Text style={[t.type.detailTitle, styles.spend, { color: t.color.text }]}>
           {money(stats.data?.cost ?? 0)}
         </Text>
@@ -139,13 +133,13 @@ export default function MaintenanceScreen() {
         />
       ) : rows.length === 0 ? (
         <EmptyState
-          title={filter === 'all' ? 'No maintenance recorded' : 'Nothing in that state'}
-          description="Open a job from an asset's Maintenance tab when something needs work."
+          title={filter === 'all' ? 'Nothing recorded yet' : 'Nothing here'}
+          description="Record a repair from an asset's Maintenance tab."
         />
       ) : (
         <Card padding={0} radius="listContainer">
           {rows.map((row, i) => (
-            <MaintenanceRowView
+            <MaintenanceRow
               key={row.id}
               row={row}
               last={i === rows.length - 1}
@@ -158,24 +152,26 @@ export default function MaintenanceScreen() {
   );
 }
 
-function MaintenanceRowView({
+function MaintenanceRow({
   row,
   last,
   onPress,
 }: {
-  row: MaintenanceListRow;
+  row: MaintenanceRecord;
   last: boolean;
   onPress: () => void;
 }) {
   const t = useTheme();
-  const active = row.state === 'open' || row.state === 'in_progress';
 
-  const meta = [
-    row.asset_code,
-    row.vendor_name ?? 'Internal',
-    row.state === 'completed' ? shortDate(row.completed_at) : shortDate(row.started_at),
-    Number(row.cost ?? 0) > 0 ? money(row.cost) : null,
-  ]
+  // The date range IS the record. "12 Mar — 19 Mar · 7 days" says more than any
+  // status word could, and it is what somebody is actually looking for.
+  const range = row.ongoing
+    ? `Since ${formatDate(row.started_at)} · ${row.days} day${row.days === 1 ? '' : 's'}`
+    : `${formatDate(row.started_at)} — ${formatDate(row.completed_at)} · ${row.days} day${
+        row.days === 1 ? '' : 's'
+      }`;
+
+  const meta = [row.asset_code, row.vendor_name ?? 'In-house', money(row.cost)]
     .filter(Boolean)
     .join(' · ');
 
@@ -194,7 +190,7 @@ function MaintenanceRowView({
       ]}
     >
       <View style={[styles.icon, { backgroundColor: t.color.soft }]}>
-        <Wrench size={16} color={active ? t.color.amber : t.color.sub} strokeWidth={1.8} />
+        <Wrench size={16} color={row.ongoing ? t.color.amber : t.color.sub} strokeWidth={1.8} />
       </View>
 
       <View style={styles.rowText}>
@@ -202,18 +198,16 @@ function MaintenanceRowView({
           {row.title}
         </Text>
         <Text numberOfLines={1} style={[t.type.meta, styles.rowMeta, { color: t.color.sub }]}>
+          {range}
+        </Text>
+        <Text numberOfLines={1} style={[t.type.meta, styles.rowMeta, { color: t.color.sub }]}>
           {meta}
         </Text>
-        {row.next_due_at ? (
-          <Text style={[t.type.meta, styles.rowMeta, { color: t.color.sub }]}>
-            {`Next due ${shortDate(row.next_due_at)}`}
-          </Text>
-        ) : null}
       </View>
 
       <Badge
-        label={MAINTENANCE_STATE_LABEL[row.state]}
-        tone={row.state === 'completed' ? 'available' : undefined}
+        label={row.ongoing ? 'In the shop' : 'Done'}
+        tone={row.ongoing ? undefined : 'available'}
       />
     </Pressable>
   );
