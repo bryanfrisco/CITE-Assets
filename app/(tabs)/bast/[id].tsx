@@ -1,14 +1,15 @@
 /**
  * E-BAST detail — README § Screens 5.
  *
- * Header row (number, "Serah Terima Aset", status badge), the paper preview,
- * `PDF` + `Preview` actions, the two signature blocks, the signed-document card,
- * and the version history rail.
+ * Header row (number, document kind, status badge), the paper preview, the
+ * goods-table editor, `PDF` + `Preview` actions, the two signature blocks, the
+ * signed-document card, and the version history rail.
  *
  * The paper preview stays white in both themes: it is a printed document, not
  * app chrome. Its palette lives in `t.paper`, and the Edge Function that
- * renders the real PDF uses the same values — including the signatures, which
- * are the same stroke data drawn by both.
+ * renders the real PDF draws the same blocks in the same order from the same
+ * `bast_detail()` payload — including the signatures, which are the same stroke
+ * data drawn by both. If the two ever look different, one of them has a bug.
  */
 
 import React, { useState } from 'react';
@@ -17,21 +18,25 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as DocumentPicker from 'expo-document-picker';
 import Svg, { Path } from 'react-native-svg';
-import { Check, ChevronLeft, Download, PenLine, Upload } from 'lucide-react-native';
+import { Check, ChevronLeft, Download, PenLine, Plus, Trash2, Upload } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import { useTheme } from '@/theme';
-import { Badge, Button, Card, EmptyState, Screen, Skeleton } from '@/components/ui';
+import { Badge, Button, Card, EmptyState, Input, Screen, Skeleton } from '@/components/ui';
 import {
+  BAST_KIND_LABEL,
+  BAST_KIND_TITLE,
   BAST_STATUS_LABEL,
   MAX_SIGNED_BAST_BYTES,
-  SIGNATURE_ROLE_LABEL,
   attachSignedBast,
   fetchBastDetail,
   generateBastPdf,
+  setBastItems,
+  signatureCaption,
   signedBastUrl,
   uploadSignedScan,
   type BastDetail,
+  type BastItem,
   type BastSignature,
   type BastVersion,
   type SignatureRole,
@@ -41,15 +46,17 @@ import { queryKeys } from '@/lib/queryClient';
 import { useToast } from '@/store/useUiStore';
 import { usePermissions } from '@/auth';
 
-const LOGO = require('../../../assets/cite-logo.png');
-
 /**
- * The company mark, printed before the CITE mark.
+ * The company mark. It is now the ONLY mark on the letterhead — the CITE
+ * roundel and the "CORPORATE IT" wordmark were removed at the client's
+ * instruction, because the department that raised the document is named in the
+ * body sentence ("dari Divisi IT") on their own paperwork and a second logo up
+ * there reads as a second company.
  *
- * The file is a committed 1×1 transparent placeholder until the real artwork is
- * dropped in — Metro has to resolve the require either way. Anything that small
- * is treated as "no logo yet" rather than drawn invisible, which is why the
- * dimensions are checked instead of assumed.
+ * The file may still be a committed 1×1 transparent placeholder — Metro has to
+ * resolve the require either way. Anything that small is treated as "no logo
+ * yet" rather than drawn invisible, which is why the dimensions are checked
+ * instead of assumed.
  */
 const ASPIRE = require('../../../assets/aspire-logo.png');
 const aspireSource = Image.resolveAssetSource(ASPIRE);
@@ -221,7 +228,7 @@ export default function BastDetailScreen() {
           <View style={styles.sheetHeaderText}>
             <Text style={[t.type.assetCode, { color: t.color.royal }]}>{b.bastNumber}</Text>
             <Text style={[t.type.cardHeading, styles.sheetTitle, { color: t.color.text }]}>
-              Serah Terima Aset
+              {BAST_KIND_LABEL[b.kind]}
             </Text>
           </View>
           <Badge label={BAST_STATUS_LABEL[b.status]} />
@@ -257,6 +264,10 @@ export default function BastDetailScreen() {
         </View>
       </Card>
 
+      {can('bast.write') && b.status !== 'signed' && b.status !== 'void' ? (
+        <GoodsEditor bast={b} />
+      ) : null}
+
       {can('bast.write') && b.status !== 'void' ? (
         <Card radius="cardMedium" padding={16} title="Tanda tangan" style={styles.uploadCard}>
           <Text style={[t.type.meta, styles.signHint, { color: t.color.sub }]}>
@@ -271,7 +282,7 @@ export default function BastDetailScreen() {
                 key={role}
                 onPress={() => router.push(`/bast/sign?id=${b.id}&role=${role}`)}
                 accessibilityRole="button"
-                accessibilityLabel={`Sign as ${SIGNATURE_ROLE_LABEL[role]}`}
+                accessibilityLabel={`Sign as ${signatureCaption(b.kind, role)}`}
                 style={({ pressed }) => [
                   styles.signRow,
                   {
@@ -296,7 +307,7 @@ export default function BastDetailScreen() {
 
                 <View style={styles.fileText}>
                   <Text style={[t.type.bodySmall, { color: t.color.text }]}>
-                    {SIGNATURE_ROLE_LABEL[role]}
+                    {signatureCaption(b.kind, role)}
                   </Text>
                   <Text
                     numberOfLines={1}
@@ -427,22 +438,40 @@ export default function BastDetailScreen() {
 }
 
 /**
- * The paper preview. Recreated with React Native views, not copied from the
- * prototype's HTML — same letterhead, same rule, same table, same two
- * signature blocks as the generated PDF.
+ * The paper preview — the same blocks, in the same order, as the PDF.
+ *
+ * The four things that differ between a handover and a withdrawal are the
+ * title, the verb in the opening sentence, the verb in the second paragraph,
+ * and the two signature captions. Everything else is one layout, which is why
+ * this reads from `bast.kind` rather than branching into two components.
  */
 function PaperPreview({ bast }: { bast: BastDetail }) {
   const t = useTheme();
   const p = t.paper;
 
-  const rows: [string, string][] = [
-    ['Asset Code', bast.assetCode],
-    ['Nama Aset', bast.assetName],
-    ['Penerima', bast.employeeName],
-    ['Departemen', bast.departmentName],
-    ['Lokasi', bast.locationName],
-    ['Kondisi', bast.conditionText],
+  const isReturn = bast.kind === 'return';
+  const company = `${bast.companyName} ${bast.officeLabel}`;
+
+  const opening = isReturn
+    ? `Pada hari ini ${bast.dateWords}, telah diberikan 1 (Satu) unit ${bast.assetName} kepada Divisi IT dari :`
+    : `Pada hari ini ${bast.dateWords}, telah diserah terimakan 1 (Satu) unit ${bast.assetName} dari Divisi IT kepada :`;
+
+  const purpose = isReturn
+    ? `Alat Tersebut akan dikembalikan ke perusahaan ${company} dengan rincian sebagai berikut :`
+    : `Alat Tersebut akan dipergunakan untuk kegiatan operasional perusahaan ${company} dengan rincian sebagai berikut :`;
+
+  const closing = isReturn
+    ? 'Demikian Berita Acara penarikan barang ini buat, agar dapat diketahui serta ditandatangani bersama serta diketahui oleh pihak - pihak yang berkepentingan.'
+    : 'Demikian Berita Acara serah terima barang ini buat, agar dapat diketahui serta ditandatangani bersama serta diketahui oleh pihak - pihak yang berkepentingan.';
+
+  const party: [string, string][] = [
+    ['Nama', bast.employeeName],
+    ['NIK', bast.employeeNik],
+    ['Jabatan', bast.employeeTitle],
+    ['Dept./Divisi', bast.departmentName],
   ];
+
+  const items = bast.items ?? [];
 
   return (
     <View
@@ -452,82 +481,288 @@ function PaperPreview({ bast }: { bast: BastDetail }) {
         t.shadow.paper,
       ]}
     >
-      <View style={[styles.letterhead, { borderBottomColor: p.rule }]}>
-        {HAS_ASPIRE ? (
-          <>
-            <Image
-              source={ASPIRE}
-              style={[styles.paperAspire, { width: 34 * ASPIRE_RATIO }]}
-              resizeMode="contain"
-            />
-            {/* A hairline, not a gap: ASPIRE is the company and CITE is the
-                department, and neither should read as the other's sub-brand. */}
-            <View style={[styles.paperDivider, { backgroundColor: p.tableBorder }]} />
-          </>
-        ) : null}
-        <Image source={LOGO} style={styles.paperLogo} resizeMode="contain" />
-        <View>
-          <Text style={[styles.paperBrand, { color: p.ink }]}>CORPORATE IT — CITE</Text>
-          <Text style={[styles.paperBrandSub, { color: p.muted }]}>IT ASSET MANAGEMENT</Text>
-        </View>
-      </View>
+      {HAS_ASPIRE ? (
+        <Image
+          source={ASPIRE}
+          style={[styles.paperAspire, { width: 38 * ASPIRE_RATIO }]}
+          resizeMode="contain"
+        />
+      ) : null}
 
       <View style={styles.paperTitleBlock}>
-        <Text style={[styles.paperTitle, { color: p.ink }]}>BERITA ACARA SERAH TERIMA</Text>
+        <Text style={[styles.paperTitle, { color: p.ink }]}>{BAST_KIND_TITLE[bast.kind]}</Text>
         <Text style={[styles.paperNumber, { color: p.muted }]}>{`No. ${bast.bastNumber}`}</Text>
       </View>
 
-      <Text style={[styles.paperSentence, { color: p.body }]}>
-        {`Pada hari ini, ${bast.longDate}, telah dilakukan serah terima aset IT sebagai berikut:`}
-      </Text>
+      <Text style={[styles.paperSentence, { color: p.body }]}>{opening}</Text>
 
-      <View style={[styles.paperTable, { borderColor: p.tableBorder }]}>
-        {rows.map(([label, value], i) => (
-          <View
-            key={label}
-            style={[
-              styles.paperRow,
-              {
-                borderBottomWidth: i === rows.length - 1 ? 0 : 1,
-                borderBottomColor: p.tableBorder,
-              },
-            ]}
-          >
-            <Text
-              style={[styles.paperCellKey, { color: p.muted, backgroundColor: p.tableLabelBg }]}
-            >
-              {label}
-            </Text>
-            <Text style={[styles.paperCellValue, { color: p.ink }]}>{value}</Text>
+      <View style={styles.paperParty}>
+        {party.map(([label, value]) => (
+          <View key={label} style={styles.paperPartyRow}>
+            <Text style={[styles.paperPartyKey, { color: p.body }]}>{label}</Text>
+            <Text style={[styles.paperPartyColon, { color: p.body }]}>:</Text>
+            <Text style={[styles.paperPartyValue, { color: p.ink }]}>{value}</Text>
           </View>
         ))}
       </View>
 
+      <Text style={[styles.paperSentence, { color: p.body }]}>{purpose}</Text>
+
+      {/* The goods table. Fully ruled, like the scan — this sheet gets
+          photocopied, and a table held together by whitespace does not
+          survive that. */}
+      <View style={[styles.goodsTable, { borderColor: p.tableBorder }]}>
+        <View style={[styles.goodsRow, { borderBottomColor: p.tableBorder }]}>
+          <Text style={[styles.goodsNo, styles.goodsHead, { color: p.ink }]}>No</Text>
+          <Text
+            style={[
+              styles.goodsJenis,
+              styles.goodsHead,
+              styles.goodsCentre,
+              { color: p.ink, borderLeftColor: p.tableBorder },
+            ]}
+          >
+            Jenis/Type
+          </Text>
+          <Text
+            style={[
+              styles.goodsSerial,
+              styles.goodsHead,
+              { color: p.ink, borderLeftColor: p.tableBorder },
+            ]}
+          >
+            Serial Number
+          </Text>
+          <Text
+            style={[
+              styles.goodsKondisi,
+              styles.goodsHead,
+              { color: p.ink, borderLeftColor: p.tableBorder },
+            ]}
+          >
+            Kondisi
+          </Text>
+        </View>
+
+        {items.map((item, i) => (
+          <View
+            key={`${item.jenis}-${i}`}
+            style={[
+              styles.goodsRow,
+              {
+                borderBottomWidth: i === items.length - 1 ? 0 : 1,
+                borderBottomColor: p.tableBorder,
+              },
+            ]}
+          >
+            <Text style={[styles.goodsNo, styles.goodsCell, { color: p.ink }]}>{i + 1}</Text>
+            <Text
+              style={[
+                styles.goodsJenis,
+                styles.goodsCell,
+                { color: p.ink, borderLeftColor: p.tableBorder },
+              ]}
+            >
+              {item.jenis}
+            </Text>
+            <Text
+              style={[
+                styles.goodsSerial,
+                styles.goodsCell,
+                { color: p.ink, borderLeftColor: p.tableBorder },
+              ]}
+            >
+              {item.serial}
+            </Text>
+            <Text
+              style={[
+                styles.goodsKondisi,
+                styles.goodsCell,
+                { color: p.ink, borderLeftColor: p.tableBorder },
+              ]}
+            >
+              {item.kondisi}
+            </Text>
+          </View>
+        ))}
+      </View>
+
+      <Text style={[styles.paperSentence, { color: p.body }]}>{closing}</Text>
+      <Text style={[styles.paperPlace, { color: p.body }]}>{bast.placeDate}</Text>
+
       <View style={styles.signatures}>
         {(
           [
-            ['handover', bast.handedOverBy, bast.handedOverDept],
-            ['receiver', bast.employeeName, bast.departmentName],
+            ['handover', bast.handedOverBy],
+            ['receiver', bast.employeeName],
           ] as const
-        ).map(([role, fallbackName, fallbackDept]) => {
+        ).map(([role, fallbackName]) => {
           const signature = bast.signatures?.[role];
           return (
             <View key={role} style={styles.signature}>
-              <Text style={[styles.signatureCaption, { color: p.muted }]}>
-                {SIGNATURE_ROLE_LABEL[role]}
+              <Text style={[styles.signatureCaption, { color: p.body }]}>
+                {signatureCaption(bast.kind, role)}
               </Text>
               <PreviewSignature signature={signature} />
-              <Text style={[styles.signatureName, { color: p.ink }]}>
+              <Text style={[styles.signatureName, { color: p.ink, borderBottomColor: p.ink }]}>
                 {signature?.signerName ?? fallbackName}
-              </Text>
-              <Text style={[styles.signatureDept, { color: p.muted }]}>
-                {signature?.signerTitle ?? fallbackDept}
               </Text>
             </View>
           );
         })}
       </View>
+
+      <View style={[styles.paperFooter, { borderTopColor: p.tableBorder }]}>
+        <Text style={[styles.paperFooterName, { color: p.body }]}>
+          {bast.companyName.toUpperCase()}
+        </Text>
+        {bast.addressLine ? (
+          <Text style={[styles.paperFooterAddress, { color: p.muted }]}>{bast.addressLine}</Text>
+        ) : null}
+      </View>
     </View>
+  );
+}
+
+/**
+ * The goods table, editable.
+ *
+ * The scans carry three lines for one handover — laptop, charger, mouse — and
+ * only the laptop is an asset. The other two have no serial and nobody wants
+ * them in the register, so they exist on the document and nowhere else. Until
+ * this card there was nowhere to put the charger, which is the whole reason the
+ * generated sheet did not match the paper one.
+ *
+ * Editing is refused once the document is signed; that guard is in the RPC too,
+ * so hiding the button is a courtesy rather than the rule.
+ */
+function GoodsEditor({ bast }: { bast: BastDetail }) {
+  const t = useTheme();
+  const toast = useToast();
+  const queryClient = useQueryClient();
+
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<BastItem[]>([]);
+  const [error, setError] = useState('');
+
+  const begin = () => {
+    setDraft(bast.items.map((item) => ({ ...item })));
+    setError('');
+    setEditing(true);
+  };
+
+  const update = (index: number, key: keyof BastItem, value: string) => {
+    setDraft((rows) => rows.map((row, i) => (i === index ? { ...row, [key]: value } : row)));
+  };
+
+  const save = useMutation({
+    mutationFn: () =>
+      setBastItems(
+        bast.id,
+        draft.map((row) => ({
+          jenis: row.jenis.trim(),
+          serial: row.serial.trim(),
+          kondisi: row.kondisi.trim() || 'Baik',
+        })),
+      ),
+    onSuccess: () => {
+      setEditing(false);
+      toast('Rincian barang saved');
+      void queryClient.invalidateQueries({ queryKey: ['bastDetail', bast.id] });
+    },
+    onError: (e: Error) => setError(e.message),
+  });
+
+  if (!editing) {
+    return (
+      <Card radius="cardMedium" padding={16} title="Rincian barang" style={styles.uploadCard}>
+        <Text style={[t.type.meta, styles.itemsHint, { color: t.color.sub }]}>
+          {`${bast.items.length} line${bast.items.length === 1 ? '' : 's'} on the sheet. Add the charger, the bag, the mouse — anything that went with the device but is not an asset of its own.`}
+        </Text>
+        <Button label="Edit the list" variant="secondary" block onPress={begin} />
+      </Card>
+    );
+  }
+
+  return (
+    <Card radius="cardMedium" padding={16} title="Rincian barang" style={styles.uploadCard}>
+      {draft.map((row, index) => (
+        <View
+          key={index}
+          style={[
+            styles.itemBlock,
+            { borderColor: t.color.line, borderRadius: t.radii.inputLarge },
+          ]}
+        >
+          <View style={styles.itemHead}>
+            <Text style={[t.type.metaStrong, { color: t.color.sub }]}>{`No. ${index + 1}`}</Text>
+            <Pressable
+              onPress={() => setDraft((rows) => rows.filter((_, i) => i !== index))}
+              accessibilityRole="button"
+              accessibilityLabel={`Remove line ${index + 1}`}
+              hitSlop={8}
+            >
+              <Trash2 size={15} color={t.color.error} strokeWidth={1.8} />
+            </Pressable>
+          </View>
+
+          <Input
+            label="Jenis/Type"
+            value={row.jenis}
+            onChangeText={(v) => update(index, 'jenis', v)}
+            placeholder="e.g. Charger Adaptor"
+            containerStyle={styles.itemField}
+          />
+          <Input
+            label="Serial Number"
+            value={row.serial}
+            onChangeText={(v) => update(index, 'serial', v)}
+            placeholder="- if it has none"
+            autoCapitalize="characters"
+            autoCorrect={false}
+            containerStyle={styles.itemField}
+          />
+          <Input
+            label="Kondisi"
+            value={row.kondisi}
+            onChangeText={(v) => update(index, 'kondisi', v)}
+            placeholder="Baru / Baik / Bekas"
+          />
+        </View>
+      ))}
+
+      <Button
+        label="Add a line"
+        variant="secondary"
+        block
+        icon={<Plus size={15} color={t.color.text} strokeWidth={1.8} />}
+        onPress={() => setDraft((rows) => [...rows, { jenis: '', serial: '-', kondisi: 'Baik' }])}
+        style={styles.itemAction}
+      />
+
+      {error ? (
+        <Text style={[t.type.meta, styles.itemsHint, { color: t.color.error }]}>{error}</Text>
+      ) : null}
+
+      <Button
+        label="Save the list"
+        block
+        loading={save.isPending}
+        disabled={draft.length === 0 || draft.some((row) => !row.jenis.trim())}
+        onPress={() => {
+          setError('');
+          save.mutate();
+        }}
+        style={styles.itemAction}
+      />
+      <Button
+        label="Cancel"
+        variant="secondary"
+        block
+        onPress={() => setEditing(false)}
+        style={styles.itemAction}
+      />
+    </Card>
   );
 }
 
@@ -623,53 +858,80 @@ const styles = StyleSheet.create({
   sheetButton: { height: 40 },
 
   // --- paper -----------------------------------------------------------
+  // Proportions mirror the PDF: the A4 content column is 471pt wide, so a
+  // 8.5pt body here reads at roughly the size 10pt does on the sheet.
   paper: { borderWidth: 1, paddingHorizontal: 16, paddingVertical: 18 },
-  letterhead: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingBottom: 10,
-    borderBottomWidth: 2,
-  },
-  // Taller than the CITE mark on purpose: the ASPIRE artwork is a stacked
-  // lockup whose bottom line is "member of ASTRA", and matching the CITE
-  // height would render that line as a smudge. Same proportion as the PDF.
-  paperAspire: { height: 34 },
-  paperDivider: { width: 1, height: 30, marginHorizontal: 2 },
-  paperLogo: { width: 22, height: 22 },
-  paperBrand: { fontSize: 9.5, fontWeight: '700', letterSpacing: 0.4 },
-  paperBrandSub: { fontSize: 7.5, letterSpacing: 0.5, textTransform: 'uppercase' },
-  paperTitleBlock: { alignItems: 'center', marginTop: 12 },
+  // The ASPIRE artwork is a stacked lockup whose bottom line is "member of
+  // ASTRA"; anything shorter renders that line as a smudge.
+  paperAspire: { height: 38 },
+  paperTitleBlock: { alignItems: 'center', marginTop: 18 },
   paperTitle: {
-    fontSize: 11,
+    fontSize: 10.5,
     fontWeight: '700',
     letterSpacing: 0.3,
     textDecorationLine: 'underline',
+    textAlign: 'center',
   },
-  paperNumber: { fontSize: 8.5, marginTop: 3, fontVariant: ['tabular-nums'] },
+  paperNumber: { fontSize: 7.5, marginTop: 3, fontVariant: ['tabular-nums'] },
   paperSentence: { fontSize: 8.5, lineHeight: 14.5, marginTop: 12 },
-  paperTable: { marginTop: 10, borderWidth: 1, borderRadius: 4, overflow: 'hidden' },
-  paperRow: { flexDirection: 'row' },
-  paperCellKey: { width: 88, paddingHorizontal: 8, paddingVertical: 6, fontSize: 8 },
-  paperCellValue: {
-    flex: 1,
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    fontSize: 8,
-    fontWeight: '600',
+  paperParty: { marginTop: 8, marginLeft: 14 },
+  paperPartyRow: { flexDirection: 'row', paddingVertical: 1.5 },
+  paperPartyKey: { width: 74, fontSize: 8.5 },
+  paperPartyColon: { width: 10, fontSize: 8.5 },
+  paperPartyValue: { flex: 1, fontSize: 8.5, fontWeight: '600' },
+
+  goodsTable: { marginTop: 10, borderWidth: 1 },
+  goodsRow: { flexDirection: 'row', borderBottomWidth: 1 },
+  goodsHead: { fontSize: 8, fontWeight: '700', textAlign: 'center' },
+  goodsCell: { fontSize: 8 },
+  goodsCentre: { textAlign: 'center' },
+  goodsNo: { width: 26, paddingVertical: 5, paddingHorizontal: 3, textAlign: 'center' },
+  goodsJenis: { flex: 3, paddingVertical: 5, paddingHorizontal: 6, borderLeftWidth: 1 },
+  goodsSerial: {
+    flex: 2.4,
+    paddingVertical: 5,
+    paddingHorizontal: 4,
+    borderLeftWidth: 1,
+    textAlign: 'center',
   },
-  signatures: { flexDirection: 'row', gap: 20, marginTop: 16 },
-  signature: { flex: 1, alignItems: 'center' },
-  signatureCaption: { fontSize: 8 },
-  signatureSpace: {
-    alignSelf: 'stretch',
-    marginTop: 4,
+  goodsKondisi: {
+    flex: 1.5,
+    paddingVertical: 5,
+    paddingHorizontal: 4,
+    borderLeftWidth: 1,
+    textAlign: 'center',
+  },
+
+  paperPlace: { fontSize: 8.5, marginTop: 14 },
+  // Left column is the CITE side on BOTH documents — the caption changes, the
+  // side does not. Left-aligned within each column, as on the scans.
+  signatures: { flexDirection: 'row', gap: 14, marginTop: 6 },
+  signature: { flex: 1 },
+  signatureCaption: { fontSize: 8.5 },
+  signatureSpace: { alignSelf: 'stretch', marginTop: 4, justifyContent: 'flex-end' },
+  signatureInk: { alignSelf: 'flex-start' },
+  signatureName: {
+    fontSize: 8.5,
+    fontWeight: '700',
+    marginTop: 2,
+    alignSelf: 'flex-start',
     borderBottomWidth: 1,
-    justifyContent: 'flex-end',
   },
-  signatureInk: { alignSelf: 'center' },
-  signatureName: { fontSize: 8, fontWeight: '600', marginTop: 4 },
-  signatureDept: { fontSize: 7 },
+  paperFooter: { marginTop: 22, paddingTop: 8, borderTopWidth: 1 },
+  paperFooterName: { fontSize: 7.5, fontWeight: '700' },
+  paperFooterAddress: { fontSize: 6.5, marginTop: 1.5, lineHeight: 9 },
+
+  // --- goods editor ----------------------------------------------------
+  itemsHint: { marginTop: 2, marginBottom: 12, lineHeight: 16 },
+  itemBlock: { borderWidth: 1, padding: 12, marginBottom: 10 },
+  itemHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  itemField: { marginBottom: 10 },
+  itemAction: { marginTop: 8 },
 
   // --- signing ---------------------------------------------------------
   signHint: { marginTop: 2, marginBottom: 12, lineHeight: 16 },

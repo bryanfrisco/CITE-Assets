@@ -40,7 +40,7 @@ import {
   Skeleton,
 } from '@/components/ui';
 import {
-  SIGNATURE_ROLE_LABEL,
+  signatureCaption,
   addSignatory,
   fetchBastDetail,
   fetchSignatories,
@@ -139,7 +139,7 @@ export default function SignBastScreen() {
       if (result.finalised) toast('Signed · the document has been issued');
       else if (result.complete)
         toast(result.reason ?? 'Signed, but the PDF was not issued', 'error');
-      else toast(`${SIGNATURE_ROLE_LABEL[role]} signed`);
+      else toast(`${bast ? signatureCaption(bast.kind, role) : 'Signature'} recorded`);
 
       router.replace(`/bast/${id}`);
     },
@@ -199,7 +199,7 @@ export default function SignBastScreen() {
         </Pressable>
 
         <Text style={[t.type.screenTitle, { color: t.color.text }]}>
-          {SIGNATURE_ROLE_LABEL[role]}
+          {signatureCaption(bast.kind, role)}
         </Text>
         <Text style={[t.type.bodySmall, styles.subtitle, { color: t.color.sub }]}>
           {`${bast.bastNumber} · ${bast.assetCode} · ${bast.assetName}`}

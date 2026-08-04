@@ -9,13 +9,18 @@
  * date means it is still in the shop. There is no state to keep in step with
  * anything.
  *
- * WHAT THIS DOES NOT TOUCH
- * ------------------------
- * The asset's own status. Those were two ideas wearing one name, and the
- * confusion was real: closing a ticket left the asset sitting in Maintenance
- * and out of the assign picker forever. Asset status is changed by a person,
- * through Change status, with a reason — that is the only place the register's
- * answer is decided.
+ * WHAT IT DOES TO THE ASSET
+ * -------------------------
+ * The dates drive the asset's status, in both directions:
+ *
+ *   no end date   ->  the asset shows as Maintenance
+ *   end date set  ->  back to Assigned if somebody holds it, else Available
+ *
+ * Migration 0030 cut that link entirely, which over-corrected. The original bug
+ * was one-directional — opening a repair set Maintenance and closing it cleared
+ * nothing, so assets stuck there. The missing half was the way back, not the
+ * way in, and migration 0032 restores both in one helper so they cannot drift
+ * apart again. Every hop is written to the status history with a reason.
  */
 
 import { supabase } from '@/lib/supabase';
@@ -80,7 +85,13 @@ export interface MaintenanceInput {
   nextDueAt?: string | null;
 }
 
-export async function logMaintenance(input: MaintenanceInput): Promise<{ ongoing: boolean }> {
+export interface MaintenanceResult {
+  ongoing: boolean;
+  /** What the asset's status is now — the RPC reads it back after the hop. */
+  assetStatus: string | null;
+}
+
+export async function logMaintenance(input: MaintenanceInput): Promise<MaintenanceResult> {
   const { data, error } = await supabase.rpc('log_maintenance', {
     p_asset: input.assetId,
     p_title: input.title,
@@ -94,7 +105,7 @@ export async function logMaintenance(input: MaintenanceInput): Promise<{ ongoing
     p_next_due: input.nextDueAt ?? null,
   });
   if (error) throw new Error(error.message);
-  return data as { ongoing: boolean };
+  return data as MaintenanceResult;
 }
 
 export async function editMaintenance(
@@ -110,7 +121,7 @@ export async function editMaintenance(
     /** Explicit: a null completedAt means "leave it", not "reopen it". */
     clearCompleted?: boolean;
   },
-): Promise<{ ongoing: boolean }> {
+): Promise<MaintenanceResult> {
   const { data, error } = await supabase.rpc('edit_maintenance', {
     p_id: id,
     p_title: changes.title ?? null,
@@ -123,5 +134,5 @@ export async function editMaintenance(
     p_clear_completed: changes.clearCompleted ?? false,
   });
   if (error) throw new Error(error.message);
-  return data as { ongoing: boolean };
+  return data as MaintenanceResult;
 }

@@ -219,6 +219,18 @@ async function run() {
     check('with no end date it is still in the shop', opened.data?.ongoing === true);
     const jobId = opened.data?.id;
 
+    // Migration 0032: the dates drive the asset's status, both ways.
+    check(
+      'opening a repair puts the asset into Maintenance',
+      opened.data?.assetStatus === 'Maintenance',
+      JSON.stringify(opened.data),
+    );
+    const away = await admin.rpc('assignable_assets', { p_locations: scope, p_mode: 'assign' });
+    check(
+      'and it drops out of the assign picker while it is away',
+      !(away.data ?? []).some((a) => a.id === maintAsset.id),
+    );
+
     const ongoing = await admin.rpc('maintenance_log', { p_locations: scope, p_ongoing: true });
     check(
       'it shows under what is still away',
@@ -245,13 +257,31 @@ async function run() {
     const closed = (finished.data ?? []).find((m) => m.id === jobId);
     check('the range is what the log now shows', closed?.days === 3, String(closed?.days));
 
-    // The whole point of the change: the asset's own status is untouched, so a
-    // closed repair cannot leave it out of the assign picker.
+    // The half that was missing and caused the original "stuck in Maintenance"
+    // report: closing the record has to bring the asset back by itself.
+    check(
+      'closing it brings the asset back to Available',
+      done.data?.assetStatus === 'Available',
+      JSON.stringify(done.data),
+    );
     const asset = await admin.from('assets').select('status_id').eq('id', maintAsset.id).single();
     check(
-      'the asset status was never touched by any of this',
+      'and the assets row agrees',
       asset.data?.status_id === available,
       JSON.stringify(asset.data),
+    );
+    const back = await admin.rpc('assignable_assets', { p_locations: scope, p_mode: 'assign' });
+    check(
+      'so it is assignable again — the bug this whole change exists for',
+      (back.data ?? []).some((a) => a.id === maintAsset.id),
+    );
+
+    // Every hop is in the status history with a reason, not silently applied.
+    const history = await admin.rpc('asset_status_history', { p_asset: maintAsset.id });
+    check(
+      'both hops are recorded with a reason',
+      (history.data ?? []).filter((h) => /maintenance/i.test(h.reason ?? '')).length >= 2,
+      JSON.stringify(history.data),
     );
 
     const reopened = await admin.rpc('edit_maintenance', {
@@ -259,6 +289,11 @@ async function run() {
       p_clear_completed: true,
     });
     check('clearing the end date puts it back in the shop', reopened.data?.ongoing === true);
+    check(
+      'and the asset goes back into Maintenance with it',
+      reopened.data?.assetStatus === 'Maintenance',
+      JSON.stringify(reopened.data),
+    );
     await admin.rpc('edit_maintenance', { p_id: jobId, p_completed: isoDaysFromNow(-1) });
 
     const stats = await admin.rpc('maintenance_stats', { p_locations: scope });

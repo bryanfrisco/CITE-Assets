@@ -64,6 +64,14 @@ Kode labelnya diterbitkan ke database **sebelum** file dibuat. Kalau terbalik, b
 kode tercetak di pita yang tidak dikenal sistem — dan tim baru sadar saat stikernya sudah
 menempel di barang.
 
+**Mencari label.** Di bawah daftar ada kolom pencarian: ketik kode stiker (`CT-000001`),
+kode aset, atau nama barangnya.
+
+**Melihat isi satu label.** Ketuk barisnya. Yang muncul: gambar **barcode dan QR**-nya,
+barang yang ditempeli, statusnya, dan riwayat kapan dicetak / ditempel / dibatalkan.
+Keduanya ditampilkan supaya bisa dibandingkan dengan stiker yang ada di tangan — itu cara
+tercepat membedakan "scanner-nya rusak" dari "datanya beda".
+
 ### 3.2 Cetak di printer Epson LW-700
 
 **LW-700 tidak bisa dicetak dari HP.** Sambungannya hanya USB ke PC; tidak ada Bluetooth
@@ -109,13 +117,44 @@ bertambah, dan kalau lokasinya berpindah, satu baris movement ikut tercatat.
 ### 3.5 Terima kembali
 
 **+ → Assign Asset**, pilih mode Return. Bedanya dengan penyerahan: ada isian **Condition
-on return** yang wajib, dan tidak ada saklar E-BAST — pengembalian bukan penyerahan.
+on return** yang wajib.
+
+Saklar E-BAST tetap ada, dan sebaiknya dibiarkan menyala: pengembalian menghasilkan
+**Berita Acara Penarikan Barang** — surat yang membuktikan barangnya sudah kembali,
+ditandatangani dua pihak persis seperti serah terima.
 
 ---
 
 ## 4. E-BAST — serah terima digital
 
 **E-BAST** menggantikan BAST kertas. Semuanya digital, termasuk tanda tangannya.
+
+Ada **dua jenis surat**, satu tampilan, satu urutan nomor:
+
+| Jenis            | Kapan terbit          | Kolom kiri       | Kolom kanan     |
+| ---------------- | --------------------- | ---------------- | --------------- |
+| **Serah Terima** | saat aset di-_assign_ | Yang Menyerahkan | Yang Menerima   |
+| **Penarikan**    | saat aset di-_return_ | Yang Menerima    | Yang Memberikan |
+
+Kolom kiri selalu pihak Divisi IT. Di layar E-BAST ada chip **All / Serah Terima /
+Penarikan** untuk memisahkannya.
+
+### Rincian barang
+
+Tabel `No | Jenis/Type | Serial Number | Kondisi` di surat bisa diisi lebih dari satu
+baris — laptop, charger, mouse. Buka surat → kartu **Rincian barang** → **Edit the list**.
+
+Charger dan mouse **tidak** menjadi aset di register: barang seperti itu tidak punya
+serial dan tidak perlu didaftar. Mereka hanya ada di kertas. Kalau daftarnya tidak pernah
+disentuh, surat mencetak satu baris berisi aset itu sendiri.
+
+Begitu surat berstatus **Signed**, daftarnya terkunci. Tanda tangan harus menjamin isi
+yang tidak berubah lagi.
+
+### Jabatan
+
+Baris `Jabatan` di surat diambil dari data orangnya. Isi lewat **More → Accounts → pilih
+orang → Jabatan**. Kalau kosong, surat mencetak tanda `-`.
 
 ### 4.1 Nomor dokumen
 
@@ -154,8 +193,10 @@ sama seperti jalur digital.
 
 ### 4.4 Kop surat
 
-Logo ASPIRE di paling depan, lalu garis pemisah tipis, lalu logo CITE dan tulisan
-"CORPORATE IT — CITE".
+**Hanya logo ASPIRE.** Logo CITE dan tulisan "CORPORATE IT — CITE" sudah dihapus atas
+permintaan Anda; Divisi IT tetap disebut di kalimat isi surat ("dari Divisi IT").
+
+Di kaki halaman tercetak nama dan alamat perusahaan.
 
 > **Satu hal yang masih perlu Anda lakukan:** simpan file logo ASPIRE sebagai
 > `assets/aspire-logo.png` di folder proyek, lalu jalankan `npm run build:bast-logo`.
@@ -259,16 +300,28 @@ bukti serah terima, bukan berkas yang seseorang arsipkan.
 
 ### 8.2 Perawatan
 
-**Buka aset → tab Maintenance → Open a job**, atau **More → Maintenance** untuk melihat
-semuanya.
+**Buka aset → tab Maintenance → Record a repair**, atau **More → Maintenance** untuk
+melihat semuanya.
 
-Isian yang paling penting dan paling sering dilewat: **Next service due**. Itu yang memicu
-pengingat. Servis yang sudah selesai tanpa tanggal berikutnya tidak akan mengingatkan
-siapa pun tentang apa pun.
+Perawatan adalah **pencatatan tanggal**, bukan tiket dengan status. Isinya: judul,
+tanggal masuk, dan tanggal kembali.
 
-Saat pekerjaan selesai, ubah statusnya jadi _Completed_ dan isi biayanya. Tanggal
-penyelesaian dicatat otomatis, supaya laporan bisa membedakan pekerjaan bulan ini dari
-tahun lalu.
+**Tanggal kembali itulah saklarnya:**
+
+| Tanggal kembali | Status aset                                                                    |
+| --------------- | ------------------------------------------------------------------------------ |
+| kosong          | **Maintenance** — dan aset tidak muncul di daftar yang bisa di-_assign_        |
+| diisi           | kembali sendiri ke **Assigned** kalau masih dipegang orang, atau **Available** |
+
+Jadi tidak perlu lagi mengubah status aset secara terpisah, dan tidak ada lagi aset yang
+tersangkut di Maintenance setelah perbaikannya selesai. Setiap perpindahan tercatat di
+riwayat status aset lengkap dengan alasannya.
+
+Aset yang sudah **Lost** atau **Retired** tidak ikut berpindah — barang yang sudah
+dihapusbukukan tidak hidup lagi hanya karena catatan perbaikan ditutup.
+
+Isian yang paling sering dilewat: **Next service due**. Itu yang memicu pengingat. Servis
+yang selesai tanpa tanggal berikutnya tidak akan mengingatkan siapa pun tentang apa pun.
 
 ---
 

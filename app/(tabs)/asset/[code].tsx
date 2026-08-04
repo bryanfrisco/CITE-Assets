@@ -892,7 +892,7 @@ function Maintenance({ detail }: { detail: AssetDetail }) {
 
   const opener = can('asset.edit') ? (
     <Button
-      label="Open a job"
+      label="Record a repair"
       variant="secondary"
       block
       icon={<Wrench size={15} color={t.color.text} strokeWidth={1.8} />}

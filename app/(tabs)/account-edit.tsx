@@ -73,6 +73,7 @@ export default function AccountEditScreen() {
   const [form, setForm] = useState<{
     fullName: string;
     nik: string;
+    jobTitle: string;
     email: string;
     phone: string;
     departmentId: string | null;
@@ -92,6 +93,7 @@ export default function AccountEditScreen() {
     setForm({
       fullName: existing?.full_name ?? '',
       nik: existing?.nik ?? '',
+      jobTitle: existing?.job_title ?? '',
       email: existing?.email ?? '',
       phone: existing?.phone ?? '',
       departmentId: existing?.department_id ?? null,
@@ -111,6 +113,7 @@ export default function AccountEditScreen() {
       const input = {
         fullName: form!.fullName,
         nik: form!.nik || null,
+        jobTitle: form!.jobTitle || null,
         email: form!.email || null,
         phone: form!.phone || null,
         departmentId: form!.departmentId,
@@ -241,6 +244,14 @@ export default function AccountEditScreen() {
             // numbers carry site prefixes here.
             autoCapitalize="characters"
             autoCorrect={false}
+            containerStyle={styles.field}
+          />
+          <Input
+            label="Jabatan"
+            value={form.jobTitle}
+            onChangeText={(v) => set('jobTitle', v)}
+            placeholder="e.g. Legal Officer"
+            helper="Printed on the Jabatan line of every BAST this person signs"
             containerStyle={styles.field}
           />
           <Input

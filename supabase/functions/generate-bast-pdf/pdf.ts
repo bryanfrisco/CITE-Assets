@@ -65,7 +65,15 @@ function literal(text: string): string {
   return out;
 }
 
-/** Greedy word wrap against the real advance widths. */
+/**
+ * Greedy word wrap against the real advance widths.
+ *
+ * A single token wider than the column is broken by character rather than left
+ * to overrun. That case is not hypothetical here: the goods table has a Serial
+ * Number column, serials contain no spaces, and an overrunning serial does not
+ * merely look wrong — it prints across the ruled border into the next column,
+ * where it reads as that column's value.
+ */
 export function wrap(text: string, size: number, face: Face, maxWidth: number): string[] {
   const words = text.split(/\s+/).filter(Boolean);
   const lines: string[] = [];
@@ -73,12 +81,35 @@ export function wrap(text: string, size: number, face: Face, maxWidth: number): 
 
   for (const word of words) {
     const candidate = line ? `${line} ${word}` : word;
-    if (textWidth(candidate, size, face) <= maxWidth || !line) line = candidate;
-    else {
-      lines.push(line);
-      line = word;
+    if (textWidth(candidate, size, face) <= maxWidth) {
+      line = candidate;
+      continue;
     }
+
+    if (line) {
+      lines.push(line);
+      line = '';
+    }
+
+    if (textWidth(word, size, face) <= maxWidth) {
+      line = word;
+      continue;
+    }
+
+    // Too wide even alone. The `&& chunk` guard is what stops this looping
+    // forever when the column is narrower than a single character.
+    let chunk = '';
+    for (const char of word) {
+      if (textWidth(chunk + char, size, face) > maxWidth && chunk) {
+        lines.push(chunk);
+        chunk = char;
+      } else {
+        chunk += char;
+      }
+    }
+    line = chunk;
   }
+
   if (line) lines.push(line);
   return lines;
 }

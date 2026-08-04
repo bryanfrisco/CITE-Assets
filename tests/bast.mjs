@@ -207,24 +207,35 @@ async function run() {
     check('it is a PDF', text.startsWith('%PDF-1.4'), text.slice(0, 12));
     check('it ends with a proper EOF marker', text.trimEnd().endsWith('%%EOF'));
     check('it has one page', /\/Type \/Pages \/Kids \[3 0 R\] \/Count 1/.test(text));
-    check('the letterhead is on it', text.includes('CORPORATE IT \\227 CITE'));
-    check('the title is on it', text.includes('BERITA ACARA SERAH TERIMA'));
+    // Migration 0032 rebuilt this sheet to match the client's scanned
+    // paperwork. The letterhead is now ASPIRE ALONE — the CITE roundel and the
+    // "CORPORATE IT" wordmark were removed on instruction — so their absence is
+    // asserted rather than assumed.
+    check('the title is on it', text.includes('BERITA ACARA SERAH TERIMA BARANG'));
+    check('the CITE wordmark is gone', !text.includes('CORPORATE IT'));
+    // Asserted as single tokens, not as a phrase: the body copy is word-wrapped
+    // to the content column, so any two words may end up on different lines.
+    // Parentheses are escaped inside a PDF literal, hence the backslashes.
     check(
       'the Indonesian sentence is on it',
-      text.includes('telah dilakukan serah terima aset IT'),
+      text.includes('terimakan') && text.includes(String.raw`\(Satu\)`),
     );
+    check('the date is spelled out', /Pada hari ini \w+ tanggal /.test(text));
     check(
       'both signature blocks are on it',
       text.includes('Yang Menyerahkan') && text.includes('Yang Menerima'),
     );
     check(
-      'the detail table is on it',
-      ['Asset Code', 'Nama Aset', 'Penerima', 'Departemen', 'Lokasi', 'Kondisi'].every((k) =>
-        text.includes(k),
-      ),
+      'the party block is on it',
+      ['Nama', 'NIK', 'Jabatan', 'Dept./Divisi'].every((k) => text.includes(k)),
     );
     check(
-      'the CITE logo is embedded',
+      'the goods table is on it',
+      ['No', 'Jenis/Type', 'Serial Number', 'Kondisi'].every((k) => text.includes(k)),
+    );
+    check('the closing paragraph is on it', text.includes('Demikian'));
+    check(
+      'the ASPIRE lockup is embedded',
       text.includes('/Subtype /Image') && text.includes('/ColorSpace /DeviceRGB'),
     );
 
@@ -404,7 +415,14 @@ async function run() {
   }
 
   // Put the monitor back the way the seed left it.
-  await admin.rpc('return_asset', { p_asset: monitor, p_date: TODAY, p_condition: good });
+  // p_auto_bast off: this is fixture cleanup, not a real return, and a
+  // withdrawal document raised here would outlive the run.
+  await admin.rpc('return_asset', {
+    p_asset: monitor,
+    p_date: TODAY,
+    p_condition: good,
+    p_auto_bast: false,
+  });
   const restored = await admin.rpc('asset_detail', { p_code: 'MON122-24-205' });
   check(
     '\ncleanup left the monitor Available and unassigned',

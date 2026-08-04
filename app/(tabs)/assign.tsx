@@ -9,10 +9,15 @@
  * ---------------------------------
  * README describes step 3 for the assign flow only. `return_asset()`
  * (DATABASE.md §11) takes the condition the asset comes back in, so return mode
- * swaps `Expected return` for a required `Condition on return` and drops the
- * Auto-generate BAST switch — a BAST documents a handover, not a return.
- * Everything else — the progress bar, the validation copy, the success state —
- * is shared.
+ * swaps `Expected return` for a required `Condition on return`. Everything else
+ * — the progress bar, the validation copy, the success state — is shared.
+ *
+ * The switch used to be hidden in return mode, on the reasoning that "a BAST
+ * documents a handover, not a return". That was wrong, and the client's own
+ * paperwork says so: the Berita Acara Penarikan Barang is the sheet that proves
+ * a device came back, and it is signed by both sides exactly like the handover.
+ * Migration 0032 gives it `kind = 'return'`, and the switch is offered in both
+ * modes now with the wording that matches the document being raised.
  */
 
 import React, { useMemo, useState } from 'react';
@@ -124,13 +129,14 @@ export default function AssignScreen() {
   const commit = useMutation({
     mutationFn: async () => {
       if (isReturn) {
-        await returnAsset({
+        const result = await returnAsset({
           assetId: asset!.id,
           date,
           conditionId: condition!.id,
           notes: notes || null,
+          autoBast,
         });
-        return { bastNumber: null };
+        return { bastNumber: result.bastNumber };
       }
       const result = await assignAsset({
         assetId: asset!.id,
@@ -219,10 +225,12 @@ export default function AssignScreen() {
           {isReturn ? 'Asset returned' : 'Assignment created'}
         </Text>
         <Text style={[t.type.bodySmall, styles.doneSub, { color: t.color.sub }]}>
-          {isReturn
-            ? 'The asset is available again and its assignment history has been updated.'
-            : done.bastNumber
-              ? 'An E-BAST draft has been created and the assignment history updated.'
+          {done.bastNumber
+            ? isReturn
+              ? 'The asset is available again, and a Berita Acara Penarikan Barang draft is waiting to be signed.'
+              : 'An E-BAST draft has been created and the assignment history updated.'
+            : isReturn
+              ? 'The asset is available again and its assignment history has been updated.'
               : 'Assignment history updated. No E-BAST was generated.'}
         </Text>
 
@@ -461,16 +469,18 @@ export default function AssignScreen() {
                   multiline
                 />
 
-                {isReturn ? null : (
-                  <Card radius="cardMedium" padding={14}>
-                    <Switch
-                      value={autoBast}
-                      onValueChange={setAutoBast}
-                      label="Auto-generate E-BAST"
-                      description="Berita Acara Serah Terima draft"
-                    />
-                  </Card>
-                )}
+                <Card radius="cardMedium" padding={14}>
+                  <Switch
+                    value={autoBast}
+                    onValueChange={setAutoBast}
+                    label="Auto-generate E-BAST"
+                    description={
+                      isReturn
+                        ? 'Berita Acara Penarikan Barang draft'
+                        : 'Berita Acara Serah Terima Barang draft'
+                    }
+                  />
+                </Card>
               </View>
             </View>
           ) : null}

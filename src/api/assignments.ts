@@ -86,17 +86,34 @@ export interface ReturnInput {
   date: string;
   conditionId: string;
   notes?: string | null;
+  /** Raises the Berita Acara Penarikan Barang for the device coming back. */
+  autoBast?: boolean;
 }
 
-export async function returnAsset(input: ReturnInput): Promise<string> {
+export interface ReturnResult {
+  assignmentId: string;
+  bastId: string | null;
+  bastNumber: string | null;
+}
+
+/**
+ * Closes the assignment and, unless asked not to, raises the withdrawal BAST.
+ *
+ * Migration 0032 replaced the four-argument form outright rather than adding an
+ * overload beside it — a defaulted parameter on a second overload makes every
+ * named-argument call ambiguous, which is the fault migration 0029 exists to
+ * clean up.
+ */
+export async function returnAsset(input: ReturnInput): Promise<ReturnResult> {
   const { data, error } = await supabase.rpc('return_asset', {
     p_asset: input.assetId,
     p_date: input.date,
     p_condition: input.conditionId,
     p_notes: input.notes ?? null,
+    p_auto_bast: input.autoBast ?? true,
   });
   if (error) throw new Error(error.message);
-  return data as string;
+  return data as ReturnResult;
 }
 
 /** README § Transfer / Movement — the reason select. */

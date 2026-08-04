@@ -9,10 +9,21 @@
  * whole workflow, and it replaces the open/in-progress/completed/cancelled
  * ladder that used to sit here.
  *
- * This screen does not touch the asset's status. If a laptop needs to show as
- * Maintenance in the register, that is Change status on the asset, with a
- * reason. Keeping the two apart is what stopped a closed repair leaving an
- * asset unassignable forever.
+ * THE ASSET'S STATUS FOLLOWS THE DATES
+ * ------------------------------------
+ * Leaving the end date empty puts the asset into Maintenance; filling it in
+ * brings the asset back — to Assigned if somebody still holds it, otherwise to
+ * Available. Both hops are written to the status history with a reason, so the
+ * timeline says a repair moved it rather than a person.
+ *
+ * This screen used to touch nothing, which was an over-correction: the original
+ * bug was that opening a repair set Maintenance and closing it cleared nothing,
+ * so assets stuck there forever. The missing half was the way back, not the way
+ * in. Migration 0032 does both hops in one helper, so they cannot be
+ * implemented differently again.
+ *
+ * Lost and Retired are left alone. A closed repair record does not bring back
+ * an asset that has been written off.
  */
 
 import React, { useState } from 'react';
@@ -145,7 +156,11 @@ export default function MaintenanceLogScreen() {
     },
     onSuccess: (result) => {
       invalidate();
-      toast(result.ongoing ? 'Recorded · still in the shop' : 'Recorded');
+      toast(
+        result.ongoing
+          ? `Recorded · asset is now ${result.assetStatus ?? 'Maintenance'}`
+          : `Recorded · asset is now ${result.assetStatus ?? 'Available'}`,
+      );
       router.back();
     },
     onError: (e: Error) => setError(e.message),
@@ -262,7 +277,7 @@ export default function MaintenanceLogScreen() {
             placeholder="Still in the shop"
             minimum={started}
             maximum={todayIso()}
-            helper="Leave empty while it is still away. Clearing it puts it back in the shop."
+            helper="Leave empty while it is still away — the asset shows as Maintenance until this is filled in."
           />
         </Card>
 
@@ -333,8 +348,9 @@ export default function MaintenanceLogScreen() {
         />
 
         <Text style={[t.type.meta, styles.footnote, { color: t.color.sub }]}>
-          This is a record only. To take the asset out of circulation, change its status on the
-          asset itself — that way it comes back when you say so, not when a record closes.
+          {completed
+            ? 'Saving this brings the asset back into circulation — to Assigned if somebody still holds it, otherwise Available.'
+            : 'While this has no end date the asset shows as Maintenance and cannot be assigned. Fill the end date in and it comes straight back.'}
         </Text>
       </ScrollView>
 

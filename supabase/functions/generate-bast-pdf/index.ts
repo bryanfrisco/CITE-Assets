@@ -1,10 +1,31 @@
 /**
- * generate-bast-pdf — IMPLEMENTATION_PLAN.md § Phase 5, extended for E-BAST.
+ * generate-bast-pdf — the Berita Acara, rendered to match the client's own
+ * paperwork rather than to resemble it.
  *
- * Renders the letterhead layout from the prototype's paper preview (ASPIRE mark,
- * CITE mark, navy rule, underlined BERITA ACARA SERAH TERIMA, Indonesian body
- * sentence, bordered detail table, two signature blocks) and stores it in the
- * `bast` bucket.
+ * WHAT THIS SHEET IS
+ * ------------------
+ * Two scanned documents were provided on 2026-08-04 as the reference: a Berita
+ * Acara Serah Terima Barang and a Berita Acara Penarikan Barang. They are the
+ * same sheet with four differences — the title, the verb in the opening
+ * sentence, the verb in the second paragraph, and the two signature captions —
+ * so `doc.kind` picks those four and everything else is shared.
+ *
+ * Structure, top to bottom, exactly as on the scans:
+ *
+ *   ASPIRE lockup, alone            (no CITE roundel, no "CORPORATE IT" line)
+ *   BERITA ACARA … BARANG           centred, bold, underlined
+ *   "Pada hari ini Senin tanggal Dua puluh lima Bulan Mei Tahun …"
+ *   Nama / NIK / Jabatan / Dept.    a four-line block, aligned colons
+ *   "Alat Tersebut akan …"
+ *   No | Jenis/Type | Serial Number | Kondisi     fully ruled
+ *   "Demikian Berita Acara …"
+ *   Jakarta, 25 Mei 2026
+ *   Yang Menyerahkan            Yang Menerima     names bold and underlined
+ *   PT. STARGATE PASIFIC RESOURCES + address      page footer
+ *
+ * The date is spelled out because the scans spell it out; terbilang() in
+ * migration 0032 does that in SQL so the on-screen preview and this file cannot
+ * disagree about what the sentence says.
  *
  * TWO OUTPUTS, ONE RENDERER
  * -------------------------
@@ -21,24 +42,18 @@
  * decides whether this user may see the BAST at all and the storage policies
  * decide whether the file may be written. Version rows are inserted by the
  * RPCs (working rule #2), never from here.
- *
- * The page is A4. Every measurement below is the prototype's preview
- * measurement scaled to the sheet; the proportions are unchanged.
  */
 
 import { Content, buildPdf, rgb, textWidth, wrap } from './pdf.ts';
-import { logoBase64, logoHeight, logoWidth } from './logo.ts';
 import { aspireLogoBase64, aspireLogoHeight, aspireLogoWidth } from './aspire-logo.ts';
 
-// The paper preview's own palette (README § BAST). These belong to the printed
-// document, not the app UI, so they live here rather than in the theme tokens.
-const NAVY = rgb('#00072D');
-const INK = rgb('#0B1220');
-const BODY = rgb('#2B3346');
-const MUTED = rgb('#5A6478');
-const TABLE_BORDER = rgb('#E6EAF2');
-const TABLE_LABEL_BG = rgb('#F6F8FB');
-const SIGNATURE_LINE = rgb('#C7CEDB');
+// The printed document's palette. Near-black rules and near-black text, because
+// this is a sheet that gets photocopied and signed in biro — the soft greys the
+// app UI uses vanish on the second photocopy.
+const INK = rgb('#000000');
+const BODY = rgb('#111111');
+const MUTED = rgb('#444444');
+const TABLE_BORDER = rgb('#000000');
 // Signatures are drawn in near-black rather than pure black so they read as ink
 // on the page rather than as part of the printed rules around them.
 const SIGNATURE_INK = rgb('#101828');
@@ -46,7 +61,42 @@ const SIGNATURE_INK = rgb('#101828');
 const PAGE_W = 595.28;
 const PAGE_H = 841.89;
 const MARGIN = 62;
+const MARGIN_TOP = 52;
 const CONTENT_W = PAGE_W - MARGIN * 2;
+
+/** The four things that differ between the two documents. */
+interface Wording {
+  title: string;
+  /** "… telah diserah terimakan 1 (Satu) unit X dari Divisi IT kepada :" */
+  opening: (unit: string) => string;
+  /** "Alat Tersebut akan dipergunakan untuk …" */
+  purpose: (company: string) => string;
+  closing: string;
+  captions: [string, string];
+}
+
+const WORDING: Record<'handover' | 'return', Wording> = {
+  handover: {
+    title: 'BERITA ACARA SERAH TERIMA BARANG',
+    opening: (unit) => `telah diserah terimakan 1 (Satu) unit ${unit} dari Divisi IT kepada :`,
+    purpose: (company) =>
+      `Alat Tersebut akan dipergunakan untuk kegiatan operasional perusahaan ${company} dengan rincian sebagai berikut :`,
+    closing:
+      'Demikian Berita Acara serah terima barang ini buat, agar dapat diketahui serta ditandatangani bersama serta diketahui oleh pihak - pihak yang berkepentingan.',
+    captions: ['Yang Menyerahkan', 'Yang Menerima'],
+  },
+  return: {
+    title: 'BERITA ACARA PENARIKAN BARANG',
+    opening: (unit) => `telah diberikan 1 (Satu) unit ${unit} kepada Divisi IT dari :`,
+    purpose: (company) =>
+      `Alat Tersebut akan dikembalikan ke perusahaan ${company} dengan rincian sebagai berikut :`,
+    closing:
+      'Demikian Berita Acara penarikan barang ini buat, agar dapat diketahui serta ditandatangani bersama serta diketahui oleh pihak - pihak yang berkepentingan.',
+    // Note the left column is still the CITE side. On a withdrawal the IT
+    // officer is the one RECEIVING, which is why these are not simply swapped.
+    captions: ['Yang Menerima', 'Yang Memberikan'],
+  },
+};
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -66,18 +116,36 @@ interface BastVersionRow {
   version: number;
 }
 
+/** One line of the goods table. */
+interface BastItem {
+  jenis: string;
+  serial: string;
+  kondisi: string;
+}
+
 interface BastDocument {
   id: string;
   bastNumber: string;
+  kind: 'handover' | 'return';
   longDate: string;
+  /** "Senin tanggal Dua puluh lima Bulan Mei Tahun Dua ribu dua puluh enam". */
+  dateWords: string;
+  /** "Jakarta, 25 Mei 2026". */
+  placeDate: string;
   assetCode: string;
   assetName: string;
   employeeName: string;
+  employeeNik: string;
+  employeeTitle: string;
   departmentName: string;
   locationName: string;
+  companyName: string;
+  officeLabel: string;
+  addressLine: string;
   conditionText: string;
   handedOverBy: string;
   handedOverDept: string;
+  items: BastItem[];
   signatures: { handover?: Signature; receiver?: Signature };
   versions: BastVersionRow[];
 }
@@ -145,160 +213,204 @@ function drawSignature(
   c.strokes(paths, 1.1, SIGNATURE_INK);
 }
 
+/** Draws wrapped body copy and returns the y the next block starts from. */
+function paragraph(
+  c: Content,
+  text: string,
+  x: number,
+  y: number,
+  width: number,
+  size = 10,
+  leading = 15.5,
+): number {
+  let cursor = y;
+  for (const line of wrap(text, size, 'regular', width)) {
+    c.text(line, x, cursor, { size, color: BODY });
+    cursor -= leading;
+  }
+  return cursor;
+}
+
 function render(doc: BastDocument): Uint8Array {
   const c = new Content();
-  const top = PAGE_H - MARGIN;
   const centreX = PAGE_W / 2;
+  const w = WORDING[doc.kind] ?? WORDING.handover;
+  const items = doc.items?.length ? doc.items : [];
 
   // ---- letterhead ----------------------------------------------------------
-  // Client instruction: the ASPIRE mark comes first, then CITE. The two are
-  // separated by a hairline so that neither reads as a sub-brand of the other:
-  // ASPIRE is the company, CITE is the department raising the document.
-  //
-  // The band is 46pt tall because the ASPIRE artwork is a STACKED LOCKUP —
-  // roundel over "ASPIRE stargate" over "member of ASTRA" — not a wordmark.
-  // Its bottom line is about 8% of its height, so at the 24pt this band used to
-  // be, "member of ASTRA" would print at roughly 1.5pt and read as a smudge. A
-  // company lockup nobody can read is worse on a letterhead than no lockup.
-  const bandH = 46;
-  const bandTop = top;
-  const bandBottom = bandTop - bandH;
-  let x = MARGIN;
+  // ASPIRE alone. The CITE roundel and the "CORPORATE IT — CITE" wordmark are
+  // gone at the client's instruction — the department raising the document is
+  // named in the body sentence ("dari Divisi IT"), which is where their own
+  // paperwork puts it, and a second mark on the letterhead reads as a second
+  // company.
+  let y = PAGE_H - MARGIN_TOP;
 
   if (aspireLogoWidth > 0) {
-    const aspireH = 40;
-    const aspireW = (aspireH * aspireLogoWidth) / aspireLogoHeight;
-    c.image('Im2', x, bandBottom + (bandH - aspireH) / 2, aspireW, aspireH);
-    x += aspireW + 14;
-
-    c.line(x, bandBottom + 4, x, bandTop - 4, 0.8, TABLE_BORDER);
-    x += 14;
+    const logoH = 44;
+    const logoW = (logoH * aspireLogoWidth) / aspireLogoHeight;
+    c.image('Im2', MARGIN, y - logoH, logoW, logoH);
+    y -= logoH;
   }
 
-  const citeW = 26;
-  const citeH = (citeW * logoHeight) / logoWidth;
-  if (logoWidth > 0) {
-    c.image('Im1', x, bandBottom + (bandH - citeH) / 2, citeW, citeH);
-    x += citeW + 10;
-  }
+  // ---- title, centred and underlined ---------------------------------------
+  y -= 42;
+  const titleW = textWidth(w.title, 11.5, 'bold');
+  c.text(w.title, centreX, y, { size: 11.5, face: 'bold', color: INK, align: 'center' });
+  c.line(centreX - titleW / 2, y - 3.5, centreX + titleW / 2, y - 3.5, 1, INK);
 
-  // The CITE wordmark sits on the band's centre line rather than its floor, so
-  // it stays optically level with the taller lockup beside it.
-  const citeTextY = bandBottom + bandH / 2;
-  c.text('CORPORATE IT — CITE', x, citeTextY + 1, { size: 11, face: 'bold', color: INK });
-  c.text('IT ASSET MANAGEMENT', x, citeTextY - 11, { size: 7.5, color: MUTED });
-
-  const ruleY = bandBottom - 12;
-  c.line(MARGIN, ruleY, MARGIN + CONTENT_W, ruleY, 2, NAVY);
-
-  // ---- title, underlined, with the number beneath --------------------------
-  const titleY = ruleY - 40;
-  const title = 'BERITA ACARA SERAH TERIMA';
-  const titleW = textWidth(title, 14, 'bold');
-  c.text(title, centreX, titleY, { size: 14, face: 'bold', color: INK, align: 'center' });
-  c.line(centreX - titleW / 2, titleY - 4, centreX + titleW / 2, titleY - 4, 0.9, INK);
-  c.text(`No. ${doc.bastNumber}`, centreX, titleY - 18, {
-    size: 9.5,
-    color: MUTED,
-    align: 'center',
-  });
+  // The document number is not on the scans, but a Berita Acara without its own
+  // number cannot be referenced in a later audit. It goes under the title,
+  // small, where it does not compete with the heading.
+  y -= 16;
+  c.text(`No. ${doc.bastNumber}`, centreX, y, { size: 8.5, color: MUTED, align: 'center' });
 
   // ---- opening sentence ----------------------------------------------------
-  const sentence = `Pada hari ini, ${doc.longDate}, telah dilakukan serah terima aset IT sebagai berikut:`;
-  const lines = wrap(sentence, 10, 'regular', CONTENT_W);
-  let y = titleY - 48;
-  for (const line of lines) {
-    c.text(line, MARGIN, y, { size: 10, color: BODY });
-    y -= 17;
+  y -= 32;
+  y = paragraph(
+    c,
+    `Pada hari ini ${doc.dateWords}, ${w.opening(doc.assetName)}`,
+    MARGIN,
+    y,
+    CONTENT_W,
+  );
+
+  // ---- the four-line party block -------------------------------------------
+  // Aligned colons, because the scans align them and a ragged colon column is
+  // the first thing that makes a document look retyped rather than issued.
+  y -= 6;
+  const blockX = MARGIN + 18;
+  const colonX = blockX + 92;
+  const partyRows: [string, string][] = [
+    ['Nama', doc.employeeName],
+    // The withdrawal scan calls it NOKAR, the handover scan calls it NIK. They
+    // are the same employee number; one label beats guessing per document.
+    ['NIK', doc.employeeNik || '-'],
+    ['Jabatan', doc.employeeTitle || '-'],
+    ['Dept./Divisi', doc.departmentName || '-'],
+  ];
+  for (const [label, value] of partyRows) {
+    c.text(label, blockX, y, { size: 10, color: BODY });
+    c.text(':', colonX, y, { size: 10, color: BODY });
+    c.text(value, colonX + 10, y, { size: 10, color: INK });
+    y -= 15.5;
   }
 
-  // ---- bordered detail table ----------------------------------------------
-  const rows: [string, string][] = [
-    ['Asset Code', doc.assetCode],
-    ['Nama Aset', doc.assetName],
-    ['Penerima', doc.employeeName],
-    ['Departemen', doc.departmentName],
-    ['Lokasi', doc.locationName],
-    ['Kondisi', doc.conditionText],
-  ];
+  // ---- what happens to it, and the goods table -----------------------------
+  y -= 8;
+  y = paragraph(c, w.purpose(`${doc.companyName} ${doc.officeLabel}`), MARGIN, y, CONTENT_W);
 
-  const rowH = 24;
-  const labelW = 132;
-  const tableTop = y - 10;
-  const tableBottom = tableTop - rows.length * rowH;
+  y -= 10;
+  const cols = [34, 186, 140, CONTENT_W - 34 - 186 - 140];
+  const edges = cols.reduce<number[]>(
+    (acc, width) => [...acc, acc[acc.length - 1]! + width],
+    [MARGIN],
+  );
+  const headers = ['No', 'Jenis/Type', 'Serial Number', 'Kondisi'];
 
-  rows.forEach(([label, value], i) => {
-    const rowTop = tableTop - i * rowH;
-    c.rect(MARGIN, rowTop - rowH, labelW, rowH, TABLE_LABEL_BG);
-    c.text(label, MARGIN + 10, rowTop - rowH + 8.5, { size: 9.5, color: MUTED });
-    c.text(value, MARGIN + labelW + 10, rowTop - rowH + 8.5, {
-      size: 9.5,
-      face: 'bold',
-      color: INK,
-    });
-    if (i > 0) {
-      c.line(MARGIN, rowTop, MARGIN + CONTENT_W, rowTop, 1, TABLE_BORDER);
-    }
+  const tableTop = y;
+  const headerH = 21;
+
+  headers.forEach((label, i) => {
+    const cx = (edges[i]! + edges[i + 1]!) / 2;
+    c.text(label, cx, tableTop - 14, { size: 9.5, face: 'bold', color: INK, align: 'center' });
   });
 
-  // Outer frame + the column divider.
-  c.line(MARGIN, tableTop, MARGIN + CONTENT_W, tableTop, 1, TABLE_BORDER);
-  c.line(MARGIN, tableBottom, MARGIN + CONTENT_W, tableBottom, 1, TABLE_BORDER);
-  c.line(MARGIN, tableTop, MARGIN, tableBottom, 1, TABLE_BORDER);
-  c.line(MARGIN + CONTENT_W, tableTop, MARGIN + CONTENT_W, tableBottom, 1, TABLE_BORDER);
-  c.line(MARGIN + labelW, tableTop, MARGIN + labelW, tableBottom, 1, TABLE_BORDER);
+  // Rows grow to fit: a long model name wraps rather than running under the
+  // next column, which is the one failure mode that would make the table lie.
+  let rowTop = tableTop - headerH;
+  const rowBounds: number[] = [tableTop, rowTop];
+
+  items.forEach((item, index) => {
+    const jenisLines = wrap(item.jenis, 9.5, 'regular', cols[1]! - 12);
+    const serialLines = wrap(item.serial || '-', 9.5, 'regular', cols[2]! - 12);
+    const kondisiLines = wrap(item.kondisi || '-', 9.5, 'regular', cols[3]! - 12);
+    const lines = Math.max(jenisLines.length, serialLines.length, kondisiLines.length, 1);
+    const rowH = lines * 12 + 10;
+
+    const firstBaseline = rowTop - 15;
+    c.text(String(index + 1), (edges[0]! + edges[1]!) / 2, firstBaseline, {
+      size: 9.5,
+      color: INK,
+      align: 'center',
+    });
+    jenisLines.forEach((line, i) => {
+      c.text(line, edges[1]! + 6, firstBaseline - i * 12, { size: 9.5, color: INK });
+    });
+    serialLines.forEach((line, i) => {
+      c.text(line, (edges[2]! + edges[3]!) / 2, firstBaseline - i * 12, {
+        size: 9.5,
+        color: INK,
+        align: 'center',
+      });
+    });
+    kondisiLines.forEach((line, i) => {
+      c.text(line, (edges[3]! + edges[4]!) / 2, firstBaseline - i * 12, {
+        size: 9.5,
+        color: INK,
+        align: 'center',
+      });
+    });
+
+    rowTop -= rowH;
+    rowBounds.push(rowTop);
+  });
+
+  const tableBottom = rowTop;
+  for (const edgeY of rowBounds) {
+    c.line(MARGIN, edgeY, MARGIN + CONTENT_W, edgeY, 0.8, TABLE_BORDER);
+  }
+  for (const edgeX of edges) {
+    c.line(edgeX, tableTop, edgeX, tableBottom, 0.8, TABLE_BORDER);
+  }
+
+  // ---- closing, place line -------------------------------------------------
+  y = tableBottom - 26;
+  y = paragraph(c, w.closing, MARGIN, y, CONTENT_W);
+
+  y -= 12;
+  c.text(doc.placeDate, MARGIN, y, { size: 10, color: BODY });
 
   // ---- two signature blocks ------------------------------------------------
-  const gap = 46;
-  const colW = (CONTENT_W - gap) / 2;
+  const rightX = MARGIN + CONTENT_W * 0.56;
   const handover = doc.signatures?.handover;
   const receiver = doc.signatures?.receiver;
 
-  const blocks: [string, Signature | undefined, string, string, number][] = [
-    [
-      'Yang Menyerahkan',
-      handover,
-      handover?.signerName ?? doc.handedOverBy,
-      handover?.signerTitle ?? doc.handedOverDept,
-      MARGIN + colW / 2,
-    ],
-    [
-      'Yang Menerima',
-      receiver,
-      receiver?.signerName ?? doc.employeeName,
-      receiver?.signerTitle ?? doc.departmentName,
-      MARGIN + colW + gap + colW / 2,
-    ],
+  const blocks: [string, Signature | undefined, string, number][] = [
+    [w.captions[0], handover, handover?.signerName ?? doc.handedOverBy, MARGIN],
+    [w.captions[1], receiver, receiver?.signerName ?? doc.employeeName, rightX],
   ];
 
-  const sigTop = tableBottom - 52;
-  const lineY = sigTop - 62;
+  const captionY = y - 15;
+  const nameY = captionY - 72;
 
-  for (const [caption, signature, name, dept, cx] of blocks) {
-    c.text(caption, cx, sigTop, { size: 9.5, color: MUTED, align: 'center' });
-    if (signature) drawSignature(c, signature, cx, lineY, colW - 40, 50);
-    c.line(cx - colW / 2 + 14, lineY, cx + colW / 2 - 14, lineY, 1, SIGNATURE_LINE);
-    c.text(name, cx, lineY - 14, { size: 9.5, face: 'bold', color: INK, align: 'center' });
-    c.text(dept, cx, lineY - 26, { size: 8.5, color: MUTED, align: 'center' });
+  for (const [caption, signature, name, x] of blocks) {
+    c.text(caption, x, captionY, { size: 10, color: BODY });
+    if (signature) drawSignature(c, signature, x + 70, nameY, 150, 56);
+
+    c.text(name, x, nameY, { size: 10, face: 'bold', color: INK });
+    const nameW = textWidth(name, 10, 'bold');
+    c.line(x, nameY - 3, x + nameW, nameY - 3, 0.8, INK);
 
     // The timestamp is the part a wet signature cannot carry, and it is the
     // reason this counts as evidence rather than decoration.
     if (signature) {
       const when = new Date(signature.signedAt).toISOString().slice(0, 16).replace('T', ' ');
-      c.text(`Ditandatangani secara elektronik · ${when} UTC`, cx, lineY - 38, {
+      c.text(`Ditandatangani secara elektronik - ${when} UTC`, x, nameY - 14, {
         size: 6.5,
         color: MUTED,
-        align: 'center',
       });
     }
   }
 
+  // ---- footer --------------------------------------------------------------
+  c.text(doc.companyName.toUpperCase(), MARGIN, 52, { size: 8, face: 'bold', color: BODY });
+  if (doc.addressLine) {
+    c.text(doc.addressLine, MARGIN, 42, { size: 7.5, color: MUTED });
+  }
+
   return buildPdf(
     c,
-    {
-      Im1: { width: logoWidth, height: logoHeight, data: decode(logoBase64) },
-      Im2: { width: aspireLogoWidth, height: aspireLogoHeight, data: decode(aspireLogoBase64) },
-    },
+    { Im2: { width: aspireLogoWidth, height: aspireLogoHeight, data: decode(aspireLogoBase64) } },
     PAGE_W,
     PAGE_H,
   );

@@ -19,6 +19,8 @@ export interface AccountRow {
   nik: string | null;
   email: string | null;
   phone: string | null;
+  /** "Legal Officer" — what the BAST prints on the Jabatan line. */
+  job_title: string | null;
   department_id: string | null;
   department_name: string | null;
   location_id: string | null;
@@ -57,6 +59,7 @@ export interface AccountInput {
   nik?: string | null;
   email?: string | null;
   phone?: string | null;
+  jobTitle?: string | null;
   departmentId?: string | null;
   locationId?: string | null;
   role?: UserRole | null;
@@ -76,6 +79,7 @@ export async function createAccount(input: AccountInput): Promise<{ id: string }
     // A brand new account never has credentials, so it is never created able to
     // log in. Issuing them is a separate, deliberate step.
     p_can_login: false,
+    p_job_title: input.jobTitle ?? null,
   });
   if (error) throw new Error(error.message);
   return data as { id: string };
@@ -93,6 +97,7 @@ export async function updateAccount(id: string, input: AccountInput): Promise<{ 
     p_role: input.role ?? null,
     p_can_login: null,
     p_is_active: input.isActive ?? null,
+    p_job_title: input.jobTitle ?? null,
   });
   if (error) throw new Error(error.message);
   return data as { id: string };

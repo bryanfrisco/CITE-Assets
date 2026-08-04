@@ -5,16 +5,28 @@
  *  `Awaiting 1`, `Draft 1`), then record cards: BAST number (royal, tabular),
  *  status badge, date right-aligned, asset name,
  *  `Employee · Department · Location`."
+ *
+ * Two document kinds share this list — Serah Terima and Penarikan — because
+ * they share a numbering sequence and a signing flow, and an IT officer looking
+ * for "the paperwork on that laptop" wants both. The chips split them when the
+ * question is narrower than that.
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 
 import { useTheme } from '@/theme';
-import { Badge, Card, EmptyState, Screen, Skeleton } from '@/components/ui';
-import { BAST_STATUS_LABEL, fetchBastList, fetchBastStats, type BastListRow } from '@/api/bast';
+import { Badge, Card, Chip, ChipRow, EmptyState, Screen, Skeleton } from '@/components/ui';
+import {
+  BAST_KIND_LABEL,
+  BAST_STATUS_LABEL,
+  fetchBastList,
+  fetchBastStats,
+  type BastKind,
+  type BastListRow,
+} from '@/api/bast';
 import { queryKeys } from '@/lib/queryClient';
 import { useScopeLabel, useScopeStore } from '@/store/useScopeStore';
 
@@ -35,9 +47,11 @@ export default function BastListScreen() {
   const scope = useScopeStore((s) => s.scope);
   const scopeLabel = useScopeLabel();
 
+  const [kind, setKind] = useState<BastKind | 'all'>('all');
+
   const list = useQuery({
-    queryKey: queryKeys.bast(scope),
-    queryFn: () => fetchBastList(scope),
+    queryKey: [...queryKeys.bast(scope), kind],
+    queryFn: () => fetchBastList(scope, kind === 'all' ? undefined : kind),
     enabled: scope.length > 0,
   });
   const stats = useQuery({
@@ -72,6 +86,20 @@ export default function BastListScreen() {
         ))}
       </View>
 
+      <ChipRow style={styles.kinds}>
+        <Chip label="All" active={kind === 'all'} onPress={() => setKind('all')} />
+        <Chip
+          label={`Serah Terima${stats.data ? ` ${stats.data.handover}` : ''}`}
+          active={kind === 'handover'}
+          onPress={() => setKind('handover')}
+        />
+        <Chip
+          label={`Penarikan${stats.data ? ` ${stats.data.returns}` : ''}`}
+          active={kind === 'return'}
+          onPress={() => setKind('return')}
+        />
+      </ChipRow>
+
       {scope.length === 0 ? (
         <EmptyState
           title="No locations selected"
@@ -94,7 +122,13 @@ export default function BastListScreen() {
       ) : (list.data ?? []).length === 0 ? (
         <EmptyState
           title="No E-BAST documents yet"
-          description="Berita Acara Serah Terima records appear here once an assignment generates one."
+          description={
+            kind === 'return'
+              ? 'A Berita Acara Penarikan Barang is raised when an asset is returned.'
+              : kind === 'handover'
+                ? 'A Berita Acara Serah Terima Barang is raised when an asset is assigned.'
+                : 'Berita Acara records appear here once an assignment or a return generates one.'
+          }
         />
       ) : (
         <View style={styles.records}>
@@ -131,7 +165,9 @@ function RecordCard({ row, onPress }: { row: BastListRow; onPress: () => void })
           {row.asset_name}
         </Text>
         <Text numberOfLines={1} style={[t.type.meta, styles.recordMeta, { color: t.color.sub }]}>
-          {[row.employee_name, row.department_name, row.location_name].filter(Boolean).join(' · ')}
+          {[BAST_KIND_LABEL[row.kind], row.employee_name, row.department_name, row.location_name]
+            .filter(Boolean)
+            .join(' · ')}
         </Text>
       </Card>
     </Pressable>
@@ -140,7 +176,8 @@ function RecordCard({ row, onPress }: { row: BastListRow; onPress: () => void })
 
 const styles = StyleSheet.create({
   countLine: { marginTop: 3 },
-  stats: { flexDirection: 'row', gap: 9, marginTop: 14, marginBottom: 14 },
+  stats: { flexDirection: 'row', gap: 9, marginTop: 14, marginBottom: 12 },
+  kinds: { marginBottom: 14 },
   statTile: { flex: 1 },
   statValue: { fontSize: 20 },
   statLabel: { marginTop: 3 },

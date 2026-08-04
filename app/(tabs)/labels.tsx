@@ -18,7 +18,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { File, Paths } from 'expo-file-system';
-import { AlertCircle, ChevronLeft, FileDown, Printer } from 'lucide-react-native';
+import { AlertCircle, ChevronLeft, FileDown, Printer, Search, X } from 'lucide-react-native';
 import { SvgXml } from 'react-native-svg';
 
 import { useTheme } from '@/theme';
@@ -76,6 +76,7 @@ export default function LabelsScreen() {
   const [symbology, setSymbology] = useState<Symbology>(DEFAULT_SYMBOLOGY);
   const [layout, setLayout] = useState<LabelLayout>('tape');
   const [filter, setFilter] = useState<TagStatus | 'all'>('all');
+  const [search, setSearch] = useState('');
   const [error, setError] = useState('');
   const [openCode, setOpenCode] = useState<string | null>(null);
 
@@ -84,6 +85,26 @@ export default function LabelsScreen() {
     queryKey: ['tags', filter],
     queryFn: () => listTags(filter === 'all' ? undefined : filter),
   });
+
+  /**
+   * Matches the sticker code AND what it is stuck to.
+   *
+   * Filtered here rather than in the database on purpose: `list_tags` already
+   * returns the whole set and the screen already renders every row, so a search
+   * box over what has been fetched is strictly better than what was here — and
+   * it costs no migration. If the register ever outgrows that, the fix is a
+   * `p_search` on list_tags, which means dropping the two-argument overload
+   * rather than adding beside it (see migration 0029).
+   */
+  const needle = search.trim().toLowerCase();
+  const matched = (tags.data ?? []).filter((row) => {
+    if (!needle) return true;
+    return [row.code, row.asset_code, row.asset_name]
+      .filter(Boolean)
+      .some((field) => field!.toLowerCase().includes(needle));
+  });
+  const VISIBLE = 100;
+  const shown = matched.slice(0, VISIBLE);
 
   const share = async (codes: string[], batchLabel: string) => {
     // CSV first — it is the one that reaches the LW-700.
@@ -252,6 +273,29 @@ export default function LabelsScreen() {
 
       <Text style={[t.type.sectionLabel, styles.listLabel, { color: t.color.sub }]}>Issued</Text>
 
+      <Input
+        size="search"
+        value={search}
+        onChangeText={setSearch}
+        placeholder="CT-000001, asset code, name…"
+        autoCapitalize="characters"
+        autoCorrect={false}
+        icon={<Search size={17} color={t.color.sub} strokeWidth={1.8} />}
+        accessory={
+          search ? (
+            <Pressable
+              onPress={() => setSearch('')}
+              accessibilityRole="button"
+              accessibilityLabel="Clear search"
+              hitSlop={10}
+            >
+              <X size={16} color={t.color.sub} strokeWidth={1.9} />
+            </Pressable>
+          ) : null
+        }
+        containerStyle={styles.search}
+      />
+
       <ChipRow style={styles.filters}>
         {FILTERS.map((f) => (
           <Chip
@@ -277,32 +321,44 @@ export default function LabelsScreen() {
           actionLabel="Try again"
           onAction={() => tags.refetch()}
         />
-      ) : (tags.data ?? []).length === 0 ? (
+      ) : matched.length === 0 ? (
         <EmptyState
-          title="No labels yet"
-          description="Print a batch, stick them on your devices, then scan each one to register it."
+          title={needle ? 'Nothing matches that' : 'No labels yet'}
+          description={
+            needle
+              ? `No label, asset code or name contains "${search.trim()}".`
+              : 'Print a batch, stick them on your devices, then scan each one to register it.'
+          }
+          actionLabel={needle ? 'Clear the search' : undefined}
+          onAction={needle ? () => setSearch('') : undefined}
         />
       ) : (
         <>
           <Card padding={0} radius="listContainer">
-            {(tags.data ?? []).map((row, i) => (
+            {shown.map((row, i) => (
               <TagRowView
                 key={row.id}
                 row={row}
-                last={i === (tags.data ?? []).length - 1}
+                last={i === shown.length - 1}
                 onPress={() => setOpenCode(row.code)}
               />
             ))}
           </Card>
 
-          {filter === 'untagged' && (tags.data ?? []).length > 0 && can('asset.create') ? (
+          {matched.length > shown.length ? (
+            <Text style={[t.type.meta, styles.more, { color: t.color.sub }]}>
+              {`Showing ${shown.length} of ${matched.length}. Narrow the search to see the rest.`}
+            </Text>
+          ) : null}
+
+          {filter === 'untagged' && matched.length > 0 && can('asset.create') ? (
             <Button
               label="Re-export these labels"
               variant="secondary"
               block
               loading={reexport.isPending}
               icon={<FileDown size={15} color={t.color.text} strokeWidth={1.8} />}
-              onPress={() => reexport.mutate(tags.data ?? [])}
+              onPress={() => reexport.mutate(matched)}
               style={styles.action}
             />
           ) : null}
@@ -425,6 +481,8 @@ function LabelSheet({ code, onDismiss }: { code: string | null; onDismiss: () =>
             <Badge label={status.label} tone={status.tone} />
           </View>
 
+          <SymbolPreview code={d.code} />
+
           {d.asset ? (
             <>
               <Text style={[t.type.sectionLabel, styles.sheetLabel, { color: t.color.sub }]}>
@@ -511,6 +569,76 @@ function LabelSheet({ code, onDismiss }: { code: string | null; onDismiss: () =>
   );
 }
 
+/**
+ * What is actually printed on this sticker, in both symbologies.
+ *
+ * Both are shown rather than whichever was selected up in the print form,
+ * because the sticker in someone's hand was printed at some point in the past
+ * and the form only says what the NEXT batch will look like. Seeing the symbol
+ * next to the code is also the fastest way to tell a scanner fault ("it will
+ * not read") from a data fault ("it reads, but the register disagrees").
+ *
+ * Drawn from the same builders the PDF and the CSV use, so this is a preview of
+ * the real thing rather than an impression of one.
+ */
+function SymbolPreview({ code }: { code: string }) {
+  const t = useTheme();
+  const [barcode, setBarcode] = useState<string | null>(null);
+  const [qr, setQr] = useState<string | null>(null);
+  const [width, setWidth] = useState(0);
+
+  const barcodeWidth = Math.max(0, width - 24);
+  const barcodeHeight = 52;
+  const qrSize = 104;
+
+  useEffect(() => {
+    if (barcodeWidth <= 0) return;
+    let live = true;
+    void Promise.all([
+      symbolSvg(code, 'barcode', barcodeWidth, barcodeHeight),
+      symbolSvg(code, 'qr', qrSize, qrSize),
+    ]).then(([bars, square]) => {
+      if (!live) return;
+      setBarcode(bars);
+      setQr(square);
+    });
+    return () => {
+      live = false;
+    };
+  }, [code, barcodeWidth]);
+
+  return (
+    <View onLayout={(event) => setWidth(event.nativeEvent.layout.width)}>
+      <Text style={[t.type.sectionLabel, styles.sheetLabel, { color: t.color.sub }]}>
+        What is on the sticker
+      </Text>
+
+      {/* Always white with black ink. It is a preview of something printed, and
+          a dark-mode barcode is a preview of nothing — no scanner reads it. */}
+      <View
+        style={[
+          styles.symbolCard,
+          {
+            backgroundColor: t.paper.sheet,
+            borderColor: t.color.line,
+            borderRadius: t.radii.inputLarge,
+          },
+        ]}
+      >
+        {barcode ? <SvgXml xml={barcode} /> : <Skeleton height={barcodeHeight} radius={4} />}
+        <Text style={[styles.symbolCode, { color: t.paper.ink }]}>{code}</Text>
+
+        <View style={[styles.symbolDivider, { backgroundColor: t.color.line }]} />
+
+        {qr ? <SvgXml xml={qr} /> : <Skeleton height={qrSize} width={qrSize} radius={4} />}
+        <Text style={[styles.symbolCaption, { color: t.paper.muted }]}>
+          Code 128 above, QR below — both encode this code and nothing else
+        </Text>
+      </View>
+    </View>
+  );
+}
+
 function Fact({ label, value }: { label: string; value: string }) {
   const t = useTheme();
   return (
@@ -580,7 +708,9 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   listLabel: { marginTop: 24, marginBottom: 9, marginLeft: 2 },
+  search: { marginBottom: 10 },
   filters: { marginBottom: 12 },
+  more: { marginTop: 10, textAlign: 'center' },
   skeletons: { gap: 10 },
   row: {
     flexDirection: 'row',
@@ -591,6 +721,10 @@ const styles = StyleSheet.create({
   },
   rowText: { flex: 1, minWidth: 0 },
   rowMeta: { marginTop: 3 },
+  symbolCard: { borderWidth: 1, alignItems: 'center', paddingVertical: 16, paddingHorizontal: 12 },
+  symbolCode: { marginTop: 6, fontWeight: '700', letterSpacing: 1.4, fontSize: 12 },
+  symbolDivider: { alignSelf: 'stretch', height: 1, marginVertical: 16 },
+  symbolCaption: { marginTop: 10, fontSize: 10, textAlign: 'center', lineHeight: 14 },
   sheet: { gap: 4 },
   sheetEmpty: { paddingVertical: 18, textAlign: 'center' },
   sheetHead: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 4 },

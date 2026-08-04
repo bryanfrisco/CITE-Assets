@@ -322,7 +322,18 @@ async function run() {
       p_condition: good,
       p_notes: 'Back in the HO store room',
     });
-    check('return closes the assignment', Boolean(returned.data), returned.error?.message);
+    check(
+      'return closes the assignment',
+      Boolean(returned.data?.assignmentId),
+      returned.error?.message,
+    );
+
+    // Migration 0032: a device coming back gets its own sheet.
+    check(
+      'and raises the Berita Acara Penarikan Barang',
+      Boolean(returned.data?.bastNumber),
+      JSON.stringify(returned.data),
+    );
 
     const after = await detailOf('MON122-24-205');
     check('the asset status becomes Available', after.statusName === 'Available', after.statusName);
@@ -331,7 +342,7 @@ async function run() {
     const { data: asg } = await admin
       .from('assignments')
       .select('state, returned_date')
-      .eq('id', returned.data)
+      .eq('id', returned.data.assignmentId)
       .single();
     check('the assignment row is marked returned', asg?.state === 'returned', asg?.state);
     check('the return date is recorded', asg?.returned_date === TODAY, asg?.returned_date);
@@ -380,8 +391,14 @@ async function run() {
       bast?.assignment_id === assigned.data[0].assignment_id,
     );
 
-    // Put the monitor back the way the seed left it.
-    await admin.rpc('return_asset', { p_asset: monitor, p_date: TODAY, p_condition: good });
+    // Put the monitor back the way the seed left it. No document: this is
+    // fixture cleanup, and a withdrawal sheet raised here would outlive the run.
+    await admin.rpc('return_asset', {
+      p_asset: monitor,
+      p_date: TODAY,
+      p_condition: good,
+      p_auto_bast: false,
+    });
     const after = await detailOf('MON122-24-205');
     check(
       'cleanup left the monitor Available and unassigned',

@@ -11,9 +11,31 @@ import type { SignatureStrokes } from '@/lib/signature';
 
 export type BastStatus = 'draft' | 'awaiting_signature' | 'signed' | 'void';
 
+/**
+ * The two sheets the client actually uses.
+ *
+ * `handover` is the Berita Acara Serah Terima Barang — a device going out.
+ * `return` is the Berita Acara Penarikan Barang — the same device coming back.
+ * One record type, one numbering sequence, one signing flow; the kind decides
+ * the title, two verbs in the body, and the two signature captions.
+ */
+export type BastKind = 'handover' | 'return';
+
+export const BAST_KIND_TITLE: Record<BastKind, string> = {
+  handover: 'BERITA ACARA SERAH TERIMA BARANG',
+  return: 'BERITA ACARA PENARIKAN BARANG',
+};
+
+/** Short form, for list rows and the detail header. */
+export const BAST_KIND_LABEL: Record<BastKind, string> = {
+  handover: 'Serah Terima',
+  return: 'Penarikan',
+};
+
 export interface BastListRow {
   id: string;
   bast_number: string;
+  kind: BastKind;
   status: BastStatus;
   bast_date: string;
   asset_code: string;
@@ -29,6 +51,8 @@ export interface BastStats {
   signed: number;
   awaiting: number;
   draft: number;
+  handover: number;
+  returns: number;
 }
 
 export interface BastVersion {
@@ -44,12 +68,26 @@ export interface BastVersion {
   createdAt: string;
 }
 
-/** Who signs which block on the document. */
+/**
+ * Who signs which block on the document.
+ *
+ * These are POSITIONS, not captions: `handover` is always the CITE/IT side and
+ * always the left column, `receiver` is always the employee and always the
+ * right. Both scanned documents are laid out that way — on a withdrawal the IT
+ * officer signs on the left under "Yang Menerima". The caption is derived from
+ * the kind, which is why it is a function rather than a lookup.
+ */
 export type SignatureRole = 'handover' | 'receiver';
 
-export const SIGNATURE_ROLE_LABEL: Record<SignatureRole, string> = {
-  handover: 'Yang Menyerahkan',
-  receiver: 'Yang Menerima',
+export function signatureCaption(kind: BastKind, role: SignatureRole): string {
+  if (kind === 'return') return role === 'handover' ? 'Yang Menerima' : 'Yang Memberikan';
+  return role === 'handover' ? 'Yang Menyerahkan' : 'Yang Menerima';
+}
+
+/** The side each block belongs to, for copy that has to name it plainly. */
+export const SIGNATURE_ROLE_SIDE: Record<SignatureRole, string> = {
+  handover: 'Corporate IT',
+  receiver: 'Employee',
 };
 
 export interface BastSignature {
@@ -60,24 +98,49 @@ export interface BastSignature {
   recordedByName: string;
 }
 
+/**
+ * One line of the goods table: No | Jenis/Type | Serial Number | Kondisi.
+ *
+ * A BAST still covers exactly one asset — that is what RLS resolves through.
+ * These rows are what physically changed hands, which on the client's own
+ * paperwork is the laptop AND the charger AND the mouse. The charger has no
+ * serial and nobody wants it in the register, so it lives on the document only.
+ */
+export interface BastItem {
+  jenis: string;
+  serial: string;
+  kondisi: string;
+}
+
 export interface BastDetail {
   id: string;
   bastNumber: string;
+  kind: BastKind;
   status: BastStatus;
   bastDate: string;
   /** "Jumat, 24 Juli 2026" — rendered in SQL so the PDF cannot disagree. */
   longDate: string;
+  /** "Senin tanggal Dua puluh lima Bulan Mei Tahun Dua ribu dua puluh enam". */
+  dateWords: string;
+  /** "Jakarta, 25 Mei 2026" — the place line above the signatures. */
+  placeDate: string;
   currentVersion: number;
   description: string | null;
   assetId: string;
   assetCode: string;
   assetName: string;
   employeeName: string;
+  employeeNik: string;
+  employeeTitle: string;
   departmentName: string;
   locationName: string;
+  companyName: string;
+  officeLabel: string;
+  addressLine: string;
   conditionText: string;
   handedOverBy: string;
   handedOverDept: string;
+  items: BastItem[];
   /** Only the newest signature per role; earlier attempts stay in the table. */
   signatures: Partial<Record<SignatureRole, BastSignature>>;
   versions: BastVersion[];
@@ -91,8 +154,11 @@ export const BAST_STATUS_LABEL: Record<BastStatus, string> = {
   void: 'Void',
 };
 
-export async function fetchBastList(scope: string[]): Promise<BastListRow[]> {
-  const { data, error } = await supabase.rpc('bast_list', { p_locations: scope });
+export async function fetchBastList(scope: string[], kind?: BastKind): Promise<BastListRow[]> {
+  const { data, error } = await supabase.rpc('bast_list', {
+    p_locations: scope,
+    p_kind: kind ?? null,
+  });
   if (error) throw new Error(error.message);
   return (data ?? []) as BastListRow[];
 }
@@ -100,7 +166,34 @@ export async function fetchBastList(scope: string[]): Promise<BastListRow[]> {
 export async function fetchBastStats(scope: string[]): Promise<BastStats> {
   const { data, error } = await supabase.rpc('bast_stats', { p_locations: scope });
   if (error) throw new Error(error.message);
-  return (data ?? { total: 0, signed: 0, awaiting: 0, draft: 0 }) as BastStats;
+  return (data ?? {
+    total: 0,
+    signed: 0,
+    awaiting: 0,
+    draft: 0,
+    handover: 0,
+    returns: 0,
+  }) as BastStats;
+}
+
+/**
+ * Replaces the whole goods table in one call.
+ *
+ * Replace, not add-then-remove: the screen edits the table as a table, and four
+ * calls where one failed would leave a line on a document nobody put there.
+ * Refused once the BAST is signed — at that point its contents are evidence.
+ */
+export async function setBastItems(bastId: string, items: BastItem[]): Promise<{ items: number }> {
+  const { data, error } = await supabase.rpc('set_bast_items', {
+    p_bast: bastId,
+    p_items: items.map((item) => ({
+      jenis: item.jenis,
+      serial: item.serial,
+      kondisi: item.kondisi,
+    })),
+  });
+  if (error) throw new Error(error.message);
+  return data as { items: number };
 }
 
 /** Returns null when the record is missing OR RLS hides it — the same answer. */
