@@ -9,6 +9,14 @@
  * Export gives two files because the LW-700 has no wireless of any kind — see
  * src/lib/labels.ts. The CSV is the one that reaches the printer, via Epson
  * Label Editor on a PC over USB.
+ *
+ * LABEL STOCK IS PER LOCATION
+ * ---------------------------
+ * `CTH-000001` is Head Office stock, `CTS-000001` is Site. A batch is printed
+ * FOR a location, never with a chosen prefix — the prefix is a property of the
+ * location (migration 0033), so it cannot be typed wrong. With one location in
+ * scope the choice is made for you; with both, you pick, because a roll of tape
+ * comes out of one printer and belongs to one store cupboard.
  */
 
 import React, { useEffect, useState } from 'react';
@@ -18,7 +26,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { File, Paths } from 'expo-file-system';
-import { AlertCircle, ChevronLeft, FileDown, Printer, Search, X } from 'lucide-react-native';
+import { AlertCircle, Check, ChevronLeft, FileDown, Printer, Search, X } from 'lucide-react-native';
 import { SvgXml } from 'react-native-svg';
 
 import { useTheme } from '@/theme';
@@ -37,6 +45,7 @@ import {
 import {
   createTagBatch,
   fetchTagDetail,
+  fetchTagPrefixes,
   fetchTagStock,
   listTags,
   type TagRow,
@@ -54,6 +63,7 @@ import {
 } from '@/lib/labels';
 import type { LabelLayout, Symbology, TapeWidth } from '@/lib/labels';
 import { formatDate } from '@/lib/dates';
+import { useScopeStore } from '@/store/useScopeStore';
 import { useToast } from '@/store/useUiStore';
 import { usePermissions } from '@/auth';
 
@@ -70,6 +80,7 @@ export default function LabelsScreen() {
   const toast = useToast();
   const queryClient = useQueryClient();
   const { can } = usePermissions();
+  const scope = useScopeStore((s) => s.scope);
 
   const [count, setCount] = useState('20');
   const [tape, setTape] = useState<TapeWidth>(DEFAULT_TAPE);
@@ -79,12 +90,30 @@ export default function LabelsScreen() {
   const [search, setSearch] = useState('');
   const [error, setError] = useState('');
   const [openCode, setOpenCode] = useState<string | null>(null);
+  const [picked, setPicked] = useState<Set<string>>(() => new Set());
+  const [locationId, setLocationId] = useState<string | null>(null);
 
-  const stock = useQuery({ queryKey: ['tagStock'], queryFn: fetchTagStock });
-  const tags = useQuery({
-    queryKey: ['tags', filter],
-    queryFn: () => listTags(filter === 'all' ? undefined : filter),
+  const stock = useQuery({
+    queryKey: ['tagStock', scope],
+    queryFn: () => fetchTagStock(scope),
+    enabled: scope.length > 0,
   });
+  const tags = useQuery({
+    queryKey: ['tags', filter, scope],
+    queryFn: () => listTags(filter === 'all' ? undefined : filter, scope),
+    enabled: scope.length > 0,
+  });
+  const prefixes = useQuery({
+    queryKey: ['tagPrefixes', scope],
+    queryFn: () => fetchTagPrefixes(scope),
+    enabled: scope.length > 0,
+  });
+
+  // With one location in scope there is nothing to choose. Adjusted during
+  // render rather than in an effect so the first paint already has an answer.
+  const options = prefixes.data ?? [];
+  const chosen = options.find((o) => o.location_id === locationId) ?? options[0] ?? null;
+  if (chosen && locationId !== chosen.location_id) setLocationId(chosen.location_id);
 
   /**
    * Matches the sticker code AND what it is stuck to.
@@ -138,27 +167,56 @@ export default function LabelsScreen() {
       if (!n) throw new Error('How many labels do you need?');
       // Issued in the database BEFORE the file is made: a code on tape that
       // the register has never heard of is a sticker the scanner will reject.
-      const batch = await createTagBatch(n);
+      if (!chosen) throw new Error('Choose which location these labels are for');
+      const batch = await createTagBatch(n, chosen.location_id);
       await share(batch.codes, batch.batchId.slice(0, 8));
       return batch;
     },
     onSuccess: (batch) => {
-      toast(`${batch.codes.length} labels issued`);
+      toast(`${batch.codes.length} ${batch.prefix} labels issued for ${batch.locationName}`);
       void queryClient.invalidateQueries({ queryKey: ['tagStock'] });
       void queryClient.invalidateQueries({ queryKey: ['tags'] });
+      void queryClient.invalidateQueries({ queryKey: ['tagPrefixes'] });
       setError('');
     },
     onError: (e: Error) => setError(e.message),
   });
 
+  /**
+   * Re-print stickers that already exist.
+   *
+   * Any status, deliberately. A sticker peels off a laptop, or goes through a
+   * washing machine in a jacket pocket — the CODE is still the right one, and
+   * reprinting it is how the device keeps the identity it already had. Limiting
+   * this to blank stock would mean the only fix for a damaged label was issuing
+   * a new one, which renames the device for no reason.
+   *
+   * This issues nothing. It exports codes the database already knows.
+   */
   const reexport = useMutation({
-    mutationFn: async (rows: TagRow[]) =>
-      share(
+    mutationFn: async (rows: TagRow[]) => {
+      if (rows.length === 0) throw new Error('Tick the labels you want to re-export');
+      await share(
         rows.map((r) => r.code),
         'reprint',
-      ),
+      );
+      return rows.length;
+    },
+    onSuccess: (n) => {
+      toast(`${n} label${n === 1 ? '' : 's'} re-exported`);
+      setPicked(new Set());
+      setError('');
+    },
     onError: (e: Error) => setError(e.message),
   });
+
+  const toggle = (id: string) =>
+    setPicked((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   return (
     <Screen
@@ -203,6 +261,30 @@ export default function LabelsScreen() {
 
       {can('asset.create') ? (
         <Card padding={15} title="Print a batch">
+          {/* One location in scope: shown, not asked. Two: asked, because a
+              roll of tape belongs to one store cupboard. */}
+          {options.length > 1 ? (
+            <>
+              <Text style={[t.type.fieldLabel, styles.tapeLabel, { color: t.color.sub }]}>
+                Label stock for
+              </Text>
+              <ChipRow style={styles.tapes}>
+                {options.map((o) => (
+                  <Chip
+                    key={o.location_id}
+                    label={`${o.location_name} · ${o.prefix}`}
+                    active={chosen?.location_id === o.location_id}
+                    onPress={() => setLocationId(o.location_id)}
+                  />
+                ))}
+              </ChipRow>
+            </>
+          ) : chosen ? (
+            <Text style={[t.type.meta, styles.stockLine, { color: t.color.sub }]}>
+              {`${chosen.location_name} stock · codes will start ${chosen.prefix}- · ${chosen.blank} blank left`}
+            </Text>
+          ) : null}
+
           <Input
             label="How many labels"
             value={count}
@@ -247,8 +329,9 @@ export default function LabelsScreen() {
           <LabelPreview tape={tape} symbology={symbology} />
 
           <Button
-            label="Issue and export"
+            label={chosen ? `Issue ${chosen.prefix} labels and export` : 'Issue and export'}
             block
+            disabled={!chosen}
             loading={print.isPending}
             icon={<Printer size={15} color={t.color.onNavy} strokeWidth={1.8} />}
             onPress={() => print.mutate()}
@@ -334,12 +417,37 @@ export default function LabelsScreen() {
         />
       ) : (
         <>
+          {can('asset.create') ? (
+            <View style={styles.selectBar}>
+              <Pressable
+                onPress={() =>
+                  setPicked(
+                    picked.size === shown.length ? new Set() : new Set(shown.map((r) => r.id)),
+                  )
+                }
+                accessibilityRole="button"
+                accessibilityLabel={picked.size === shown.length ? 'Clear selection' : 'Select all'}
+                hitSlop={8}
+              >
+                <Text style={[t.type.metaStrong, { color: t.color.royal }]}>
+                  {picked.size === shown.length && shown.length > 0 ? 'Clear' : 'Select all'}
+                </Text>
+              </Pressable>
+              <Text style={[t.type.meta, { color: t.color.sub }]}>
+                {picked.size > 0 ? `${picked.size} selected` : 'Tick to re-export'}
+              </Text>
+            </View>
+          ) : null}
+
           <Card padding={0} radius="listContainer">
             {shown.map((row, i) => (
               <TagRowView
                 key={row.id}
                 row={row}
                 last={i === shown.length - 1}
+                selectable={can('asset.create')}
+                checked={picked.has(row.id)}
+                onToggle={() => toggle(row.id)}
                 onPress={() => setOpenCode(row.code)}
               />
             ))}
@@ -351,14 +459,19 @@ export default function LabelsScreen() {
             </Text>
           ) : null}
 
-          {filter === 'untagged' && matched.length > 0 && can('asset.create') ? (
+          {can('asset.create') ? (
             <Button
-              label="Re-export these labels"
+              label={
+                picked.size > 0
+                  ? `Re-export ${picked.size} label${picked.size === 1 ? '' : 's'}`
+                  : 'Re-export selected labels'
+              }
               variant="secondary"
               block
+              disabled={picked.size === 0}
               loading={reexport.isPending}
               icon={<FileDown size={15} color={t.color.text} strokeWidth={1.8} />}
-              onPress={() => reexport.mutate(matched)}
+              onPress={() => reexport.mutate(matched.filter((r) => picked.has(r.id)))}
               style={styles.action}
             />
           ) : null}
@@ -649,31 +762,74 @@ function Fact({ label, value }: { label: string; value: string }) {
   );
 }
 
-function TagRowView({ row, last, onPress }: { row: TagRow; last: boolean; onPress?: () => void }) {
+/**
+ * One row: a tick box, then the sticker, then its state.
+ *
+ * The tick box is its own touch target rather than part of the row, because the
+ * row already means "show me this label" and one gesture cannot mean two things.
+ */
+function TagRowView({
+  row,
+  last,
+  selectable,
+  checked,
+  onToggle,
+  onPress,
+}: {
+  row: TagRow;
+  last: boolean;
+  selectable: boolean;
+  checked: boolean;
+  onToggle: () => void;
+  onPress: () => void;
+}) {
   const t = useTheme();
   const label = row.status === 'untagged' ? 'Blank' : row.status === 'tagged' ? 'In use' : 'Voided';
   const tone =
     row.status === 'untagged' ? 'available' : row.status === 'void' ? 'retired' : undefined;
 
-  const body = (
+  return (
     <View
       style={[styles.row, { borderBottomWidth: last ? 0 : 1, borderBottomColor: t.color.line }]}
     >
-      <View style={styles.rowText}>
+      {selectable ? (
+        <Pressable
+          onPress={onToggle}
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked }}
+          accessibilityLabel={`Select ${row.code}`}
+          hitSlop={10}
+          style={[
+            styles.tick,
+            {
+              borderColor: checked ? t.color.royal : t.color.line,
+              backgroundColor: checked ? t.color.royal : 'transparent',
+            },
+          ]}
+        >
+          {checked ? <Check size={13} color={t.color.onNavy} strokeWidth={3} /> : null}
+        </Pressable>
+      ) : null}
+
+      <Pressable
+        onPress={onPress}
+        accessibilityRole="button"
+        accessibilityLabel={row.code}
+        style={styles.rowText}
+      >
         <Text style={[t.type.assetCode, { color: t.color.royal }]}>{row.code}</Text>
         <Text numberOfLines={1} style={[t.type.metaStrong, styles.rowMeta, { color: t.color.sub }]}>
-          {row.asset_code ? `${row.asset_code} · ${row.asset_name}` : 'Not yet on a device'}
+          {[
+            row.location_name,
+            row.asset_code ? `${row.asset_code} · ${row.asset_name}` : 'Not yet on a device',
+          ]
+            .filter(Boolean)
+            .join(' · ')}
         </Text>
-      </View>
+      </Pressable>
+
       <Badge label={label} tone={tone} />
     </View>
-  );
-
-  if (!onPress) return body;
-  return (
-    <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={row.code}>
-      {body}
-    </Pressable>
   );
 }
 
@@ -720,6 +876,22 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
   },
   rowText: { flex: 1, minWidth: 0 },
+  selectBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 9,
+    paddingHorizontal: 2,
+  },
+  stockLine: { marginBottom: 12, lineHeight: 16 },
+  tick: {
+    width: 20,
+    height: 20,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   rowMeta: { marginTop: 3 },
   symbolCard: { borderWidth: 1, alignItems: 'center', paddingVertical: 16, paddingHorizontal: 12 },
   symbolCode: { marginTop: 6, fontWeight: '700', letterSpacing: 1.4, fontSize: 12 },

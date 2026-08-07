@@ -157,7 +157,8 @@ async function run() {
     check(
       'and 42 assets came back with codes',
       (done.data?.created ?? []).length === 42 &&
-        (done.data?.created ?? []).every((a) => /^[A-Z]+\d+-\d{2}-\d+$/.test(a.assetCode)),
+        // SPRLPT25-HO-0001 — migration 0034.
+        (done.data?.created ?? []).every((a) => /^[A-Z]+\d{2}-[A-Z]+-\d{4}$/.test(a.assetCode)),
       JSON.stringify((done.data?.created ?? []).slice(0, 2)),
     );
     check('a batch was recorded', Boolean(done.data?.batchId));

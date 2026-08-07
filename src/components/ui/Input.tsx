@@ -109,6 +109,8 @@ export function SelectField({
   placeholder,
   onPress,
   error,
+  /** Neutral note under the field, shown when there is no error — same as Input. */
+  helper,
   required = false,
   accessory,
   containerStyle,
@@ -118,6 +120,7 @@ export function SelectField({
   placeholder?: string;
   onPress?: () => void;
   error?: string | null;
+  helper?: string;
   required?: boolean;
   accessory?: ReactNode;
   containerStyle?: StyleProp<ViewStyle>;
@@ -162,6 +165,8 @@ export function SelectField({
 
       {hasError ? (
         <Text style={[t.type.meta, styles.helper, { color: t.color.error }]}>{error}</Text>
+      ) : helper ? (
+        <Text style={[t.type.meta, styles.helper, { color: t.color.sub }]}>{helper}</Text>
       ) : null}
     </View>
   );

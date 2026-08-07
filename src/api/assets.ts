@@ -374,3 +374,28 @@ export async function signedPhotoUrl(path: string): Promise<string | null> {
   if (error) return null;
   return data?.signedUrl ?? null;
 }
+
+/**
+ * What the next asset code under these three choices would be.
+ *
+ * A preview, not a reservation — nothing is allocated until the asset is
+ * saved, and two people previewing at once see the same number. That is
+ * deliberate: reserving a code for a form somebody might abandon would leave
+ * gaps in a sequence the finance team reads by eye.
+ *
+ * Returns null until a category and a location have both been chosen.
+ */
+export async function previewAssetCode(
+  categoryId: string | null,
+  locationId: string | null,
+  purchaseDate: string | null,
+): Promise<string | null> {
+  if (!categoryId || !locationId) return null;
+  const { data, error } = await supabase.rpc('preview_asset_code', {
+    p_category: categoryId,
+    p_location: locationId,
+    p_purchase: purchaseDate || null,
+  });
+  if (error) throw new Error(error.message);
+  return (data ?? null) as string | null;
+}

@@ -381,11 +381,14 @@ function render(doc: BastDocument): Uint8Array {
   ];
 
   const captionY = y - 15;
-  const nameY = captionY - 72;
+  // The gap between the caption and the ruled name is the signature box. It is
+  // widened to match the on-screen preview — a box that fits on screen and not
+  // on paper is a box nobody can trust.
+  const nameY = captionY - 96;
 
   for (const [caption, signature, name, x] of blocks) {
     c.text(caption, x, captionY, { size: 10, color: BODY });
-    if (signature) drawSignature(c, signature, x + 70, nameY, 150, 56);
+    if (signature) drawSignature(c, signature, x + 80, nameY, 170, 78);
 
     c.text(name, x, nameY, { size: 10, face: 'bold', color: INK });
     const nameW = textWidth(name, 10, 'bold');

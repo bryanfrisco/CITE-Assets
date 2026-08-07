@@ -18,6 +18,17 @@
  * a device came back, and it is signed by both sides exactly like the handover.
  * Migration 0032 gives it `kind = 'return'`, and the switch is offered in both
  * modes now with the wording that matches the document being raised.
+ *
+ * RETURN HAS NO EMPLOYEE STEP
+ * ---------------------------
+ * Client instruction, 2026-08-06: "ketika orang mau return asset jangan assign
+ * asset (jangan select an employee) langsung return saja, tidak ada yang punya."
+ *
+ * Correct, and the step was never doing any work. return_asset() reads the
+ * holder off the ACTIVE ASSIGNMENT — the person picked here was never sent
+ * anywhere. So the screen was asking for a fact it already knew, and worse,
+ * inviting an answer that could contradict the record. Return is two steps now:
+ * pick the asset, confirm. Whoever holds it is shown, not chosen.
  */
 
 import React, { useMemo, useState } from 'react';
@@ -56,7 +67,21 @@ import { queryKeys } from '@/lib/queryClient';
 import { useScopeStore } from '@/store/useScopeStore';
 import { useToast } from '@/store/useUiStore';
 
-const STEP_NAMES = ['Employee', 'Asset', 'Details'] as const;
+/**
+ * The stages, by mode. Named rather than numbered because the return flow drops
+ * one — indexing panels by `step === 2` would silently mean different things in
+ * the two modes, which is the kind of bug that only shows up in the wrong one.
+ */
+const ASSIGN_STAGES = ['employee', 'asset', 'details'] as const;
+const RETURN_STAGES = ['asset', 'details'] as const;
+
+type Stage = (typeof ASSIGN_STAGES)[number];
+
+const STAGE_NAMES: Record<Stage, string> = {
+  employee: 'Employee',
+  asset: 'Asset',
+  details: 'Details',
+};
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 function today(): string {
@@ -104,19 +129,21 @@ export default function AssignScreen() {
   const [dateError, setDateError] = useState('');
   const [done, setDone] = useState<{ bastNumber: string | null } | null>(null);
 
-  // Coming from Asset Detail the asset is already chosen, and in return mode so
-  // is the person handing it back. Adjusted during render rather than in an
-  // effect — the same pattern the Edit form uses.
+  // Coming from Asset Detail the asset is already chosen. Adjusted during
+  // render rather than in an effect — the same pattern the Edit form uses.
+  //
+  // Nothing is prefilled for the person any more: on a return there is no
+  // employee step to prefill, and the holder comes off the asset row.
   const [prefilledFor, setPrefilledFor] = useState<string | null>(null);
-  if (assetParam && assets.data && employees.data && prefilledFor !== assetParam) {
+  if (assetParam && assets.data && prefilledFor !== assetParam) {
     const found = assets.data.find((a) => a.asset_code === assetParam);
     setPrefilledFor(assetParam);
-    if (found) {
-      setAsset(found);
-      const holder = employees.data.find((e) => e.full_name === found.holder_name);
-      if (isReturn && holder) setEmployee(holder);
-    }
+    if (found) setAsset(found);
   }
+
+  const stages: readonly Stage[] = isReturn ? RETURN_STAGES : ASSIGN_STAGES;
+  const stage = stages[step - 1] ?? stages[stages.length - 1]!;
+  const lastStep = stages.length;
 
   const conditions = options.data?.conditions ?? [];
   // Return mode defaults to the condition the asset already carries.
@@ -164,15 +191,15 @@ export default function AssignScreen() {
   const advance = () => {
     // README § Validation — this copy is also what the RPC raises, so a direct
     // call cannot produce a different message.
-    if (step === 1 && !employee) {
+    if (stage === 'employee' && !employee) {
       setStepError('Select an employee to continue');
       return;
     }
-    if (step === 2 && !asset) {
+    if (stage === 'asset' && !asset) {
       setStepError('Select an asset to continue');
       return;
     }
-    if (step === 3) {
+    if (stage === 'details') {
       if (!date.trim() || !DATE_RE.test(date.trim())) {
         setDateError(isReturn ? 'Return date is required' : 'Assignment date is required');
         setStepError('Fill the required field');
@@ -193,7 +220,11 @@ export default function AssignScreen() {
 
   const summaryRows = useMemo(
     () => [
-      { k: isReturn ? 'Returned by' : 'Employee', v: employee?.full_name ?? '—' },
+      // On a return the holder is read off the record, never picked.
+      {
+        k: isReturn ? 'Returned by' : 'Employee',
+        v: isReturn ? (asset?.holder_name ?? 'Nobody') : (employee?.full_name ?? '—'),
+      },
       { k: 'Asset', v: asset ? `${asset.asset_code} · ${asset.name}` : '—' },
       { k: 'Date', v: date },
       {
@@ -295,7 +326,7 @@ export default function AssignScreen() {
         {isReturn ? 'Return Asset' : 'Assign Asset'}
       </Text>
       <Text style={[t.type.bodySmall, styles.stepLine, { color: t.color.sub }]}>
-        {`Step ${step} of 3 · ${STEP_NAMES[step - 1]}`}
+        {`Step ${step} of ${lastStep} · ${STAGE_NAMES[stage]}`}
       </Text>
 
       <View style={styles.bars}>
@@ -326,7 +357,7 @@ export default function AssignScreen() {
         </View>
       ) : (
         <>
-          {step === 1 ? (
+          {stage === 'employee' ? (
             <View style={styles.stepBody}>
               <Text style={[t.type.sectionLabel, styles.stepLabel, { color: t.color.sub }]}>
                 Select employee
@@ -356,7 +387,7 @@ export default function AssignScreen() {
             </View>
           ) : null}
 
-          {step === 2 ? (
+          {stage === 'asset' ? (
             <View style={styles.stepBody}>
               <Text style={[t.type.sectionLabel, styles.stepLabel, { color: t.color.sub }]}>
                 {isReturn ? 'Select assigned asset' : 'Select available asset'}
@@ -400,21 +431,29 @@ export default function AssignScreen() {
             </View>
           ) : null}
 
-          {step === 3 ? (
+          {stage === 'details' ? (
             <View style={styles.stepBody}>
               <Card radius="cardMedium" padding={16}>
                 <Text style={[t.type.sectionLabel, { color: t.color.sub }]}>Summary</Text>
 
+                {/* On a return this is who the record says holds it — shown,
+                    not chosen. Picking a name here could only ever contradict
+                    the assignment the return is about to close. */}
                 <View style={styles.summaryPerson}>
-                  <Avatar name={employee?.full_name ?? '—'} size={34} />
+                  <Avatar
+                    name={(isReturn ? asset?.holder_name : employee?.full_name) ?? '—'}
+                    size={34}
+                  />
                   <View style={styles.summaryPersonText}>
                     <Text style={[t.type.body, { color: t.color.text }]}>
-                      {employee?.full_name ?? '—'}
+                      {(isReturn ? asset?.holder_name : employee?.full_name) ?? '—'}
                     </Text>
                     <Text style={[t.type.metaStrong, styles.summaryMeta, { color: t.color.sub }]}>
-                      {[employee?.department_name, employee?.location_name]
-                        .filter(Boolean)
-                        .join(' · ')}
+                      {isReturn
+                        ? `Returning to ${asset?.location_name ?? 'the store'}`
+                        : [employee?.department_name, employee?.location_name]
+                            .filter(Boolean)
+                            .join(' · ')}
                     </Text>
                   </View>
                 </View>
@@ -498,7 +537,13 @@ export default function AssignScreen() {
               />
             ) : null}
             <Button
-              label={step === 3 ? (isReturn ? 'Confirm return' : 'Confirm assignment') : 'Continue'}
+              label={
+                stage === 'details'
+                  ? isReturn
+                    ? 'Confirm return'
+                    : 'Confirm assignment'
+                  : 'Continue'
+              }
               block
               loading={commit.isPending}
               style={styles.navButton}
@@ -608,7 +653,7 @@ const styles = StyleSheet.create({
   summaryAsset: { marginTop: 2 },
   fields: { marginTop: 14, gap: 13 },
   actions: { flexDirection: 'row', gap: 9, marginTop: 20 },
-  navButton: { height: 46 },
+  navButton: { height: 46, minHeight: 46 },
   errorRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -633,6 +678,6 @@ const styles = StyleSheet.create({
   doneRow: { flexDirection: 'row', gap: 12, paddingVertical: 12 },
   doneKey: { width: 100 },
   doneValue: { flex: 1, textAlign: 'right' },
-  doneAction: { marginTop: 16, height: 46 },
+  doneAction: { marginTop: 16, height: 46, minHeight: 46 },
   doneSecondary: { marginTop: 9 },
 });

@@ -773,10 +773,13 @@ function GoodsEditor({ bast }: { bast: BastDetail }) {
 function PreviewSignature({ signature }: { signature?: BastSignature }) {
   const t = useTheme();
   const [width, setWidth] = useState(0);
-  const height = 34;
+  // Room for a real signature, not a scribble. 34px cramped anything with a
+  // descender or a long flourish into a smear, and this box is the only place
+  // the signature is checked before the sheet is printed.
+  const height = 64;
 
   const paths =
-    signature && width > 0 ? fitSignaturePaths(signature.strokes, width - 8, height - 4) : [];
+    signature && width > 0 ? fitSignaturePaths(signature.strokes, width - 8, height - 8) : [];
 
   return (
     <View
@@ -784,7 +787,7 @@ function PreviewSignature({ signature }: { signature?: BastSignature }) {
       style={[styles.signatureSpace, { height, borderBottomColor: t.paper.signatureLine }]}
     >
       {paths.length > 0 ? (
-        <Svg width={width - 8} height={height - 4} style={styles.signatureInk}>
+        <Svg width={width - 8} height={height - 8} style={styles.signatureInk}>
           {paths.map((d, i) => (
             <Path
               key={i}
@@ -855,7 +858,7 @@ const styles = StyleSheet.create({
   sheetTitle: { marginTop: 3 },
   paperWrap: { padding: 16 },
   sheetActions: { flexDirection: 'row', gap: 8, paddingHorizontal: 16, paddingVertical: 14 },
-  sheetButton: { height: 40 },
+  sheetButton: { height: 40, minHeight: 40 },
 
   // --- paper -----------------------------------------------------------
   // Proportions mirror the PDF: the A4 content column is 471pt wide, so a
@@ -905,10 +908,10 @@ const styles = StyleSheet.create({
   paperPlace: { fontSize: 8.5, marginTop: 14 },
   // Left column is the CITE side on BOTH documents — the caption changes, the
   // side does not. Left-aligned within each column, as on the scans.
-  signatures: { flexDirection: 'row', gap: 14, marginTop: 6 },
+  signatures: { flexDirection: 'row', gap: 14, marginTop: 10 },
   signature: { flex: 1 },
   signatureCaption: { fontSize: 8.5 },
-  signatureSpace: { alignSelf: 'stretch', marginTop: 4, justifyContent: 'flex-end' },
+  signatureSpace: { alignSelf: 'stretch', marginTop: 6, justifyContent: 'flex-end' },
   signatureInk: { alignSelf: 'flex-start' },
   signatureName: {
     fontSize: 8.5,

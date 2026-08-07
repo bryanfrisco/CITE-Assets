@@ -41,15 +41,42 @@ export interface TagRow {
   asset_name: string | null;
   tagged_at: string | null;
   created_at: string;
+  /** Which stock the sticker came from. Null for labels printed before 0033. */
+  location_id: string | null;
+  location_name: string | null;
 }
 
-export async function listTags(status?: TagStatus, batchId?: string): Promise<TagRow[]> {
+export async function listTags(
+  status?: TagStatus,
+  scope?: string[],
+  batchId?: string,
+): Promise<TagRow[]> {
   const { data, error } = await supabase.rpc('list_tags', {
     p_status: status ?? null,
     p_batch: batchId ?? null,
+    p_locations: scope && scope.length > 0 ? scope : null,
   });
   if (error) throw new Error(error.message);
   return (data ?? []) as TagRow[];
+}
+
+/**
+ * Which prefix each location in scope prints, and how much blank stock it has.
+ *
+ * The prefix is a property of the location (migration 0033), not something the
+ * printing screen chooses — so this is a read, never a setting.
+ */
+export interface TagPrefix {
+  location_id: string;
+  location_name: string;
+  prefix: string;
+  blank: number;
+}
+
+export async function fetchTagPrefixes(scope: string[]): Promise<TagPrefix[]> {
+  const { data, error } = await supabase.rpc('tag_prefixes', { p_locations: scope });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as TagPrefix[];
 }
 
 export interface TagStock {
@@ -59,24 +86,44 @@ export interface TagStock {
   total: number;
 }
 
-export async function fetchTagStock(): Promise<TagStock> {
-  const { data, error } = await supabase.rpc('tag_stock');
+export async function fetchTagStock(scope?: string[]): Promise<TagStock> {
+  const { data, error } = await supabase.rpc('tag_stock', {
+    p_locations: scope && scope.length > 0 ? scope : null,
+  });
   if (error) throw new Error(error.message);
   return (data ?? { untagged: 0, tagged: 0, void: 0, total: 0 }) as TagStock;
 }
 
-/** A print run. The codes come back so labels can be generated for them. */
+/**
+ * A print run, for one location.
+ *
+ * There is deliberately no `prefix` argument. `CTH` and `CTS` are properties of
+ * Head Office and Site, so asking for a location is the only way to ask for a
+ * prefix — a prefix typed at print time would be a claim nothing downstream
+ * could check, and one typo would produce a hundred stickers that say Site and
+ * are not.
+ */
 export async function createTagBatch(
   count: number,
-  prefix = 'CT',
-): Promise<{ batchId: string; codes: string[] }> {
+  locationId: string,
+): Promise<{ batchId: string; codes: string[]; locationName: string; prefix: string }> {
   const { data, error } = await supabase.rpc('create_tag_batch', {
     p_count: count,
-    p_prefix: prefix,
+    p_location: locationId,
   });
   if (error) throw new Error(error.message);
-  const rows = (data ?? []) as { batch_id: string; code: string }[];
-  return { batchId: rows[0]?.batch_id ?? '', codes: rows.map((r) => r.code) };
+  const rows = (data ?? []) as {
+    batch_id: string;
+    code: string;
+    location_name: string;
+    prefix: string;
+  }[];
+  return {
+    batchId: rows[0]?.batch_id ?? '',
+    codes: rows.map((r) => r.code),
+    locationName: rows[0]?.location_name ?? '',
+    prefix: rows[0]?.prefix ?? '',
+  };
 }
 
 /**
@@ -133,6 +180,8 @@ export interface TagDetail {
   code: string;
   status: TagStatus;
   batchId: string | null;
+  /** The location this sticker was printed for — 'Head Office' / 'Site'. */
+  stockLocation: string | null;
   printedAt: string | null;
   createdAt: string;
   taggedAt: string | null;

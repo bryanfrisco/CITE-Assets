@@ -55,6 +55,7 @@ async function run() {
   const { data: options } = await admin.rpc('asset_form_options');
   const category = options.categories.find((c) => c.name === 'Laptop').id;
   const location = options.locations.find((l) => l.name === 'Head Office').id;
+  const siteLocation = options.locations.find((l) => l.name === 'Site').id;
   // Retired on purpose: it keeps this suite's asset out of the assign/return
   // wizard lists that the Phase 4 suite counts exactly.
   const status = options.statuses.find((s) => s.name === 'Retired').id;
@@ -65,35 +66,80 @@ async function run() {
   console.log('\nPrinting a batch');
   let codes = [];
   {
-    const bad = await admin.rpc('create_tag_batch', { p_count: 0 });
+    const bad = await admin.rpc('create_tag_batch', { p_count: 0, p_location: location });
     check(
       'a batch of zero is rejected',
       bad.error?.message === 'How many labels do you need?',
       bad.error?.message,
     );
 
-    const huge = await admin.rpc('create_tag_batch', { p_count: 501 });
+    const huge = await admin.rpc('create_tag_batch', { p_count: 501, p_location: location });
     check(
       'an implausible batch size is rejected',
       huge.error?.message === 'A batch is limited to 500 labels',
       huge.error?.message,
     );
 
-    const batch = await admin.rpc('create_tag_batch', { p_count: 3, p_prefix: 'CT' });
+    const noWhere = await admin.rpc('create_tag_batch', { p_count: 1 });
+    check(
+      'a batch with no location is rejected',
+      noWhere.error?.message === 'Choose which location these labels are for',
+      noWhere.error?.message,
+    );
+
+    const batch = await admin.rpc('create_tag_batch', { p_count: 3, p_location: location });
     codes = (batch.data ?? []).map((r) => r.code);
     check('three labels are issued', codes.length === 3, JSON.stringify(codes));
+
+    // Migration 0033: the prefix comes from the location, so Head Office stock
+    // is CTH and Site stock is CTS. There is no way to ask for a prefix.
     check(
-      'codes are sequential and zero-padded',
-      codes.every((c) => /^CT-\d{6}$/.test(c)),
+      'Head Office stock is CTH and zero-padded',
+      codes.every((c) => /^CTH-\d{6}$/.test(c)),
       JSON.stringify(codes),
+    );
+    check(
+      'the batch reports which stock it is',
+      batch.data?.[0]?.prefix === 'CTH' && batch.data?.[0]?.location_name === 'Head Office',
+      JSON.stringify(batch.data?.[0]),
     );
     check('they share one batch id', new Set((batch.data ?? []).map((r) => r.batch_id)).size === 1);
 
-    const again = await admin.rpc('create_tag_batch', { p_count: 1 });
+    const siteBatch = await admin.rpc('create_tag_batch', { p_count: 2, p_location: siteLocation });
+    check(
+      'Site stock is CTS, on its own sequence',
+      (siteBatch.data ?? []).every((r) => /^CTS-\d{6}$/.test(r.code)),
+      JSON.stringify(siteBatch.data?.map((r) => r.code)),
+    );
+
+    const again = await admin.rpc('create_tag_batch', { p_count: 1, p_location: location });
     check(
       'a second batch does not reuse a code',
       !codes.includes(again.data[0].code),
       again.data?.[0]?.code,
+    );
+
+    // The split is worth nothing if the stock can be mixed afterwards.
+    const siteCode = siteBatch.data[0].code;
+    const crossed = await admin.rpc('tag_asset', {
+      p_code: siteCode,
+      p_name: `Cross Location ${stamp}`,
+      p_category: category,
+      p_serial: `SN-CROSS-${stamp}`,
+      p_location: location,
+      p_status: status,
+      p_condition: condition,
+    });
+    check(
+      'a Site label cannot go on a Head Office asset',
+      Boolean(crossed.error),
+      crossed.error?.message,
+    );
+    const stillBlank = await admin.rpc('scan_tag', { p_code: siteCode });
+    check(
+      'and the refused label is still blank — no half-registered device',
+      stillBlank.data?.status === 'untagged',
+      JSON.stringify(stillBlank.data),
     );
   }
 
@@ -126,7 +172,7 @@ async function run() {
     check('the response carries the label code', registered.data?.tagCode === codes[0]);
     check(
       'the asset code came from the generator',
-      /^[A-Z]+\d+-\d{2}-\d+$/.test(registered.data?.assetCode ?? ''),
+      /^[A-Z]{3}[A-Z]{2,4}\d{2}-[A-Z]+-\d{4}$/.test(registered.data?.assetCode ?? ''),
       registered.data?.assetCode,
     );
     taggedAssetId = registered.data.id;
@@ -258,7 +304,7 @@ async function run() {
   console.log('\nPermissions');
   {
     const viewer = await clientFor('andi.prasetyo@cite.co.id');
-    const denied = await viewer.rpc('create_tag_batch', { p_count: 1 });
+    const denied = await viewer.rpc('create_tag_batch', { p_count: 1, p_location: location });
     check(
       'a Viewer cannot print labels',
       denied.error?.message === 'You do not have permission to create tags',
@@ -278,7 +324,7 @@ async function run() {
 
   console.log('\nStock and listing');
   {
-    const stock = await admin.rpc('tag_stock');
+    const stock = await admin.rpc('tag_stock', {});
     check(
       'the stock line counts each state',
       stock.data?.tagged >= 1 && stock.data?.void >= 1 && stock.data?.untagged >= 1,
@@ -286,6 +332,17 @@ async function run() {
     );
 
     const untagged = await admin.rpc('list_tags', { p_status: 'untagged' });
+    check(
+      'the list carries the stock location',
+      (untagged.data ?? []).some((t) => t.location_name === 'Head Office'),
+      JSON.stringify((untagged.data ?? []).slice(0, 2)),
+    );
+    const hoOnly = await admin.rpc('list_tags', { p_locations: [location] });
+    check(
+      'scoping to Head Office hides Site stock',
+      !(hoOnly.data ?? []).some((t) => t.code.startsWith('CTS-')),
+      JSON.stringify((hoOnly.data ?? []).map((t) => t.code).slice(0, 5)),
+    );
     check(
       'the untagged list excludes used labels',
       !(untagged.data ?? []).some((t) => t.code === codes[0]),

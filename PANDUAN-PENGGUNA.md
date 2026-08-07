@@ -56,7 +56,27 @@ Ini urutan yang dipakai sehari-hari. Ikuti sekali saja, sisanya jadi jelas.
 
 **More → Labels → Print a batch**
 
-1. Isi jumlah label, pilih lebar pita (default 24 mm, sesuai kaset di printer).
+**Stiker milik satu lokasi.** Kodenya beda supaya tidak tertukar:
+
+| Lokasi      | Kode stiker  |
+| ----------- | ------------ |
+| Head Office | `CTH-000001` |
+| Site        | `CTS-000001` |
+
+Kalau scope di header cuma satu lokasi, aplikasi langsung memakai lokasi itu —
+tidak ada yang perlu dipilih. Kalau scope **HO + Site**, muncul chip untuk
+memilih stok mana yang dicetak, karena satu gulung pita keluar dari satu printer
+dan masuk ke satu lemari.
+
+Prefiksnya **tidak bisa diketik**. `CTH` dan `CTS` adalah sifat lokasinya, bukan
+tulisan yang diisi saat mencetak — kalau bisa diketik, satu salah ketik
+menghasilkan seratus stiker yang mengaku stok Site padahal bukan.
+
+**Stiker HO tidak bisa ditempel ke aset Site**, dan sebaliknya. Aplikasi
+menolaknya. Tanpa aturan itu pemisahan kodenya cuma hiasan.
+
+1. Pilih lokasi (kalau scope-nya dua), isi jumlah label, pilih lebar pita
+   (default 24 mm, sesuai kaset di printer).
 2. Tekan **Issue and export**.
 3. Aplikasi membagikan **dua file**: CSV dan PDF.
 
@@ -64,8 +84,21 @@ Kode labelnya diterbitkan ke database **sebelum** file dibuat. Kalau terbalik, b
 kode tercetak di pita yang tidak dikenal sistem — dan tim baru sadar saat stikernya sudah
 menempel di barang.
 
-**Mencari label.** Di bawah daftar ada kolom pencarian: ketik kode stiker (`CT-000001`),
-kode aset, atau nama barangnya.
+**Mencari label.** Di bawah daftar ada kolom pencarian: ketik kode stiker
+(`CTH-000001`), kode aset, atau nama barangnya.
+
+**Mencetak ulang.** Di kiri tiap baris ada kotak centang. Centang yang perlu,
+lalu tekan **Re-export**. Berlaku untuk **semua status** — termasuk stiker yang
+sudah menempel dan yang sudah di-void.
+
+Itu disengaja: kalau stiker terkelupas atau ikut tercuci di saku jaket, kodenya
+tetap kode yang benar. Mencetak ulang adalah cara barangnya mempertahankan
+identitas yang sudah dia punya. Kalau hanya stiker kosong yang boleh dicetak
+ulang, satu-satunya jalan keluar adalah menerbitkan kode baru — dan itu
+mengganti nama barang tanpa alasan.
+
+Re-export **tidak menerbitkan kode baru**. Dia hanya mengeluarkan kode yang
+sudah ada di database.
 
 **Melihat isi satu label.** Ketuk barisnya. Yang muncul: gambar **barcode dan QR**-nya,
 barang yang ditempeli, statusnya, dan riwayat kapan dicetak / ditempel / dibatalkan.
@@ -88,6 +121,36 @@ Jalur yang bekerja:
 
 File **PDF** adalah cadangan: sudah tertata seukuran pita, satu label per halaman, untuk
 printer apa pun selain LW-700.
+
+### 3.2b Kode aset
+
+Berbeda dari kode stiker. Kode aset dibentuk seperti ini:
+
+```
+SPRLAP24-HO-0064
+ |  |  |   |   |
+ |  |  |   |   +-- nomor urut, 4 digit
+ |  |  |   +------ lokasi: HO atau SITE
+ |  |  +---------- tahun pembelian: 24 = 2024
+ |  +------------- kode kategori dari master data: LAP, MON, PRN, ...
+ +---------------- perusahaan (SPR, disiapkan untuk multi-company nanti)
+```
+
+Di form **Register Asset**, urutan isiannya sudah diatur mengikuti itu:
+**Category → Current location → Purchase date**, lalu **Asset code terisi
+sendiri**. Ubah salah satu dari ketiganya, kodenya ikut berubah.
+
+Super Admin tetap boleh menimpanya dengan kode sendiri. Begitu diketik, kodenya
+berhenti mengikuti pilihan di atas — kalau tidak, mengganti kategori akan
+menghapus ketikan Anda diam-diam. Ada tombol putar di kanan kolomnya untuk
+kembali ke kode otomatis.
+
+**Nomor urutnya dibaca dari kode yang sudah ada**, bukan dari penghitung
+terpisah. Jadi kalau data lama Anda diimpor dan sudah sampai `SPRLAP24-HO-0064`,
+aset berikutnya otomatis `0065` tanpa ada yang perlu disetel. Register-nya
+menyesuaikan diri dari isinya sendiri.
+
+---
 
 ### 3.3 Tempel dan daftarkan
 
@@ -116,8 +179,14 @@ bertambah, dan kalau lokasinya berpindah, satu baris movement ikut tercatat.
 
 ### 3.5 Terima kembali
 
-**+ → Assign Asset**, pilih mode Return. Bedanya dengan penyerahan: ada isian **Condition
-on return** yang wajib.
+**+ → Assign Asset**, pilih mode Return.
+
+**Tidak ada langkah pilih orang.** Return cuma dua langkah: pilih asetnya, lalu
+konfirmasi. Siapa yang memegangnya dibaca dari catatan peminjaman, bukan dipilih
+— memilih nama di situ hanya bisa bertentangan dengan catatan yang sedang
+ditutup.
+
+Bedanya dengan penyerahan: ada isian **Condition on return** yang wajib.
 
 Saklar E-BAST tetap ada, dan sebaiknya dibiarkan menyala: pengembalian menghasilkan
 **Berita Acara Penarikan Barang** — surat yang membuktikan barangnya sudah kembali,

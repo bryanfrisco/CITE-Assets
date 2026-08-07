@@ -100,6 +100,13 @@ export function Button({
         styles.base,
         {
           height,
+          // `block` sets flex: 1 below, which in a COLUMN container makes the
+          // main-axis basis 0 and collapses the button to its two borders — a
+          // hairline. That is what the Asset actions sheet was rendering: five
+          // buttons stacked, all 2px tall. minHeight is not part of the flex
+          // basis, so it survives, and it changes nothing where the button was
+          // already laid out correctly.
+          minHeight: height,
           borderRadius: variant === 'link' ? 0 : t.radii.button,
           paddingHorizontal: variant === 'link' ? 0 : 16,
           alignSelf: block ? 'stretch' : 'flex-start',

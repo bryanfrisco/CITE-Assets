@@ -198,7 +198,8 @@ async function run() {
     check('an asset saves against the brand-new category', !saved.error, saved.error?.message);
     check(
       'the generated asset code uses the new category code',
-      saved.data?.assetCode?.startsWith(code),
+      // Migration 0034: SPR + category code + YY - LOCATION - NNNN.
+      saved.data?.assetCode?.startsWith(`SPR${code}`),
       saved.data?.assetCode,
     );
 
@@ -239,7 +240,7 @@ async function run() {
   // -------------------------------------------------------------------------
   console.log('\nCleanup');
   {
-    const { error: assetErr } = await admin.from('assets').delete().like('asset_code', 'TB%');
+    const { error: assetErr } = await admin.from('assets').delete().like('asset_code', 'SPRTB%');
     check('created assets removed', !assetErr, assetErr?.message);
 
     const cats = await admin.rpc('master_list', { p_entity: 'category' });

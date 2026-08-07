@@ -19,7 +19,7 @@ import React, { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, Plus, X } from 'lucide-react-native';
+import { ChevronLeft, Plus, RotateCcw, X } from 'lucide-react-native';
 
 import { useTheme } from '@/theme';
 import {
@@ -37,6 +37,7 @@ import {
   createAsset,
   fetchAssetDetail,
   fetchAssetFormOptions,
+  previewAssetCode,
   updateAsset,
   type Option,
 } from '@/api/assets';
@@ -107,8 +108,36 @@ export default function AddAssetScreen() {
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
+  const [codeTouched, setCodeTouched] = useState(false);
 
   const canEditCode = can('asset.editCode');
+
+  /**
+   * The code the register would give this asset, refreshed as the three fields
+   * that decide it change. Disabled while editing — an existing asset already
+   * has its code and must not be renamed by opening the form.
+   */
+  const codePreview = useQuery({
+    queryKey: [
+      'assetCodePreview',
+      values.category?.id ?? null,
+      values.location?.id ?? null,
+      purchaseDate || null,
+    ],
+    queryFn: () =>
+      previewAssetCode(
+        values.category?.id ?? null,
+        values.location?.id ?? null,
+        purchaseDate || null,
+      ),
+    enabled: !isEdit && Boolean(values.category && values.location),
+  });
+
+  // Follows the pickers until somebody types over it. Adjusted during render,
+  // the same pattern the prefill below uses.
+  if (!isEdit && !codeTouched && codePreview.data && assetCode !== codePreview.data) {
+    setAssetCode(codePreview.data);
+  }
 
   // Prefill once the asset and the pickers have both arrived, keyed on the
   // loaded asset id so a later refetch never stamps over the user's edits.
@@ -315,30 +344,12 @@ export default function AddAssetScreen() {
         </Card>
       ) : null}
 
+      {/* ORDER MATTERS HERE.
+          `SPRLAP24-HO-0064` is built from the category, the purchase year and
+          the location, so those three come FIRST and the code fills itself in
+          underneath them. Asking for the code above the fields that decide it
+          is what made it a thing to be typed rather than a thing to be read. */}
       <Section label="Identity">
-        <Input
-          label="Asset code"
-          value={assetCode}
-          onChangeText={setAssetCode}
-          placeholder={canEditCode ? 'Leave blank to generate' : 'Generated on save'}
-          editable={canEditCode}
-          autoCapitalize="characters"
-          helper={
-            canEditCode
-              ? 'Only a Super Admin may set this manually.'
-              : 'Generated from the category and purchase year.'
-          }
-          containerStyle={styles.field}
-        />
-        <Input
-          label="Asset name"
-          required
-          value={name}
-          onChangeText={setName}
-          error={errors.name}
-          placeholder="e.g. Lenovo ThinkPad T14 Gen 4"
-          containerStyle={styles.field}
-        />
         <SelectField
           label="Category"
           required
@@ -346,6 +357,74 @@ export default function AddAssetScreen() {
           placeholder="Select a category"
           error={errors.category}
           onPress={() => setPicker('category')}
+          helper="Decides the LAP / MON part of the code"
+          containerStyle={styles.field}
+        />
+        <SelectField
+          label="Current location"
+          required
+          value={values.location?.name}
+          placeholder="Select a location"
+          error={errors.location}
+          onPress={() => setPicker('location')}
+          helper="Decides the HO / SITE part"
+          containerStyle={styles.field}
+        />
+        <DateField
+          label="Purchase date"
+          value={purchaseDate || null}
+          onChange={(value) => setPurchaseDate(value ?? '')}
+          error={errors.purchaseDate}
+          maximum={todayIso()}
+          helper="Its year is the 24 in the code. Left empty, this year is used."
+          containerStyle={styles.field}
+        />
+
+        <Input
+          label="Asset code"
+          value={assetCode}
+          onChangeText={(value) => {
+            setAssetCode(value);
+            // Once it has been typed into, it stops following the pickers —
+            // otherwise choosing a category would silently discard the edit.
+            setCodeTouched(true);
+          }}
+          placeholder={
+            codePreview.data ??
+            (canEditCode ? 'Choose a category and location' : 'Generated on save')
+          }
+          editable={canEditCode}
+          autoCapitalize="characters"
+          accessory={
+            canEditCode && codeTouched && codePreview.data ? (
+              <Pressable
+                onPress={() => {
+                  setAssetCode(codePreview.data ?? '');
+                  setCodeTouched(false);
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Reset the asset code"
+                hitSlop={10}
+              >
+                <RotateCcw size={15} color={t.color.royal} strokeWidth={1.9} />
+              </Pressable>
+            ) : null
+          }
+          helper={
+            canEditCode
+              ? 'Filled in from the three fields above. A Super Admin may overwrite it.'
+              : 'Built from the category, the purchase year and the location.'
+          }
+          containerStyle={styles.field}
+        />
+
+        <Input
+          label="Asset name"
+          required
+          value={name}
+          onChangeText={setName}
+          error={errors.name}
+          placeholder="e.g. Lenovo ThinkPad T14 Gen 4"
           containerStyle={styles.field}
         />
         <SelectField
@@ -387,14 +466,6 @@ export default function AddAssetScreen() {
           onPress={() => setPicker('vendor')}
           containerStyle={styles.field}
         />
-        <DateField
-          label="Purchase date"
-          value={purchaseDate || null}
-          onChange={(value) => setPurchaseDate(value ?? '')}
-          error={errors.purchaseDate}
-          maximum={todayIso()}
-          containerStyle={styles.field}
-        />
         <Input
           label="Purchase price (IDR)"
           value={purchasePrice}
@@ -427,15 +498,6 @@ export default function AddAssetScreen() {
           value={values.department?.name}
           placeholder="Select a department"
           onPress={() => setPicker('department')}
-          containerStyle={styles.field}
-        />
-        <SelectField
-          label="Current location"
-          required
-          value={values.location?.name}
-          placeholder="Select a location"
-          error={errors.location}
-          onPress={() => setPicker('location')}
           containerStyle={styles.field}
         />
         <SelectField
