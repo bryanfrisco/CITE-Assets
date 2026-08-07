@@ -153,6 +153,7 @@ export async function tagAsset(
     p_specifications: input.specifications ?? [],
     p_notes: input.notes ?? null,
     p_asset_code: input.assetCode ?? null,
+    p_code_seq: input.codeSeq ?? null,
   });
   if (error) throw new Error(error.message);
   return data as { id: string; assetCode: string; name: string; tagCode: string };

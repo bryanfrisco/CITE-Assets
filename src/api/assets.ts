@@ -254,7 +254,10 @@ export interface CreateAssetInput {
   specifications?: { key: string; value: string }[];
   notes?: string | null;
   /** Super Admin only; omitted means next_asset_code() generates it. */
+  /** The WHOLE code, verbatim. Super Admin only — for legacy imports. */
   assetCode?: string | null;
+  /** Just the number at the end. The prefix is never the caller's to choose. */
+  codeSeq?: string | null;
 }
 
 export async function createAsset(
@@ -278,6 +281,7 @@ export async function createAsset(
     p_specifications: input.specifications ?? [],
     p_notes: input.notes ?? null,
     p_asset_code: input.assetCode ?? null,
+    p_code_seq: input.codeSeq ?? null,
   });
   if (error) throw new Error(error.message);
   return data as { id: string; assetCode: string; name: string };
@@ -392,6 +396,28 @@ export async function previewAssetCode(
 ): Promise<string | null> {
   if (!categoryId || !locationId) return null;
   const { data, error } = await supabase.rpc('preview_asset_code', {
+    p_category: categoryId,
+    p_location: locationId,
+    p_purchase: purchaseDate || null,
+  });
+  if (error) throw new Error(error.message);
+  return (data ?? null) as string | null;
+}
+
+/**
+ * The fixed part of the code — `SPRLAP26-HO-`.
+ *
+ * Company, category, year and location, in that order. The form shows it as
+ * text rather than an input because none of those four are the typist's to
+ * decide; changing any of them means changing the field that produced it.
+ */
+export async function fetchAssetCodePrefix(
+  categoryId: string | null,
+  locationId: string | null,
+  purchaseDate: string | null,
+): Promise<string | null> {
+  if (!categoryId || !locationId) return null;
+  const { data, error } = await supabase.rpc('asset_code_prefix', {
     p_category: categoryId,
     p_location: locationId,
     p_purchase: purchaseDate || null,

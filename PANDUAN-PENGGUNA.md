@@ -136,19 +136,39 @@ SPRLAP24-HO-0064
  +---------------- perusahaan (SPR, disiapkan untuk multi-company nanti)
 ```
 
-Di form **Register Asset**, urutan isiannya sudah diatur mengikuti itu:
-**Category → Current location → Purchase date**, lalu **Asset code terisi
-sendiri**. Ubah salah satu dari ketiganya, kodenya ikut berubah.
+Di form **Register Asset** kolomnya dibelah dua:
 
-Super Admin tetap boleh menimpanya dengan kode sendiri. Begitu diketik, kodenya
-berhenti mengikuti pilihan di atas — kalau tidak, mengganti kategori akan
-menghapus ketikan Anda diam-diam. Ada tombol putar di kanan kolomnya untuk
-kembali ke kode otomatis.
+```
+Asset code
+┌──────────────┐ ┌──────┐
+│ SPRLAP26-HO- │ │ 0064 │
+└──────────────┘ └──────┘
+   dari sistem     Anda
+```
 
-**Nomor urutnya dibaca dari kode yang sudah ada**, bukan dari penghitung
+Bagian kiri **tidak bisa diketik**. Isinya dibaca dari **Category → Current
+location → Purchase date** — tiga kolom yang sekarang berada tepat di atasnya.
+Ubah salah satunya, bagian kiri ikut berubah.
+
+Bagian kanan **nomornya, itu Anda yang isi**. Aplikasi mengisikan usulan
+nomor berikutnya; timpa saja kalau mau angka lain. Ada tombol putar untuk
+kembali ke usulan semula. Hanya angka — huruf ditolak.
+
+Kenapa dibelah begitu: kalau satu kolom bisa diketik seluruhnya, siapa pun bisa
+menulis `HACK001-24-001`, dan kodenya berhenti bisa dibaca. Nilai terbesar kode
+ini adalah `SPRLAP24-HO-` selalu benar — kategori, tahun, dan lokasinya bisa
+dibaca dari kode mana pun tanpa perlu percaya siapa yang mengetiknya.
+
+Kalau nomornya sudah dipakai, aplikasi menolak dan **menyebutkan kode yang
+bentrok**, jadi tinggal ganti angkanya. `64` dan `0064` dianggap sama.
+
+**Usulan nomornya dibaca dari kode yang sudah ada**, bukan dari penghitung
 terpisah. Jadi kalau data lama Anda diimpor dan sudah sampai `SPRLAP24-HO-0064`,
-aset berikutnya otomatis `0065` tanpa ada yang perlu disetel. Register-nya
+usulan berikutnya otomatis `0065` tanpa ada yang perlu disetel. Register-nya
 menyesuaikan diri dari isinya sendiri.
+
+Tiap prefiks punya urutan sendiri: laptop HO 2024 tidak berbagi nomor dengan
+monitor HO 2024 maupun laptop HO 2026.
 
 ---
 

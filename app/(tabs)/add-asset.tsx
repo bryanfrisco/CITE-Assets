@@ -35,6 +35,7 @@ import {
 } from '@/components/ui';
 import {
   createAsset,
+  fetchAssetCodePrefix,
   fetchAssetDetail,
   fetchAssetFormOptions,
   previewAssetCode,
@@ -108,6 +109,7 @@ export default function AddAssetScreen() {
 
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formError, setFormError] = useState<string | null>(null);
+  const [codeSeq, setCodeSeq] = useState('');
   const [codeTouched, setCodeTouched] = useState(false);
 
   const canEditCode = can('asset.editCode');
@@ -117,26 +119,31 @@ export default function AddAssetScreen() {
    * that decide it change. Disabled while editing — an existing asset already
    * has its code and must not be renamed by opening the form.
    */
-  const codePreview = useQuery({
-    queryKey: [
-      'assetCodePreview',
-      values.category?.id ?? null,
-      values.location?.id ?? null,
-      purchaseDate || null,
-    ],
-    queryFn: () =>
-      previewAssetCode(
-        values.category?.id ?? null,
-        values.location?.id ?? null,
-        purchaseDate || null,
-      ),
-    enabled: !isEdit && Boolean(values.category && values.location),
+  const categoryId = values.category?.id ?? null;
+  const locationId = values.location?.id ?? null;
+  const boughtOn = purchaseDate || null;
+
+  /** `SPRLAP26-HO-` — the part nobody types. */
+  const codePrefix = useQuery({
+    queryKey: ['assetCodePrefix', categoryId, locationId, boughtOn],
+    queryFn: () => fetchAssetCodePrefix(categoryId, locationId, boughtOn),
+    enabled: !isEdit && Boolean(categoryId && locationId),
   });
+
+  /** The number the register would pick, offered as a starting point. */
+  const codePreview = useQuery({
+    queryKey: ['assetCodePreview', categoryId, locationId, boughtOn],
+    queryFn: () => previewAssetCode(categoryId, locationId, boughtOn),
+    enabled: !isEdit && Boolean(categoryId && locationId),
+  });
+
+  const suggestedSeq =
+    codePreview.data && codePrefix.data ? codePreview.data.slice(codePrefix.data.length) : '';
 
   // Follows the pickers until somebody types over it. Adjusted during render,
   // the same pattern the prefill below uses.
-  if (!isEdit && !codeTouched && codePreview.data && assetCode !== codePreview.data) {
-    setAssetCode(codePreview.data);
+  if (!isEdit && !codeTouched && suggestedSeq && codeSeq !== suggestedSeq) {
+    setCodeSeq(suggestedSeq);
   }
 
   // Prefill once the asset and the pickers have both arrived, keyed on the
@@ -233,7 +240,10 @@ export default function AddAssetScreen() {
         warrantyEnd: warrantyEnd || null,
         specifications: specs.filter((s) => s.key.trim() && s.value.trim()),
         notes: notes || null,
-        assetCode: canEditCode && assetCode.trim() ? assetCode.trim() : null,
+        // Create sends only the NUMBER; the prefix is the register's. Edit
+        // still sends the whole code, because an existing asset has one.
+        assetCode: isEdit && canEditCode && assetCode.trim() ? assetCode.trim() : null,
+        codeSeq: isEdit ? null : codeSeq.trim() || null,
       };
       if (isEdit && existing.data) return updateAsset(existing.data.asset.id, input);
       if (isTagging) return tagAsset(tag!, input);
@@ -380,43 +390,90 @@ export default function AddAssetScreen() {
           containerStyle={styles.field}
         />
 
-        <Input
-          label="Asset code"
-          value={assetCode}
-          onChangeText={(value) => {
-            setAssetCode(value);
-            // Once it has been typed into, it stops following the pickers —
-            // otherwise choosing a category would silently discard the edit.
-            setCodeTouched(true);
-          }}
-          placeholder={
-            codePreview.data ??
-            (canEditCode ? 'Choose a category and location' : 'Generated on save')
-          }
-          editable={canEditCode}
-          autoCapitalize="characters"
-          accessory={
-            canEditCode && codeTouched && codePreview.data ? (
-              <Pressable
-                onPress={() => {
-                  setAssetCode(codePreview.data ?? '');
-                  setCodeTouched(false);
-                }}
-                accessibilityRole="button"
-                accessibilityLabel="Reset the asset code"
-                hitSlop={10}
+        {/* Two halves, on purpose.
+            `SPRLAP26-HO-` is read off the company, the category, the year and
+            the location — none of them the typist's to decide, so it is text
+            and not an input. The number IS theirs. Splitting it is what keeps
+            the prefix true: a whole-code field would let anyone write
+            HACK001-24-001, and the code would stop being something you can
+            read the category and the location off without trusting whoever
+            typed it. */}
+        {isEdit ? (
+          <Input
+            label="Asset code"
+            value={assetCode}
+            onChangeText={setAssetCode}
+            editable={canEditCode}
+            autoCapitalize="characters"
+            helper={
+              canEditCode
+                ? 'Renaming an asset breaks every sticker already on it.'
+                : 'Set when the asset was registered.'
+            }
+            containerStyle={styles.field}
+          />
+        ) : (
+          <View style={styles.field}>
+            <Text style={[t.type.fieldLabel, styles.codeLabel, { color: t.color.sub }]}>
+              Asset code
+            </Text>
+            <View style={styles.codeRow}>
+              <View
+                style={[
+                  styles.codePrefix,
+                  {
+                    backgroundColor: t.color.soft,
+                    borderColor: t.color.line,
+                    borderRadius: t.radii.input,
+                  },
+                ]}
               >
-                <RotateCcw size={15} color={t.color.royal} strokeWidth={1.9} />
-              </Pressable>
-            ) : null
-          }
-          helper={
-            canEditCode
-              ? 'Filled in from the three fields above. A Super Admin may overwrite it.'
-              : 'Built from the category, the purchase year and the location.'
-          }
-          containerStyle={styles.field}
-        />
+                <Text
+                  numberOfLines={1}
+                  style={[
+                    t.type.assetCode,
+                    { color: codePrefix.data ? t.color.royal : t.color.sub },
+                  ]}
+                >
+                  {codePrefix.data ?? 'SPR...-..-'}
+                </Text>
+              </View>
+              <Input
+                value={codeSeq}
+                onChangeText={(value) => {
+                  // Digits only: everything else in the code is derived, and a
+                  // number that can carry letters is a second place to hide a
+                  // claim.
+                  setCodeSeq(value.replace(/[^0-9]/g, '').slice(0, 8));
+                  setCodeTouched(true);
+                }}
+                placeholder={suggestedSeq || '0001'}
+                keyboardType="number-pad"
+                accessory={
+                  codeTouched && suggestedSeq ? (
+                    <Pressable
+                      onPress={() => {
+                        setCodeSeq(suggestedSeq);
+                        setCodeTouched(false);
+                      }}
+                      accessibilityRole="button"
+                      accessibilityLabel="Back to the suggested number"
+                      hitSlop={10}
+                    >
+                      <RotateCcw size={15} color={t.color.royal} strokeWidth={1.9} />
+                    </Pressable>
+                  ) : null
+                }
+                containerStyle={styles.codeSeq}
+              />
+            </View>
+            <Text style={[t.type.meta, styles.codeHelp, { color: t.color.sub }]}>
+              {codePrefix.data
+                ? 'The number is yours. Leave it as suggested, or type another.'
+                : 'Choose a category and a location, and the code appears.'}
+            </Text>
+          </View>
+        )}
 
         <Input
           label="Asset name"
@@ -646,6 +703,17 @@ const styles = StyleSheet.create({
   specRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 },
   specKey: { flex: 1, minWidth: 0 },
   specValue: { flex: 1.4, minWidth: 0 },
+  codeLabel: { marginBottom: 6, marginLeft: 2 },
+  codeRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
+  codePrefix: {
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    flexShrink: 1,
+  },
+  codeSeq: { width: 96 },
+  codeHelp: { marginTop: 6, marginLeft: 2, lineHeight: 15 },
   specRemove: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
   addSpec: {
     flexDirection: 'row',
