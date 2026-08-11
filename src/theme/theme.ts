@@ -18,6 +18,7 @@ import {
   gradients,
   palette,
   paperColors,
+  viewerColors,
   timelineColors,
   uploadColors,
   type BadgeTone,
@@ -82,6 +83,8 @@ export interface Theme {
   documentChip: typeof documentChipColors;
   /** The BAST paper preview — fixed in both modes; it is a printed document. */
   paper: typeof paperColors;
+  /** The full-screen photo viewer — also fixed in both modes. */
+  viewer: typeof viewerColors;
   upload: typeof uploadColors;
 
   /** Shadows already bound to the current mode. */
@@ -158,6 +161,7 @@ function buildTheme(mode: ThemeMode): Theme {
     timeline: timelineColors,
     documentChip: documentChipColors,
     paper: paperColors,
+    viewer: viewerColors,
     upload: uploadColors,
 
     shadow: {

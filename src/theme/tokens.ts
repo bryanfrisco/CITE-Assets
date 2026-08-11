@@ -193,6 +193,21 @@ export const paperColors = {
   signatureLine: '#C7CEDB',
 } as const;
 
+/**
+ * The full-screen photo viewer.
+ *
+ * Fixed in both modes on purpose: everything around a photograph changes how
+ * it reads, and a viewer that goes pale in light mode is a viewer that lies
+ * about the picture.
+ */
+export const viewerColors = {
+  sheet: '#000000',
+  ink: '#FFFFFF',
+  caption: 'rgba(255,255,255,0.72)',
+  chip: 'rgba(255,255,255,0.14)',
+  dotIdle: 'rgba(255,255,255,0.38)',
+} as const;
+
 /** README § Signed BAST card — the success row after an upload completes. */
 export const uploadColors = {
   successWash: 'rgba(18,164,93,0.09)',

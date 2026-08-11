@@ -425,3 +425,66 @@ export async function fetchAssetCodePrefix(
   if (error) throw new Error(error.message);
   return (data ?? null) as string | null;
 }
+
+// ---------------------------------------------------------------------------
+// Photos — a gallery, not a single picture (migration 0036)
+// ---------------------------------------------------------------------------
+
+export interface AssetPhoto {
+  id: string;
+  file_path: string;
+  /** 1..n, gap-free. Named for the column — `position` is reserved in Postgres. */
+  sort_order: number;
+  caption: string | null;
+  created_at: string;
+}
+
+export async function fetchAssetPhotos(assetId: string): Promise<AssetPhoto[]> {
+  const { data, error } = await supabase.rpc('asset_photos_list', { p_asset: assetId });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as AssetPhoto[];
+}
+
+/**
+ * Uploads the bytes, then records the row.
+ *
+ * That order is deliberate and it is the same order the label batch uses: the
+ * thing that can fail expensively goes first. A row pointing at bytes that
+ * never arrived renders as a broken frame forever; bytes with no row are
+ * invisible and cost a few kilobytes.
+ */
+export async function addAssetPhoto(
+  assetId: string,
+  file: ArrayBuffer,
+  contentType: string,
+): Promise<{ filePath: string }> {
+  const extension = contentType.split('/')[1]?.replace('jpeg', 'jpg') ?? 'jpg';
+  const path = `${assetId}/${Date.now()}.${extension}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from('asset-photos')
+    .upload(path, file, { contentType, upsert: false });
+  if (uploadError) throw new Error(uploadError.message);
+
+  const { error } = await supabase.rpc('add_asset_photo', { p_asset: assetId, p_path: path });
+  if (error) throw new Error(error.message);
+  return { filePath: path };
+}
+
+/**
+ * Removes the row, then the file.
+ *
+ * Row first: if the object delete fails the gallery is already correct and the
+ * leftover bytes are invisible. The other way round leaves a row pointing at
+ * nothing, which every screen would render as a broken image.
+ */
+export async function removeAssetPhoto(photoId: string): Promise<{ remaining: number }> {
+  const { data, error } = await supabase.rpc('remove_asset_photo', { p_id: photoId });
+  if (error) throw new Error(error.message);
+
+  const result = data as { filePath: string; remaining: number };
+  // Best effort: the row is already gone, so a storage hiccup must not surface
+  // as "removing the photo failed" when it plainly did not.
+  await supabase.storage.from('asset-photos').remove([result.filePath]);
+  return { remaining: result.remaining };
+}

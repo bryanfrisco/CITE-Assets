@@ -12,7 +12,18 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { Animated, Image, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  Animated,
+  Image,
+  Linking,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -26,6 +37,8 @@ import {
   FileText,
   Image as ImageIcon,
   MoreHorizontal,
+  Trash2,
+  X,
   Upload,
   Wrench,
 } from 'lucide-react-native';
@@ -48,11 +61,14 @@ import {
 import { Avatar } from '@/components/chrome';
 import { CategoryIcon } from '@/components/CategoryIcon';
 import {
+  addAssetPhoto,
   deleteAsset,
   fetchAssetDetail,
+  fetchAssetPhotos,
+  removeAssetPhoto,
   signedPhotoUrl,
-  uploadAssetPhoto,
   type AssetDetail,
+  type AssetPhoto,
   type TimelineKind,
 } from '@/api/assets';
 import { attachTag, fetchAssetTagCode } from '@/api/tags';
@@ -463,33 +479,67 @@ function BackLink({ onPress }: { onPress: () => void }) {
 /**
  * Hero — README § Asset Detail: "150px navy gradient with a radial gold glow
  * and a dashed asset-photo placeholder → replace with real photo + upload."
+ *
+ * An asset has PHOTOS now (migration 0036), so the band is a carousel. A
+ * laptop needs the lid, the label, the broken port and the dent it arrived
+ * with, and the fourth is the one somebody wants six months later when the
+ * vendor argues about who broke it.
+ *
+ * The bucket is private, so every frame renders through a short-lived signed
+ * URL. They are minted together and kept in one map keyed by path — one state
+ * write for the whole gallery rather than one per frame, so swiping never
+ * lands on a blank while a URL is still in flight.
  */
 function Hero({ detail, onPhotoChanged }: { detail: AssetDetail; onPhotoChanged: () => void }) {
   const t = useTheme();
   const toast = useToast();
+  const queryClient = useQueryClient();
   const { can } = usePermissions();
-  const [url, setUrl] = useState<string | null>(null);
+  const { width: screenW } = useWindowDimensions();
+
+  const [urls, setUrls] = useState<Record<string, string>>({});
   const [photoSheet, setPhotoSheet] = useState(false);
+  const [viewerAt, setViewerAt] = useState<number | null>(null);
+  const [page, setPage] = useState(0);
   // Which button should show the spinner. Both call the same mutation, so the
   // mutation alone cannot say which one the person pressed.
   const [photoSource, setPhotoSource] = useState<'camera' | 'library'>('camera');
   const a = detail.asset;
 
-  // The bucket is private, so the image renders through a short-lived signed
-  // URL. setUrl only ever fires from the promise callback; the "no photo yet"
-  // case is derived below instead of being written back into state.
+  const photos = useQuery({
+    queryKey: ['assetPhotos', a.id],
+    queryFn: () => fetchAssetPhotos(a.id),
+  });
+
+  const rows = photos.data ?? [];
+  const paths = rows.map((r) => r.file_path).join('|');
+
   useEffect(() => {
-    if (!a.photoPath) return;
+    if (!paths) return;
     let cancelled = false;
-    void signedPhotoUrl(a.photoPath).then((signed) => {
-      if (!cancelled) setUrl(signed);
+    const list = paths.split('|');
+    void Promise.all(list.map((path) => signedPhotoUrl(path))).then((signed) => {
+      if (cancelled) return;
+      const next: Record<string, string> = {};
+      list.forEach((path, i) => {
+        const url = signed[i];
+        if (url) next[path] = url;
+      });
+      setUrls(next);
     });
     return () => {
       cancelled = true;
     };
-  }, [a.photoPath]);
+  }, [paths]);
 
-  const photoUrl = a.photoPath ? url : null;
+  // A deleted last photo must not leave the carousel parked past the end.
+  const safePage = Math.min(page, Math.max(0, rows.length - 1));
+  const current = rows[safePage] ?? null;
+
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: ['assetPhotos', a.id] });
+    onPhotoChanged();
+  };
 
   const upload = useMutation({
     mutationFn: async (source: 'camera' | 'library') => {
@@ -516,19 +566,35 @@ function Hero({ detail, onPhotoChanged }: { detail: AssetDetail; onPhotoChanged:
       const picked = result.assets[0];
       const response = await fetch(picked.uri);
       const bytes = await response.arrayBuffer();
-      return uploadAssetPhoto(a.id, bytes, picked.mimeType ?? 'image/jpeg');
+      return addAssetPhoto(a.id, bytes, picked.mimeType ?? 'image/jpeg');
     },
-    onSuccess: (path) => {
+    onSuccess: (added) => {
       setPhotoSheet(false);
-      if (!path) return;
-      toast('Photo updated');
-      onPhotoChanged();
+      if (!added) return;
+      toast('Photo added');
+      refresh();
     },
     onError: (e: Error) => {
       setPhotoSheet(false);
       toast(e.message, 'error');
     },
   });
+
+  const remove = useMutation({
+    mutationFn: (photoId: string) => removeAssetPhoto(photoId),
+    onSuccess: (result) => {
+      setPhotoSheet(false);
+      setPage((current) => Math.max(0, Math.min(current, result.remaining - 1)));
+      toast('Photo removed');
+      refresh();
+    },
+    onError: (e: Error) => {
+      setPhotoSheet(false);
+      toast(e.message, 'error');
+    },
+  });
+
+  const heroWidth = Math.max(1, screenW - 32);
 
   return (
     <Card radius="cardLarge" padding={0} style={styles.hero}>
@@ -539,14 +605,58 @@ function Hero({ detail, onPhotoChanged }: { detail: AssetDetail; onPhotoChanged:
         end={t.gradients.navy.end}
         style={styles.heroGradient}
       >
-        {photoUrl ? (
-          <Image source={{ uri: photoUrl }} style={styles.photo} resizeMode="cover" />
+        {rows.length > 0 ? (
+          <ScrollView
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            onMomentumScrollEnd={(event) => {
+              setPage(Math.round(event.nativeEvent.contentOffset.x / heroWidth));
+            }}
+          >
+            {rows.map((photo) => (
+              <Pressable
+                key={photo.id}
+                onPress={() => setViewerAt(rows.indexOf(photo))}
+                accessibilityRole="imagebutton"
+                accessibilityLabel={`Open photo ${photo.sort_order} of ${a.name}`}
+                style={{ width: heroWidth, height: '100%' }}
+              >
+                {urls[photo.file_path] ? (
+                  <Image
+                    source={{ uri: urls[photo.file_path] }}
+                    style={styles.photo}
+                    resizeMode="cover"
+                  />
+                ) : null}
+              </Pressable>
+            ))}
+          </ScrollView>
         ) : (
           <View style={[styles.placeholder, { borderColor: 'rgba(212,175,55,0.34)' }]}>
             <CategoryIcon name={a.categoryIcon} size={28} color={t.color.gold} />
             <Text style={[t.type.meta, { color: t.color.gold, marginTop: 6 }]}>No photo yet</Text>
           </View>
         )}
+
+        {/* Dots, not a counter: at these sizes a person is checking "is there
+            another one", not counting to seven. */}
+        {rows.length > 1 ? (
+          <View style={styles.heroDots} pointerEvents="none">
+            {rows.map((photo, i) => (
+              <View
+                key={photo.id}
+                style={[
+                  styles.heroDot,
+                  {
+                    backgroundColor: i === safePage ? t.color.gold : t.viewer.dotIdle,
+                    width: i === safePage ? 16 : 6,
+                  },
+                ]}
+              />
+            ))}
+          </View>
+        ) : null}
 
         {/* Tapping used to open the GALLERY, with the camera hidden behind a
             long press — on a button drawn as a camera. Nobody discovers a long
@@ -555,7 +665,7 @@ function Hero({ detail, onPhotoChanged }: { detail: AssetDetail; onPhotoChanged:
           <Pressable
             onPress={() => setPhotoSheet(true)}
             accessibilityRole="button"
-            accessibilityLabel={a.photoPath ? 'Replace asset photo' : 'Add asset photo'}
+            accessibilityLabel="Asset photos"
             hitSlop={8}
             style={[styles.photoButton, { borderRadius: t.radii.iconChip }]}
           >
@@ -567,8 +677,12 @@ function Hero({ detail, onPhotoChanged }: { detail: AssetDetail; onPhotoChanged:
       <BottomSheet
         visible={photoSheet}
         onDismiss={() => setPhotoSheet(false)}
-        title={a.photoPath ? 'Replace the photo' : 'Add a photo'}
-        subtitle={`${a.assetCode} · ${a.name}`}
+        title="Photos"
+        subtitle={
+          rows.length > 0
+            ? `${rows.length} of 10 · showing ${safePage + 1}`
+            : `${a.assetCode} · ${a.name}`
+        }
       >
         <View style={styles.photoChoices}>
           <Button
@@ -592,9 +706,122 @@ function Hero({ detail, onPhotoChanged }: { detail: AssetDetail; onPhotoChanged:
               upload.mutate('library');
             }}
           />
+          {current ? (
+            <Button
+              label={`Remove photo ${safePage + 1}`}
+              variant="destructive"
+              block
+              loading={remove.isPending}
+              icon={<Trash2 size={15} color={t.color.error} strokeWidth={1.8} />}
+              onPress={() => remove.mutate(current.id)}
+            />
+          ) : null}
         </View>
       </BottomSheet>
+
+      <PhotoViewer
+        photos={rows}
+        urls={urls}
+        startAt={viewerAt}
+        caption={`${a.assetCode} · ${a.name}`}
+        onDismiss={() => setViewerAt(null)}
+      />
     </Card>
+  );
+}
+
+/**
+ * The photos, uncropped, on a black sheet.
+ *
+ * `contain` rather than `cover`: the hero band crops to fill, which is the
+ * right choice there and the wrong one the moment somebody taps to actually
+ * look — a serial number near the edge of the frame is exactly what gets
+ * cropped away, and exactly what they opened it to read.
+ *
+ * Black in both themes, because everything around a photograph changes how it
+ * reads.
+ */
+function PhotoViewer({
+  photos,
+  urls,
+  startAt,
+  caption,
+  onDismiss,
+}: {
+  photos: AssetPhoto[];
+  urls: Record<string, string>;
+  startAt: number | null;
+  caption: string;
+  onDismiss: () => void;
+}) {
+  const t = useTheme();
+  const { width, height } = useWindowDimensions();
+  const [at, setAt] = useState(0);
+
+  // Opening always starts on the frame that was tapped. Adjusted during render
+  // rather than in an effect, so the first paint is already the right photo.
+  const [openedAt, setOpenedAt] = useState<number | null>(null);
+  if (startAt !== null && openedAt !== startAt) {
+    setOpenedAt(startAt);
+    setAt(startAt);
+  }
+  if (startAt === null && openedAt !== null) setOpenedAt(null);
+
+  const visible = startAt !== null && photos.length > 0;
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      statusBarTranslucent
+      onRequestClose={onDismiss}
+    >
+      <View style={[styles.viewerFill, { backgroundColor: t.viewer.sheet }]}>
+        <ScrollView
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          contentOffset={{ x: (startAt ?? 0) * width, y: 0 }}
+          onMomentumScrollEnd={(event) => {
+            setAt(Math.round(event.nativeEvent.contentOffset.x / width));
+          }}
+        >
+          {photos.map((photo) => (
+            <Pressable
+              key={photo.id}
+              onPress={onDismiss}
+              accessibilityLabel="Close the photo"
+              style={{ width, height }}
+            >
+              {urls[photo.file_path] ? (
+                <Image
+                  source={{ uri: urls[photo.file_path] }}
+                  style={{ width, height }}
+                  resizeMode="contain"
+                />
+              ) : null}
+            </Pressable>
+          ))}
+        </ScrollView>
+
+        <View style={styles.viewerCaption} pointerEvents="none">
+          <Text numberOfLines={1} style={[t.type.metaStrong, { color: t.viewer.caption }]}>
+            {photos.length > 1 ? `${caption} · ${at + 1} of ${photos.length}` : caption}
+          </Text>
+        </View>
+
+        <Pressable
+          onPress={onDismiss}
+          accessibilityRole="button"
+          accessibilityLabel="Close"
+          hitSlop={12}
+          style={[styles.viewerClose, { backgroundColor: t.viewer.chip }]}
+        >
+          <X size={20} color={t.viewer.ink} strokeWidth={2} />
+        </Pressable>
+      </View>
+    </Modal>
   );
 }
 
@@ -1010,6 +1237,28 @@ const styles = StyleSheet.create({
     paddingVertical: 18,
   },
   photoChoices: { gap: 10, paddingBottom: 4 },
+  heroDots: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 10,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 5,
+  },
+  heroDot: { height: 6, borderRadius: 3 },
+  viewerFill: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  viewerCaption: { position: 'absolute', left: 0, right: 0, bottom: 44, alignItems: 'center' },
+  viewerClose: {
+    position: 'absolute',
+    top: 48,
+    right: 18,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   photoButton: {
     position: 'absolute',
     right: 12,
