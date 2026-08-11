@@ -48,6 +48,13 @@
           "cameraPermission": "CITE Assets uses the camera to scan asset labels."
         }
       ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "CITE Assets uses the camera to photograph an asset.",
+          "photosPermission": "CITE Assets reads your photos so an existing picture can be attached to an asset."
+        }
+      ],
       "expo-sharing",
       "@react-native-community/datetimepicker"
     ],

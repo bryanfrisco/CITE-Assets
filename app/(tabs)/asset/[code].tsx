@@ -19,12 +19,13 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import {
+  Barcode,
   Camera,
   ChevronLeft,
   Download,
   FileText,
+  Image as ImageIcon,
   MoreHorizontal,
-  Barcode,
   Upload,
   Wrench,
 } from 'lucide-react-native';
@@ -468,6 +469,10 @@ function Hero({ detail, onPhotoChanged }: { detail: AssetDetail; onPhotoChanged:
   const toast = useToast();
   const { can } = usePermissions();
   const [url, setUrl] = useState<string | null>(null);
+  const [photoSheet, setPhotoSheet] = useState(false);
+  // Which button should show the spinner. Both call the same mutation, so the
+  // mutation alone cannot say which one the person pressed.
+  const [photoSource, setPhotoSource] = useState<'camera' | 'library'>('camera');
   const a = detail.asset;
 
   // The bucket is private, so the image renders through a short-lived signed
@@ -488,16 +493,24 @@ function Hero({ detail, onPhotoChanged }: { detail: AssetDetail; onPhotoChanged:
 
   const upload = useMutation({
     mutationFn: async (source: 'camera' | 'library') => {
-      const picker =
-        source === 'camera' ? ImagePicker.launchCameraAsync : ImagePicker.launchImageLibraryAsync;
-
       const permission =
         source === 'camera'
           ? await ImagePicker.requestCameraPermissionsAsync()
           : await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permission.granted) throw new Error('Permission denied');
+      if (!permission.granted) {
+        // Naming what was refused, because "Permission denied" on a phone with
+        // two separate permissions tells nobody which one to go and turn on.
+        throw new Error(
+          source === 'camera'
+            ? 'Camera access is off for CITE Assets. Turn it on in the phone settings.'
+            : 'Photo access is off for CITE Assets. Turn it on in the phone settings.',
+        );
+      }
 
-      const result = await picker({ quality: 0.7, mediaTypes: ['images'] });
+      const result =
+        source === 'camera'
+          ? await ImagePicker.launchCameraAsync({ quality: 0.7, mediaTypes: ['images'] })
+          : await ImagePicker.launchImageLibraryAsync({ quality: 0.7, mediaTypes: ['images'] });
       if (result.canceled || !result.assets[0]) return null;
 
       const picked = result.assets[0];
@@ -506,11 +519,15 @@ function Hero({ detail, onPhotoChanged }: { detail: AssetDetail; onPhotoChanged:
       return uploadAssetPhoto(a.id, bytes, picked.mimeType ?? 'image/jpeg');
     },
     onSuccess: (path) => {
+      setPhotoSheet(false);
       if (!path) return;
       toast('Photo updated');
       onPhotoChanged();
     },
-    onError: (e: Error) => toast(e.message, 'error'),
+    onError: (e: Error) => {
+      setPhotoSheet(false);
+      toast(e.message, 'error');
+    },
   });
 
   return (
@@ -531,12 +548,14 @@ function Hero({ detail, onPhotoChanged }: { detail: AssetDetail; onPhotoChanged:
           </View>
         )}
 
+        {/* Tapping used to open the GALLERY, with the camera hidden behind a
+            long press — on a button drawn as a camera. Nobody discovers a long
+            press, and the icon was promising the one thing it did not do. */}
         {can('asset.edit') ? (
           <Pressable
-            onPress={() => upload.mutate('library')}
-            onLongPress={() => upload.mutate('camera')}
+            onPress={() => setPhotoSheet(true)}
             accessibilityRole="button"
-            accessibilityLabel="Upload asset photo"
+            accessibilityLabel={a.photoPath ? 'Replace asset photo' : 'Add asset photo'}
             hitSlop={8}
             style={[styles.photoButton, { borderRadius: t.radii.iconChip }]}
           >
@@ -544,6 +563,37 @@ function Hero({ detail, onPhotoChanged }: { detail: AssetDetail; onPhotoChanged:
           </Pressable>
         ) : null}
       </LinearGradient>
+
+      <BottomSheet
+        visible={photoSheet}
+        onDismiss={() => setPhotoSheet(false)}
+        title={a.photoPath ? 'Replace the photo' : 'Add a photo'}
+        subtitle={`${a.assetCode} · ${a.name}`}
+      >
+        <View style={styles.photoChoices}>
+          <Button
+            label="Take a photo"
+            block
+            loading={upload.isPending && photoSource === 'camera'}
+            icon={<Camera size={15} color={t.color.onNavy} strokeWidth={1.8} />}
+            onPress={() => {
+              setPhotoSource('camera');
+              upload.mutate('camera');
+            }}
+          />
+          <Button
+            label="Choose from gallery"
+            variant="secondary"
+            block
+            loading={upload.isPending && photoSource === 'library'}
+            icon={<ImageIcon size={15} color={t.color.text} strokeWidth={1.8} />}
+            onPress={() => {
+              setPhotoSource('library');
+              upload.mutate('library');
+            }}
+          />
+        </View>
+      </BottomSheet>
     </Card>
   );
 }
@@ -959,6 +1009,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 26,
     paddingVertical: 18,
   },
+  photoChoices: { gap: 10, paddingBottom: 4 },
   photoButton: {
     position: 'absolute',
     right: 12,
