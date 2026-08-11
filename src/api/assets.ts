@@ -430,6 +430,14 @@ export async function fetchAssetCodePrefix(
 // Photos — a gallery, not a single picture (migration 0036)
 // ---------------------------------------------------------------------------
 
+/**
+ * Client instruction, 2026-08-11: "maksimal 5 foto".
+ *
+ * Enforced in add_asset_photo() as well — this is only so the buttons can go
+ * flat before somebody opens the camera to be told no.
+ */
+export const MAX_ASSET_PHOTOS = 5;
+
 export interface AssetPhoto {
   id: string;
   file_path: string;

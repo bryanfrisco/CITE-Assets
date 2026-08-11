@@ -61,6 +61,7 @@ import {
 import { Avatar } from '@/components/chrome';
 import { CategoryIcon } from '@/components/CategoryIcon';
 import {
+  MAX_ASSET_PHOTOS,
   addAssetPhoto,
   deleteAsset,
   fetchAssetDetail,
@@ -595,6 +596,9 @@ function Hero({ detail, onPhotoChanged }: { detail: AssetDetail; onPhotoChanged:
   });
 
   const heroWidth = Math.max(1, screenW - 32);
+  // The RPC refuses the sixth anyway; disabling the buttons means nobody has to
+  // open the camera to be told no.
+  const full = rows.length >= MAX_ASSET_PHOTOS;
 
   return (
     <Card radius="cardLarge" padding={0} style={styles.hero}>
@@ -680,14 +684,21 @@ function Hero({ detail, onPhotoChanged }: { detail: AssetDetail; onPhotoChanged:
         title="Photos"
         subtitle={
           rows.length > 0
-            ? `${rows.length} of 10 · showing ${safePage + 1}`
+            ? `${rows.length} of ${MAX_ASSET_PHOTOS} · showing ${safePage + 1}`
             : `${a.assetCode} · ${a.name}`
         }
       >
+        {full ? (
+          <Text style={[t.type.meta, styles.photoFull, { color: t.color.sub }]}>
+            {`Five is the limit. Remove one to make room.`}
+          </Text>
+        ) : null}
+
         <View style={styles.photoChoices}>
           <Button
             label="Take a photo"
             block
+            disabled={full}
             loading={upload.isPending && photoSource === 'camera'}
             icon={<Camera size={15} color={t.color.onNavy} strokeWidth={1.8} />}
             onPress={() => {
@@ -699,6 +710,7 @@ function Hero({ detail, onPhotoChanged }: { detail: AssetDetail; onPhotoChanged:
             label="Choose from gallery"
             variant="secondary"
             block
+            disabled={full}
             loading={upload.isPending && photoSource === 'library'}
             icon={<ImageIcon size={15} color={t.color.text} strokeWidth={1.8} />}
             onPress={() => {
@@ -1237,6 +1249,7 @@ const styles = StyleSheet.create({
     paddingVertical: 18,
   },
   photoChoices: { gap: 10, paddingBottom: 4 },
+  photoFull: { marginBottom: 12, lineHeight: 16 },
   heroDots: {
     position: 'absolute',
     left: 0,

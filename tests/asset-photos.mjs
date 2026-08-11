@@ -166,6 +166,41 @@ async function run() {
     );
   }
 
+  console.log('\nThe ceiling');
+  {
+    const capped = [];
+    for (let i = 1; i <= 5; i += 1) {
+      const added = await admin.rpc('add_asset_photo', {
+        p_asset: assetId,
+        p_path: `${assetId}/${stamp}-cap-${i}.jpg`,
+      });
+      if (added.error) throw new Error(`add_asset_photo: ${added.error.message}`);
+      capped.push(added.data.id);
+    }
+
+    const sixth = await admin.rpc('add_asset_photo', {
+      p_asset: assetId,
+      p_path: `${assetId}/${stamp}-cap-6.jpg`,
+    });
+    check(
+      'the sixth is refused, and the message says how to make room',
+      sixth.error?.message === 'An asset can carry five photos. Remove one first.',
+      sixth.error?.message,
+    );
+
+    await admin.rpc('remove_asset_photo', { p_id: capped[0] });
+    const afterRoom = await admin.rpc('add_asset_photo', {
+      p_asset: assetId,
+      p_path: `${assetId}/${stamp}-cap-6.jpg`,
+    });
+    check('removing one makes room again', !afterRoom.error, afterRoom.error?.message);
+
+    // Back to empty, so the permissions block below counts only its own row.
+    for (const id of [...capped.slice(1), afterRoom.data?.id].filter(Boolean)) {
+      await admin.rpc('remove_asset_photo', { p_id: id });
+    }
+  }
+
   console.log('\nPermissions');
   {
     const seed = await admin.rpc('add_asset_photo', {
