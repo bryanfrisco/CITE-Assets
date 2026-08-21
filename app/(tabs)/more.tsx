@@ -42,6 +42,7 @@ export default function MoreScreen() {
     subtitle: string;
     route:
       | '/master'
+      | '/master-usage'
       | '/labels'
       | '/transfer'
       | '/accounts'

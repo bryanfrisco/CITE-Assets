@@ -48,6 +48,8 @@ import {
   updateAccount,
 } from '@/api/accounts';
 import { fetchAssetFormOptions } from '@/api/assets';
+import { listMaster } from '@/api/masterData';
+import { queryKeys } from '@/lib/queryClient';
 import type { UserRole } from '@/store/useSessionStore';
 import { useToast } from '@/store/useUiStore';
 
@@ -68,6 +70,12 @@ export default function AccountEditScreen() {
 
   const accounts = useQuery({ queryKey: ['accounts', ''], queryFn: () => fetchAccounts() });
   const options = useQuery({ queryKey: ['assetFormOptions'], queryFn: fetchAssetFormOptions });
+  // Companies live in master data rather than the asset form options, because
+  // nothing about an asset needs them.
+  const companiesQuery = useQuery({
+    queryKey: queryKeys.master('company'),
+    queryFn: () => listMaster('company'),
+  });
   // Only for somebody who already exists; a new person holds nothing yet.
   const holdings = useQuery({
     queryKey: ['accountHoldings', id],
@@ -84,12 +92,13 @@ export default function AccountEditScreen() {
     email: string;
     phone: string;
     departmentId: string | null;
+    companyId: string | null;
     locationId: string | null;
     role: UserRole | null;
     isActive: boolean;
   } | null>(null);
 
-  const [picker, setPicker] = useState<'department' | 'location' | 'role' | null>(null);
+  const [picker, setPicker] = useState<'department' | 'company' | 'location' | 'role' | null>(null);
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
@@ -104,6 +113,7 @@ export default function AccountEditScreen() {
       email: existing?.email ?? '',
       phone: existing?.phone ?? '',
       departmentId: existing?.department_id ?? null,
+      companyId: existing?.company_id ?? null,
       locationId: existing?.location_id ?? null,
       role: existing?.role ?? null,
       isActive: existing?.is_active ?? true,
@@ -124,6 +134,7 @@ export default function AccountEditScreen() {
         email: form!.email || null,
         phone: form!.phone || null,
         departmentId: form!.departmentId,
+        companyId: form!.companyId,
         locationId: form!.locationId,
         role: form!.role,
         isActive: form!.isActive,
@@ -188,6 +199,8 @@ export default function AccountEditScreen() {
   };
 
   const departments = options.data?.departments ?? [];
+
+  const companies = (companiesQuery.data ?? []).filter((c) => c.isActive);
   const locations = options.data?.locations ?? [];
 
   const needsLocation = form.role !== null && LOCATION_BOUND.includes(form.role);
@@ -284,6 +297,13 @@ export default function AccountEditScreen() {
             value={departments.find((d) => d.id === form.departmentId)?.name ?? null}
             placeholder="Choose a department"
             onPress={() => setPicker('department')}
+            containerStyle={styles.field}
+          />
+          <SelectField
+            label="Company"
+            value={companies.find((c) => c.id === form.companyId)?.name ?? null}
+            placeholder={companiesQuery.isPending ? 'Loading…' : 'Choose a company'}
+            onPress={() => setPicker('company')}
             containerStyle={styles.field}
           />
           <SelectField
@@ -528,6 +548,18 @@ person and have them change it — there is no email on this project to send it 
         selectedId={form.departmentId}
         onSelect={(o) => set('departmentId', o.id)}
         onDismiss={() => setPicker(null)}
+      />
+
+      <PickerSheet
+        visible={picker === 'company'}
+        title="Company"
+        options={companies.map((c) => ({ id: c.id, name: c.name, detail: c.code }))}
+        selectedId={form.companyId}
+        onSelect={(o) => set('companyId', o.id)}
+        onDismiss={() => setPicker(null)}
+        emptyMessage="Add a company in Master data first."
+        clearLabel="No company"
+        onClear={() => set('companyId', null)}
       />
 
       <PickerSheet

@@ -14,6 +14,9 @@ import { supabase } from '@/lib/supabase';
 import type { UserRole } from '@/store/useSessionStore';
 
 export interface AccountRow {
+  /** The legal entity they belong to. Null until somebody sets it. */
+  company_id?: string | null;
+  company_name?: string | null;
   id: string;
   full_name: string;
   nik: string | null;
@@ -61,6 +64,8 @@ export interface AccountInput {
   phone?: string | null;
   jobTitle?: string | null;
   departmentId?: string | null;
+  /** The legal entity. On update, null means leave it as it is. */
+  companyId?: string | null;
   locationId?: string | null;
   role?: UserRole | null;
   canLogin?: boolean;
@@ -74,6 +79,7 @@ export async function createAccount(input: AccountInput): Promise<{ id: string }
     p_email: input.email ?? null,
     p_phone: input.phone ?? null,
     p_department: input.departmentId ?? null,
+    p_company: input.companyId ?? null,
     p_location: input.locationId ?? null,
     p_role: input.role ?? null,
     // A brand new account never has credentials, so it is never created able to
@@ -93,6 +99,7 @@ export async function updateAccount(id: string, input: AccountInput): Promise<{ 
     p_email: input.email ?? null,
     p_phone: input.phone ?? null,
     p_department: input.departmentId ?? null,
+    p_company: input.companyId ?? null,
     p_location: input.locationId ?? null,
     p_role: input.role ?? null,
     p_can_login: null,

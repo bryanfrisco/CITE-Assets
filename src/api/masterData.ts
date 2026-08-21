@@ -130,3 +130,59 @@ export async function deleteMaster(entity: MasterEntity, id: string): Promise<vo
   const { error } = await supabase.rpc('master_delete', { p_entity: entity, p_id: id });
   if (error) throw new Error(error.message);
 }
+
+/**
+ * What actually references a master data record.
+ *
+ * The list has always said "used by 12 assets". Twelve answers a question
+ * nobody asks; "which twelve" is the one people have, and before deactivating
+ * or renaming something it is the only one that matters.
+ *
+ * Assets and accessories come back filtered by RLS, so a scoped user sees the
+ * ones they are allowed to see rather than a count they cannot reconcile.
+ */
+export interface UsageAsset {
+  id: string;
+  assetCode: string;
+  name: string;
+  categoryName: string;
+  statusName: string;
+  locationName: string;
+  holderName: string | null;
+  unitCode: string | null;
+}
+
+export interface UsageAccessory {
+  id: string;
+  name: string;
+  locationName: string;
+  totalQty: number;
+  availableQty: number;
+}
+
+export interface UsagePerson {
+  id: string;
+  fullName: string;
+  nik: string | null;
+  jobTitle: string | null;
+  departmentName: string | null;
+  locationName: string | null;
+  canLogin: boolean;
+  isActive: boolean;
+}
+
+export interface MasterUsage {
+  entity: MasterEntity;
+  assets: UsageAsset[];
+  accessories: UsageAccessory[];
+  people: UsagePerson[];
+}
+
+export async function fetchMasterUsage(entity: MasterEntity, id: string): Promise<MasterUsage> {
+  const { data, error } = await supabase.rpc('master_usage_list', {
+    p_entity: entity,
+    p_id: id,
+  });
+  if (error) throw new Error(error.message);
+  return data as MasterUsage;
+}

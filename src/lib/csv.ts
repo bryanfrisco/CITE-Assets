@@ -30,6 +30,9 @@ export const IMPORT_COLUMNS = [
   'warranty_start',
   'warranty_end',
   'notes',
+  // The physical sticker. Optional: filled in it is attached during the
+  // import, left blank the asset arrives unlabelled exactly as before.
+  'label',
 ] as const;
 
 export type ImportColumn = (typeof IMPORT_COLUMNS)[number];
@@ -75,6 +78,7 @@ export const EMPLOYEE_COLUMNS = [
   'employee_id',
   'job_position',
   'company',
+  'department',
   'work_email',
   'work_phone',
 ] as const;
@@ -94,6 +98,8 @@ export const EMPLOYEE_IMPORT: ImportSchema = {
     employee_number: 'employee_id',
     job_title: 'job_position',
     jabatan: 'job_position',
+    departemen: 'department',
+    department_name: 'department',
     email: 'work_email',
     phone: 'work_phone',
   },
@@ -231,6 +237,7 @@ export function buildImportTemplate(): string {
     warranty_start: '2024-03-18',
     warranty_end: '2027-03-18',
     notes: 'Leave asset_code blank to have one generated',
+    label: '',
   };
 
   const escape = (value: string) => `"${value.replace(/"/g, '""')}"`;
@@ -247,6 +254,11 @@ export function buildImportTemplate(): string {
  * Headers print in Odoo's own spelling — "Employee Name", not "employee_name" —
  * so a file downloaded here and a file exported from Odoo are the same shape,
  * and somebody holding the two side by side has nothing to reconcile.
+ *
+ * `Department` is here even though the Odoo export does not carry it, because
+ * a blank value never erases: a second, smaller file of just names and
+ * departments updates the people the first import created, and a file without
+ * the column leaves every department alone.
  */
 export function buildEmployeeTemplate(): string {
   const headings: Record<EmployeeColumn, string> = {
@@ -254,6 +266,7 @@ export function buildEmployeeTemplate(): string {
     employee_id: 'Employee ID',
     job_position: 'Job Position',
     company: 'Company',
+    department: 'Department',
     work_email: 'Work Email',
     work_phone: 'Work Phone',
   };
@@ -263,6 +276,7 @@ export function buildEmployeeTemplate(): string {
     employee_id: 'SP012603-0791',
     job_position: 'Tax Staff',
     company: 'PT Stargate Pasific Resources',
+    department: 'Finance',
     work_email: 'achmad.taufik@aspire.id',
     work_phone: '082179467973',
   };

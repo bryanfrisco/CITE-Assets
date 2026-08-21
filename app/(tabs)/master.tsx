@@ -358,7 +358,19 @@ export default function MasterDataScreen() {
         <View style={styles.list}>
           {(records.data ?? []).map((record) => (
             <Card key={record.id} padding={13} style={styles.record}>
-              <View style={styles.recordText}>
+              {/* The text is the tap target, not the whole card: the edit and
+                  delete buttons sit on the same row, and a card-wide press
+                  would fire whenever somebody just missed one of them. */}
+              <Pressable
+                onPress={() =>
+                  router.push(
+                    `/master-usage?entity=${entity}&id=${record.id}&name=${encodeURIComponent(record.name)}`,
+                  )
+                }
+                accessibilityRole="button"
+                accessibilityLabel={`Where ${record.name} is used`}
+                style={styles.recordText}
+              >
                 <View style={styles.nameRow}>
                   <Text
                     numberOfLines={1}
@@ -373,7 +385,7 @@ export default function MasterDataScreen() {
                     ? `${label} · ${record.detail} · used by ${usageCount(record)} ${usageNoun}`
                     : `${label} · used by ${usageCount(record)} ${usageNoun}`}
                 </Text>
-              </View>
+              </Pressable>
 
               {canWrite ? (
                 <View style={styles.actions}>
