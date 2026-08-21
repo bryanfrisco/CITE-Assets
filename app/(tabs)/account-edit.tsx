@@ -42,6 +42,7 @@ import {
   ROLE_LABEL,
   ROLE_SUMMARY,
   createAccount,
+  fetchAccountHoldings,
   fetchAccounts,
   manageCredentials,
   updateAccount,
@@ -67,6 +68,12 @@ export default function AccountEditScreen() {
 
   const accounts = useQuery({ queryKey: ['accounts', ''], queryFn: () => fetchAccounts() });
   const options = useQuery({ queryKey: ['assetFormOptions'], queryFn: fetchAssetFormOptions });
+  // Only for somebody who already exists; a new person holds nothing yet.
+  const holdings = useQuery({
+    queryKey: ['accountHoldings', id],
+    queryFn: () => fetchAccountHoldings(id!),
+    enabled: Boolean(id),
+  });
 
   const existing = accounts.data?.find((a) => a.id === id);
 
@@ -288,6 +295,72 @@ export default function AccountEditScreen() {
           />
         </Card>
 
+        <Card padding={15} title="Holdings" style={styles.card}>
+          <Text style={[t.type.meta, styles.holdingsHint, { color: t.color.sub }]}>
+            What this person has right now. Anything returned lives in the asset&apos;s own history,
+            not here.
+          </Text>
+
+          {holdings.isPending ? (
+            <Skeleton height={54} radius={t.radii.cardMedium} />
+          ) : holdings.isError ? (
+            <Text style={[t.type.meta, styles.holdingsHint, { color: t.color.error }]}>
+              {(holdings.error as Error).message}
+            </Text>
+          ) : (holdings.data?.assets.length ?? 0) === 0 &&
+            (holdings.data?.accessories.length ?? 0) === 0 ? (
+            <Text style={[t.type.meta, styles.holdingsHint, { color: t.color.sub }]}>
+              Nothing assigned yet.
+            </Text>
+          ) : (
+            <>
+              {(holdings.data?.assets ?? []).map((h) => (
+                <Pressable
+                  key={h.id}
+                  onPress={() => router.push(`/asset/${h.assetCode}`)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${h.assetCode} ${h.name}`}
+                  style={[styles.holdingRow, { borderColor: t.color.line }]}
+                >
+                  <View style={styles.holdingText}>
+                    <Text style={[t.type.assetCode, { color: t.color.royal }]}>{h.assetCode}</Text>
+                    <Text numberOfLines={1} style={[t.type.bodySmall, { color: t.color.text }]}>
+                      {h.name}
+                    </Text>
+                    <Text style={[t.type.meta, { color: t.color.sub, marginTop: 2 }]}>
+                      {`${h.categoryName} · ${h.locationName}`}
+                      {/* A shared handy-talkie has two holders; saying which one
+                          this is stops a pair looking like two hand-overs. */}
+                      {h.role === 'secondary' ? ' · second holder' : ''}
+                    </Text>
+                  </View>
+                  <Badge label={h.statusName} />
+                </Pressable>
+              ))}
+
+              {(holdings.data?.accessories ?? []).map((h) => (
+                <Pressable
+                  key={h.id}
+                  onPress={() => router.push(`/accessory/${h.accessoryId}`)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${h.qty} ${h.name}`}
+                  style={[styles.holdingRow, { borderColor: t.color.line }]}
+                >
+                  <View style={styles.holdingText}>
+                    <Text numberOfLines={1} style={[t.type.bodySmall, { color: t.color.text }]}>
+                      {`${h.qty} × ${h.name}`}
+                    </Text>
+                    <Text style={[t.type.meta, { color: t.color.sub, marginTop: 2 }]}>
+                      {`Since ${h.assignedDate} · ${h.locationName}`}
+                      {h.bastNumber ? ` · ${h.bastNumber}` : ''}
+                    </Text>
+                  </View>
+                </Pressable>
+              ))}
+            </>
+          )}
+        </Card>
+
         <Card padding={15} title="Role" style={styles.card}>
           <SelectField
             value={form.role ? ROLE_LABEL[form.role] : null}
@@ -495,5 +568,16 @@ const styles = StyleSheet.create({
   credHint: { marginTop: 10, lineHeight: 16 },
   activeRow: { flexDirection: 'row', gap: 8 },
   option: { paddingHorizontal: 16, paddingVertical: 10, minHeight: 40, justifyContent: 'center' },
+  holdingsHint: { marginTop: 8, marginBottom: 4, lineHeight: 16 },
+  holdingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 11,
+    marginTop: 8,
+  },
+  holdingText: { flex: 1, minWidth: 0 },
   errorRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 },
 });

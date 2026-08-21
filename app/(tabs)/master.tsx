@@ -53,6 +53,14 @@ const LOCATION_KINDS = [
   { id: 'site', name: 'Site' },
 ];
 
+/** Example codes, so the shape of each one is obvious before the first is typed. */
+const CODE_PLACEHOLDER: Partial<Record<MasterEntity, string>> = {
+  category: 'e.g. LPT',
+  location: 'e.g. SITE2',
+  unit: 'e.g. DT-042',
+  company: 'e.g. SPR',
+};
+
 export default function MasterDataScreen() {
   const t = useTheme();
   const router = useRouter();
@@ -72,7 +80,8 @@ export default function MasterDataScreen() {
   const [code, setCode] = useState('');
   const [kind, setKind] = useState<'head_office' | 'site'>('site');
   const [brandId, setBrandId] = useState<string | null>(null);
-  const [picker, setPicker] = useState<'brand' | 'kind' | null>(null);
+  const [locationId, setLocationId] = useState<string | null>(null);
+  const [picker, setPicker] = useState<'brand' | 'kind' | 'location' | null>(null);
   const [confirming, setConfirming] = useState<MasterRecord | null>(null);
 
   const label = labelFor(entity);
@@ -95,12 +104,26 @@ export default function MasterDataScreen() {
     [brands.data],
   );
 
+  // A unit sits at exactly one location — that is how "where is DT-042" gets
+  // answered without making the unit itself a location.
+  const locations = useQuery({
+    queryKey: queryKeys.master('location'),
+    queryFn: () => listMaster('location'),
+    enabled: entity === 'unit',
+  });
+
+  const locationOptions = useMemo(
+    () => (locations.data ?? []).filter((l) => l.isActive).map((l) => ({ id: l.id, name: l.name })),
+    [locations.data],
+  );
+
   const resetForm = () => {
     setDraft('');
     setEditingId(null);
     setError(null);
     setCode('');
     setBrandId(null);
+    setLocationId(null);
     setKind('site');
   };
 
@@ -124,6 +147,11 @@ export default function MasterDataScreen() {
         extra.kind = kind;
       }
       if (entity === 'model') extra.brandId = brandId ?? undefined;
+      if (entity === 'unit') {
+        extra.code = code;
+        extra.locationId = locationId ?? undefined;
+      }
+      if (entity === 'company') extra.code = code;
       await createMaster(entity, draft, extra);
       return 'created' as const;
     },
@@ -169,7 +197,18 @@ export default function MasterDataScreen() {
     setError(null);
   };
 
-  const needsCode = entity === 'category' || entity === 'location';
+  const needsCode =
+    entity === 'category' || entity === 'location' || entity === 'unit' || entity === 'company';
+
+  // No asset points at a company — people do, so master_usage() leaves
+  // assetCount at 0 and counts accounts into totalCount instead. Printing the
+  // asset count here would tell an admin that a company with 436 employees is
+  // unused, and the delete they then tried would fail contradicting the screen.
+  const countsPeople = entity === 'company';
+  const usageNoun = countsPeople ? 'people' : 'assets';
+  const usageCount = (record: MasterRecord) =>
+    countsPeople ? record.totalCount : record.assetCount;
+
   const canSubmit = canWrite && !save.isPending;
 
   return (
@@ -245,10 +284,10 @@ export default function MasterDataScreen() {
           {/* Schema-required extras, shown only for the entities that need them. */}
           {!editingId && needsCode ? (
             <Input
-              label={entity === 'category' ? 'Category code' : 'Location code'}
+              label={`${label} code`}
               value={code}
               onChangeText={setCode}
-              placeholder={entity === 'category' ? 'e.g. LPT' : 'e.g. SITE2'}
+              placeholder={CODE_PLACEHOLDER[entity] ?? 'e.g. LPT'}
               autoCapitalize="characters"
               containerStyle={styles.extra}
             />
@@ -259,6 +298,17 @@ export default function MasterDataScreen() {
               label="Kind"
               value={LOCATION_KINDS.find((k) => k.id === kind)?.name}
               onPress={() => setPicker('kind')}
+              containerStyle={styles.extra}
+            />
+          ) : null}
+
+          {!editingId && entity === 'unit' ? (
+            <SelectField
+              label="Location"
+              required
+              value={locationOptions.find((l) => l.id === locationId)?.name}
+              placeholder="Select a location"
+              onPress={() => setPicker('location')}
               containerStyle={styles.extra}
             />
           ) : null}
@@ -320,8 +370,8 @@ export default function MasterDataScreen() {
                 </View>
                 <Text style={[t.type.meta, { color: t.color.sub, marginTop: 3 }]}>
                   {record.detail
-                    ? `${label} · ${record.detail} · used by ${record.assetCount} assets`
-                    : `${label} · used by ${record.assetCount} assets`}
+                    ? `${label} · ${record.detail} · used by ${usageCount(record)} ${usageNoun}`
+                    : `${label} · used by ${usageCount(record)} ${usageNoun}`}
                 </Text>
               </View>
 
@@ -373,6 +423,16 @@ export default function MasterDataScreen() {
       />
 
       <PickerSheet
+        visible={picker === 'location'}
+        title="Location"
+        options={locationOptions}
+        selectedId={locationId}
+        onSelect={(option) => setLocationId(option.id)}
+        onDismiss={() => setPicker(null)}
+        emptyMessage="Add a location first, then come back to Unit."
+      />
+
+      <PickerSheet
         visible={picker === 'kind'}
         title="Location kind"
         options={LOCATION_KINDS}
@@ -389,9 +449,9 @@ export default function MasterDataScreen() {
         title={confirming ? `Remove ${confirming.name}?` : ''}
         subtitle={
           confirming
-            ? confirming.assetCount > 0
-              ? `Used by ${confirming.assetCount} assets. Deactivating keeps every existing asset intact and hides it from new ones.`
-              : 'Not used by any asset yet.'
+            ? usageCount(confirming) > 0
+              ? `Used by ${usageCount(confirming)} ${usageNoun}. Deactivating keeps every existing record intact and hides it from new ones.`
+              : `Not used by any ${countsPeople ? 'person' : 'asset'} yet.`
             : undefined
         }
       >

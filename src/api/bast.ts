@@ -12,24 +12,34 @@ import type { SignatureStrokes } from '@/lib/signature';
 export type BastStatus = 'draft' | 'awaiting_signature' | 'signed' | 'void';
 
 /**
- * The two sheets the client actually uses.
+ * The three sheets the client uses.
  *
  * `handover` is the Berita Acara Serah Terima Barang — a device going out.
  * `return` is the Berita Acara Penarikan Barang — the same device coming back.
+ * `accessory` is the Berita Acara Serah Terima Perlengkapan: mice, headsets and
+ * cables handed over on their own, with no asset on the sheet at all.
+ *
  * One record type, one numbering sequence, one signing flow; the kind decides
- * the title, two verbs in the body, and the two signature captions.
+ * the title, two verbs in the body, and the signature captions.
+ *
+ * The third exists because a signed document must never change. Accessories
+ * given to somebody a month after their laptop cannot be added to the letter
+ * they already signed, so they get a letter of their own — which is what would
+ * happen on paper.
  */
-export type BastKind = 'handover' | 'return';
+export type BastKind = 'handover' | 'return' | 'accessory';
 
 export const BAST_KIND_TITLE: Record<BastKind, string> = {
   handover: 'BERITA ACARA SERAH TERIMA BARANG',
   return: 'BERITA ACARA PENARIKAN BARANG',
+  accessory: 'BERITA ACARA SERAH TERIMA PERLENGKAPAN',
 };
 
 /** Short form, for list rows and the detail header. */
 export const BAST_KIND_LABEL: Record<BastKind, string> = {
   handover: 'Serah Terima',
   return: 'Penarikan',
+  accessory: 'Perlengkapan',
 };
 
 export interface BastListRow {
@@ -38,8 +48,9 @@ export interface BastListRow {
   kind: BastKind;
   status: BastStatus;
   bast_date: string;
-  asset_code: string;
-  asset_name: string;
+  /** Null on a BAST Perlengkapan — there is no asset on that sheet. */
+  asset_code: string | null;
+  asset_name: string | null;
   employee_name: string;
   department_name: string | null;
   location_name: string;
@@ -53,6 +64,7 @@ export interface BastStats {
   draft: number;
   handover: number;
   returns: number;
+  accessory: number;
 }
 
 export interface BastVersion {
@@ -77,10 +89,23 @@ export interface BastVersion {
  * officer signs on the left under "Yang Menerima". The caption is derived from
  * the kind, which is why it is a function rather than a lookup.
  */
-export type SignatureRole = 'handover' | 'receiver';
+export type SignatureRole = 'handover' | 'receiver' | 'receiver_2';
+
+/**
+ * The blocks a given document needs signed.
+ *
+ * Two for almost everything. Three for a shared handy-talkie, where both shift
+ * holders are answerable and the document is not finished until both have put
+ * their name on it.
+ */
+export function signatureRolesFor(bast: { secondaryName?: string | null }): SignatureRole[] {
+  return bast.secondaryName ? ['handover', 'receiver', 'receiver_2'] : ['handover', 'receiver'];
+}
 
 export function signatureCaption(kind: BastKind, role: SignatureRole): string {
   if (kind === 'return') return role === 'handover' ? 'Yang Menerima' : 'Yang Memberikan';
+  // A handover of accessories reads exactly like a handover of a laptop. Only
+  // the goods table differs, so the captions do not.
   return role === 'handover' ? 'Yang Menyerahkan' : 'Yang Menerima';
 }
 
@@ -88,6 +113,7 @@ export function signatureCaption(kind: BastKind, role: SignatureRole): string {
 export const SIGNATURE_ROLE_SIDE: Record<SignatureRole, string> = {
   handover: 'Corporate IT',
   receiver: 'Employee',
+  receiver_2: 'Second holder',
 };
 
 export interface BastSignature {
@@ -132,6 +158,11 @@ export interface BastDetail {
   employeeName: string;
   employeeNik: string;
   employeeTitle: string;
+  /** The other shift, on a shared asset. Null on every other document. */
+  secondaryId: string | null;
+  secondaryName: string | null;
+  secondaryNik: string | null;
+  secondaryTitle: string | null;
   departmentName: string;
   locationName: string;
   companyName: string;
@@ -381,4 +412,21 @@ export async function signBast(
   });
   if (error) throw new Error(error.message);
   return data as { complete: boolean };
+}
+
+/**
+ * The id behind a BAST number.
+ *
+ * assign_asset() returns the number it minted, not the id, and widening its
+ * signature to add one would be the exact mistake migration 0029 exists to
+ * clean up after. Numbers are unique, so this is a lookup rather than a guess.
+ */
+export async function bastIdByNumber(bastNumber: string): Promise<string | null> {
+  const { data, error } = await supabase
+    .from('bast')
+    .select('id')
+    .eq('bast_number', bastNumber)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return (data?.id as string | undefined) ?? null;
 }

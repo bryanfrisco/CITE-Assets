@@ -607,7 +607,169 @@ Sample accounts and assets matching the prototype (`Dewi Lestari` — Super Admi
 `NET031-23-090`, `LPT099-21-004`) are listed in the prototype's logic — copy them for the dev seed so
 the app looks identical to the design on first run.
 
-## 14. Entity relationships (summary)
+## 14. Units, companies and accessories (migrations 0038–0051)
+
+Everything below was added after the original spec. The reasoning lives in the
+migration headers; this is the shape.
+
+### Units — where a fitted asset lives
+
+```sql
+create table units (
+  id          uuid primary key default gen_random_uuid(),
+  code        text not null unique,              -- 'DT-042'
+  name        text not null,                     -- 'Dump Truck Komatsu HD465 #42'
+  location_id uuid not null references locations(id) on delete restrict,
+  is_active   boolean not null default true,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+
+alter table assets add column unit_id uuid references units(id) on delete restrict;
+```
+
+A radio rig is bolted into a truck, not held by a person. **A unit is a PLACE,
+not a holder**: an asset fitted to one has no holder and produces no BAST.
+
+Units are deliberately **not** locations. `locations` is the RLS axis
+(`my_location_ids()`), the source of the BAST letterhead and of the label stock
+prefix; putting DT-042 in there would put a dump truck in the scope selector
+and on the letterhead of a handover note.
+
+A new `asset_statuses` row, **Installed**, keeps a fitted asset out of the
+assign wizard without changing the wizard. `install_asset_to_unit()` and
+`remove_asset_from_unit()` are the only writers of `assets.unit_id`; both
+demand a reason and write it to `asset_status_changes`, because with no holder
+and no document that row is the entire audit trail.
+
+### Companies — the legal entity a person belongs to
+
+```sql
+create table companies (
+  id uuid primary key default gen_random_uuid(),
+  name text not null unique,
+  code text not null unique,          -- SPR, SMA, RSL
+  is_active boolean not null default true, ...
+);
+
+alter table accounts add column company_id uuid references companies(id) on delete restrict;
+```
+
+Seeded exactly as the Odoo export spells them — `PT` with no full stop — so
+`import_accounts()` matches the common case without normalising every row.
+
+Both tables plug into the existing master-data RPCs: `master_table()`,
+`master_usage()`, `master_list()` and `master_create()` gained a branch each,
+and `master_rename()` / `master_set_active()` / `master_delete()` needed none.
+
+### Accessories — counted, not identified
+
+```sql
+create table accessories (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  category_id uuid not null references categories(id) on delete restrict,
+  brand_id uuid references brands(id) on delete restrict,
+  model_no text,
+  vendor_id uuid references vendors(id) on delete restrict,
+  location_id uuid not null references locations(id) on delete restrict,
+  total_qty int not null default 0 check (total_qty >= 0),
+  min_qty   int not null default 0,
+  purchase_date date,
+  purchase_price numeric(16,2),        -- per unit
+  notes text, photo_path text,
+  is_active boolean not null default true,
+  ...,
+  unique (name, location_id)
+);
+
+create table accessory_checkouts (
+  id uuid primary key default gen_random_uuid(),
+  accessory_id uuid not null references accessories(id) on delete restrict,
+  account_id   uuid not null references accounts(id)   on delete restrict,
+  qty int not null check (qty > 0),
+  assigned_date date not null default current_date,
+  returned_date date,
+  state assignment_state not null default 'active',
+  bast_id uuid references bast(id) on delete set null,
+  ...
+);
+```
+
+`assets.serial_number` is NOT NULL UNIQUE, so a mouse could never be
+registered. Accessories are counted instead: a row is a KIND of thing at one
+location with a quantity.
+
+**`available` is never stored.** `accessory_available()` derives it as
+`total_qty − sum(active checkouts)`. A second copy of that number is how stock
+figures start to drift, and a drifting figure is worse than none.
+
+`unique (name, location_id)` is what makes scope work for free — the same mouse
+at HO and at Site is two rows with two stocks, and the ordinary
+`location_id in (select my_location_ids())` policy does the rest.
+
+### BAST Perlengkapan, and a nullable asset
+
+```sql
+alter table bast alter column asset_id drop not null;
+alter table bast add column secondary_account_id uuid references accounts(id);
+```
+
+A signed document must never change, so accessories handed over a month after
+somebody's laptop cannot be added to the letter they already signed. They get a
+letter of their own: `bast.kind = 'accessory'`, no asset, goods table only.
+
+That makes `asset_id` nullable, and it was the column every BAST policy
+resolved visibility through. **`can_see_bast_row(asset_id, location_id)` is now
+that single decision** — falling back to the document's own location when there
+is no asset — and every policy on `bast`, `bast_versions`, `bast_items` and
+`bast_signatures` calls it. `bast_list()` and `bast_stats()` also moved to a
+LEFT join; before that a document with no asset was not hidden but *invisible*.
+
+### A second holder
+
+```sql
+alter table assignments add column secondary_account_id uuid references accounts(id);
+alter table assets      add column assigned_to_secondary uuid references accounts(id);
+```
+
+One handy-talkie, two shifts, both answerable. `assignments_one_active` is
+unchanged — still one active assignment per asset, now carrying two names.
+`set_secondary_holder()` writes all three places; `assign_asset()` was left
+alone rather than widened.
+
+`sign_bast()` returns `complete` only once **every** required block is signed:
+
+> `handover` and `receiver` and (`secondary_account_id` is null or `receiver_2`)
+
+Get that wrong and the PDF is issued, and the status locked, while one of the
+two people answerable for the radio has signed nothing.
+
+### Server-side functions added
+
+```sql
+install_asset_to_unit(uuid, uuid, text)      remove_asset_from_unit(uuid, text)
+unit_assets(uuid)
+accessories_list(uuid[], text, uuid)         accessory_detail(uuid)
+accessory_available(uuid)
+create_accessory(jsonb)                      update_accessory(uuid, jsonb)
+assign_accessory(uuid, uuid, int, date, text, uuid)
+return_accessory(uuid, date)
+create_accessory_bast(uuid, uuid[])          attach_accessories_to_bast(uuid, uuid[])
+can_see_bast_row(uuid, uuid)                 set_secondary_holder(uuid, uuid)
+import_accounts(jsonb, boolean, text)
+value_analytics(uuid[], date, date, uuid, uuid)
+account_holdings(uuid)
+```
+
+Replaced in place, signatures unchanged: `master_*`, `asset_detail`,
+`bast_detail`, `bast_list`, `bast_stats`, `sign_bast`, `set_bast_items`,
+`return_asset`, `search_assets`, `import_lookup`. `import_history()` was
+dropped and recreated — a `RETURNS TABLE` cannot gain a column in place.
+
+---
+
+## 15. Entity relationships (summary)
 
 ```
 locations ──┬─< assets >─┬── categories
@@ -617,10 +779,15 @@ locations ──┬─< assets >─┬── categories
             │            ├── asset_conditions
             │            └── departments
             │
-accounts ───┼─< assignments >── assets
+accounts ───┼─< assignments >── assets      (account_id + secondary_account_id)
             ├─< account_scope_preferences >── locations
+            ├─< accessory_checkouts >── accessories
+            ├─── companies
             ├─< notifications
             └─< audit_log (actor)
+
+units ──────── locations                  (assets.unit_id → units)
+accessories ── locations, categories, brands, vendors
 
 assets ─┬─< movements (append-only, from_location/to_location → locations)
         ├─< bast >──< bast_versions (append-only)

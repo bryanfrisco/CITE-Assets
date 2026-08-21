@@ -25,7 +25,7 @@
     "test:tags": "node --env-file-if-exists=.env tests/asset-tags.mjs",
     "test:signature": "node --env-file-if-exists=.env tests/ebast-signature.mjs",
     "test:status": "node --env-file-if-exists=.env tests/status-changes.mjs",
-    "test": "npm run test:barcode && npm run test:rls && npm run test:master && npm run test:register && npm run test:assign && npm run test:bast && npm run test:tags && npm run test:signature && npm run test:status && npm run test:accounts && npm run test:phase6 && npm run test:import && npm run test:reports && npm run test:audit && npm run test:bast-doc && npm run test:code && npm run test:photos",
+    "test": "npm run test:barcode && npm run test:rls && npm run test:master && npm run test:register && npm run test:assign && npm run test:bast && npm run test:tags && npm run test:signature && npm run test:status && npm run test:accounts && npm run test:phase6 && npm run test:import && npm run test:reports && npm run test:audit && npm run test:bast-doc && npm run test:code && npm run test:photos && npm run test:import-accounts && npm run test:units && npm run test:accessories && npm run test:bast-accessory && npm run test:two-holders && npm run test:analytics",
     "build:bast-logo": "node scripts/build-bast-logo.mjs",
     "test:accounts": "node --env-file-if-exists=.env tests/accounts.mjs",
     "test:phase6": "node --env-file-if-exists=.env tests/phase6.mjs",
@@ -35,7 +35,13 @@
     "test:bast-doc": "node --env-file-if-exists=.env tests/bast-document.mjs",
     "test:code": "node --env-file-if-exists=.env tests/asset-code.mjs",
     "test:photos": "node --env-file-if-exists=.env tests/asset-photos.mjs",
-    "test:barcode": "node tests/barcode.mjs"
+    "test:barcode": "node tests/barcode.mjs",
+    "test:import-accounts": "node --env-file-if-exists=.env tests/import-accounts.mjs",
+    "test:units": "node --env-file-if-exists=.env tests/units.mjs",
+    "test:accessories": "node --env-file-if-exists=.env tests/accessories.mjs",
+    "test:bast-accessory": "node --env-file-if-exists=.env tests/bast-accessory.mjs",
+    "test:two-holders": "node --env-file-if-exists=.env tests/bast-two-holders.mjs",
+    "test:analytics": "node --env-file-if-exists=.env tests/analytics.mjs"
   },
   "dependencies": {
     "@expo-google-fonts/inter": "^0.4.2",

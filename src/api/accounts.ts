@@ -130,3 +130,45 @@ export async function manageCredentials(
 
 /** The rule the Edge Function enforces; repeated so the button can say so. */
 export const MIN_PASSWORD_LENGTH = 8;
+
+/**
+ * What one person is holding right now — both kinds.
+ *
+ * Opening a person used to answer "what is their role" but never "what do they
+ * have", which is the question anybody actually opens a person to ask.
+ *
+ * Assets carry a `role`, because a shared handy-talkie has two holders and
+ * "primary" or "secondary" is the difference between having it and being
+ * answerable for it. Accessories list only what is still out; anything
+ * returned lives in that accessory own history.
+ */
+export interface HeldAsset {
+  id: string;
+  assetCode: string;
+  name: string;
+  categoryName: string;
+  statusName: string;
+  locationName: string;
+  role: 'primary' | 'secondary';
+}
+
+export interface HeldAccessory {
+  id: string;
+  accessoryId: string;
+  name: string;
+  qty: number;
+  assignedDate: string;
+  locationName: string;
+  bastNumber: string | null;
+}
+
+export interface AccountHoldings {
+  assets: HeldAsset[];
+  accessories: HeldAccessory[];
+}
+
+export async function fetchAccountHoldings(accountId: string): Promise<AccountHoldings> {
+  const { data, error } = await supabase.rpc('account_holdings', { p_account: accountId });
+  if (error) throw new Error(error.message);
+  return data as AccountHoldings;
+}

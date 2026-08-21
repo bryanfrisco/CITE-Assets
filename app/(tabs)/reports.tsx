@@ -23,6 +23,8 @@ import { useTheme } from '@/theme';
 import {
   Button,
   Card,
+  Chip,
+  ChipRow,
   DateField,
   EmptyState,
   PickerSheet,
@@ -35,9 +37,13 @@ import {
   buildReportHtml,
   fetchReport,
   fetchReportSummary,
+  fetchValueAnalytics,
   type ReportFilters,
+  type ValueBreakdown,
 } from '@/api/reports';
 import { fetchAssetFormOptions } from '@/api/assets';
+import { Bars } from '@/components/charts/Bars';
+import { Donut } from '@/components/charts/Donut';
 import { todayIso } from '@/lib/dates';
 import { useScopeLabel, useScopeStore } from '@/store/useScopeStore';
 import { useToast } from '@/store/useUiStore';
@@ -58,9 +64,42 @@ export default function ReportsScreen() {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [picker, setPicker] = useState<'status' | 'category' | 'department' | null>(null);
+  // Which breakdown the charts show. One set of charts with a switch rather
+  // than three sets stacked: the question is almost always "by what", and
+  // three charts down the screen makes nobody compare them anyway.
+  const [lens, setLens] = useState<'category' | 'location' | 'department'>('category');
   const [error, setError] = useState('');
 
   const options = useQuery({ queryKey: ['assetFormOptions'], queryFn: fetchAssetFormOptions });
+
+  const analytics = useQuery({
+    queryKey: ['valueAnalytics', scope, filters, from, to],
+    queryFn: () => fetchValueAnalytics(scope, filters, from, to),
+    enabled: scope.length > 0,
+  });
+
+  const totalValue =
+    Number(analytics.data?.assets.value ?? 0) + Number(analytics.data?.accessories.value ?? 0);
+
+  // Assets and accessories are counted in the same units on purpose: one is a
+  // thing, the other is a quantity of things, and a breakdown that showed only
+  // half the stock would be read as if it showed all of it.
+  const lensRows: ValueBreakdown[] = (() => {
+    const a = analytics.data;
+    if (!a) return [];
+    if (lens === 'department') return a.assets.byDepartment;
+    const assetRows = lens === 'category' ? a.assets.byCategory : a.assets.byLocation;
+    const accRows = lens === 'category' ? a.accessories.byCategory : a.accessories.byLocation;
+    const merged = new Map<string, number>();
+    for (const r of [...assetRows, ...accRows]) {
+      merged.set(r.name, (merged.get(r.name) ?? 0) + Number(r.count));
+    }
+    return [...merged.entries()]
+      .map(([name, count]) => ({ name, count }))
+      .sort((x, y) => y.count - x.count);
+  })();
+
+  const lensTotal = lensRows.reduce((sum: number, r: ValueBreakdown) => sum + r.count, 0);
 
   const summary = useQuery({
     queryKey: ['reportSummary', scope],
@@ -191,14 +230,91 @@ export default function ReportsScreen() {
 
           <Card padding={13} style={styles.valueCard}>
             <Text style={[t.type.fieldLabel, { color: t.color.sub }]}>Acquisition value</Text>
-            <Text style={[t.type.detailTitle, styles.value, { color: t.color.text }]}>
-              {money(summary.data?.value)}
-            </Text>
-            <Text style={[t.type.meta, styles.valueHint, { color: t.color.sub }]}>
-              What was paid, not a depreciated figure — this app has no depreciation policy, and
-              inventing one would put an authoritative-looking number in front of Finance.
-            </Text>
+
+            {analytics.isPending ? (
+              <Skeleton height={74} radius={t.radii.cardMedium} />
+            ) : analytics.isError ? (
+              <Text style={[t.type.meta, styles.valueHint, { color: t.color.error }]}>
+                {(analytics.error as Error).message}
+              </Text>
+            ) : (
+              <>
+                {/* Three figures at once. A picker would make somebody remember
+                    which of the three they were looking at, and the whole point
+                    of putting them side by side is that nobody has to. */}
+                <View style={styles.valueRows}>
+                  {(
+                    [
+                      ['Assets', analytics.data?.assets.value ?? 0, false],
+                      ['Accessories', analytics.data?.accessories.value ?? 0, false],
+                      ['Total', totalValue, true],
+                    ] as const
+                  ).map(([label, amount, strong]) => (
+                    <View
+                      key={label}
+                      style={[
+                        styles.valueRow,
+                        strong ? { borderTopWidth: 1, borderTopColor: t.color.line } : null,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          strong ? t.type.metaStrong : t.type.meta,
+                          { color: strong ? t.color.text : t.color.sub },
+                        ]}
+                      >
+                        {label}
+                      </Text>
+                      <Text
+                        style={[strong ? t.type.detailTitle : t.type.body, { color: t.color.text }]}
+                      >
+                        {money(amount)}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+
+                <Text style={[t.type.meta, styles.valueHint, { color: t.color.sub }]}>
+                  What was paid, not a depreciated figure — this app has no depreciation policy, and
+                  inventing one would put an authoritative-looking number in front of Finance.
+                  Accessories are counted at their unit price times the quantity owned.
+                </Text>
+              </>
+            )}
           </Card>
+
+          {analytics.data ? (
+            <Card padding={15} title="Breakdown" style={styles.card}>
+              <ChipRow style={styles.lensRow}>
+                {(['category', 'location', 'department'] as const).map((k) => (
+                  <Chip
+                    key={k}
+                    label={
+                      k === 'category' ? 'Category' : k === 'location' ? 'Location' : 'Department'
+                    }
+                    active={lens === k}
+                    onPress={() => setLens(k)}
+                  />
+                ))}
+              </ChipRow>
+
+              {lensRows.length === 0 ? (
+                <Text style={[t.type.meta, styles.valueHint, { color: t.color.sub }]}>
+                  Nothing to break down with these filters.
+                </Text>
+              ) : lens === 'category' ? (
+                <Donut data={lensRows} centreLabel="ITEMS" />
+              ) : (
+                <Bars rows={lensRows} total={lensTotal} />
+              )}
+
+              {lens === 'department' ? (
+                <Text style={[t.type.meta, styles.valueHint, { color: t.color.sub }]}>
+                  Accessories belong to a shelf, not a team, so this breakdown counts assets only.
+                </Text>
+              ) : null}
+            </Card>
+          ) : null}
         </>
       )}
 
@@ -309,6 +425,8 @@ export default function ReportsScreen() {
         selectedId={filters.statusId}
         onSelect={(o) => setFilters({ ...filters, statusId: o.id })}
         onDismiss={() => setPicker(null)}
+        clearLabel="Any"
+        onClear={() => setFilters({ ...filters, statusId: null })}
       />
       <PickerSheet
         visible={picker === 'category'}
@@ -317,6 +435,8 @@ export default function ReportsScreen() {
         selectedId={filters.categoryId}
         onSelect={(o) => setFilters({ ...filters, categoryId: o.id })}
         onDismiss={() => setPicker(null)}
+        clearLabel="Any"
+        onClear={() => setFilters({ ...filters, categoryId: null })}
       />
       <PickerSheet
         visible={picker === 'department'}
@@ -325,6 +445,8 @@ export default function ReportsScreen() {
         selectedId={filters.departmentId}
         onSelect={(o) => setFilters({ ...filters, departmentId: o.id })}
         onDismiss={() => setPicker(null)}
+        clearLabel="Any"
+        onClear={() => setFilters({ ...filters, departmentId: null })}
       />
     </Screen>
   );
@@ -340,6 +462,14 @@ const styles = StyleSheet.create({
   valueCard: { marginBottom: 12 },
   value: { marginTop: 4 },
   valueHint: { marginTop: 8, lineHeight: 16 },
+  valueRows: { marginTop: 8, gap: 8 },
+  valueRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    paddingTop: 8,
+  },
+  lensRow: { marginBottom: 14 },
   card: { marginBottom: 12 },
   field: { marginBottom: 12 },
   dates: { flexDirection: 'row', gap: 10 },

@@ -40,6 +40,66 @@ export const REQUIRED_COLUMNS: ImportColumn[] = ['name', 'category', 'serial_num
 export type CsvRow = Partial<Record<string, string>>;
 
 /**
+ * What a given import expects to find in the file.
+ *
+ * There are two importers now — assets and employees — and they agree about no
+ * column at all. Passing the shape in keeps one parser rather than two copies
+ * that would drift apart the first time one of them learned something.
+ */
+export interface ImportSchema {
+  columns: readonly string[];
+  required: readonly string[];
+  /**
+   * Other header spellings that mean the same column, already normalised.
+   * This is what lets the Odoo export and this app's own template be one file.
+   */
+  aliases?: Readonly<Record<string, string>>;
+}
+
+export const ASSET_IMPORT: ImportSchema = {
+  columns: IMPORT_COLUMNS,
+  required: REQUIRED_COLUMNS,
+};
+
+/**
+ * Employees, named the way Odoo's `hr.employee` export names them.
+ *
+ * Odoo's headers are canonical here rather than the `accounts` column names,
+ * because the export IS the file people will drop in — 527 rows of it. Asking
+ * them to rename six columns first would be a step that exists only to satisfy
+ * this app. The account-side names are accepted as aliases so the template
+ * this screen hands out keeps working too.
+ */
+export const EMPLOYEE_COLUMNS = [
+  'employee_name',
+  'employee_id',
+  'job_position',
+  'company',
+  'work_email',
+  'work_phone',
+] as const;
+
+export type EmployeeColumn = (typeof EMPLOYEE_COLUMNS)[number];
+
+export const EMPLOYEE_IMPORT: ImportSchema = {
+  columns: EMPLOYEE_COLUMNS,
+  // The name, and nothing else. Somebody with no NIK, no email and no phone is
+  // still somebody who can hold a laptop — 23 rows of the real export are
+  // exactly that, the President Director among them.
+  required: ['employee_name'],
+  aliases: {
+    full_name: 'employee_name',
+    name: 'employee_name',
+    nik: 'employee_id',
+    employee_number: 'employee_id',
+    job_title: 'job_position',
+    jabatan: 'job_position',
+    email: 'work_email',
+    phone: 'work_phone',
+  },
+};
+
+/**
  * Splits a CSV into rows of fields.
  *
  * Handles CRLF and LF, quoted fields spanning newlines, and doubled quotes. A
@@ -114,7 +174,7 @@ export interface ParsedCsv {
  * the same column. People export from Excel; insisting on one spelling would
  * fail most real files for no reason.
  */
-export function parseImportCsv(text: string): ParsedCsv {
+export function parseImportCsv(text: string, schema: ImportSchema = ASSET_IMPORT): ParsedCsv {
   const table = parseCsv(text);
   if (table.length === 0) return { rows: [], unknownColumns: [], missingRequired: [] };
 
@@ -123,11 +183,17 @@ export function parseImportCsv(text: string): ParsedCsv {
       .trim()
       .toLowerCase()
       .replace(/[\s-]+/g, '_');
-  const header = table[0]!.map(normalise);
+  // Aliases resolve once, here, so everything downstream — the unknown-column
+  // warning, the required check and the row objects — sees one canonical name.
+  const aliases = schema.aliases ?? {};
+  const header = table[0]!.map((h) => {
+    const key = normalise(h);
+    return aliases[key] ?? key;
+  });
 
-  const known = new Set<string>(IMPORT_COLUMNS);
+  const known = new Set<string>(schema.columns);
   const unknownColumns = header.filter((h) => h && !known.has(h));
-  const missingRequired = REQUIRED_COLUMNS.filter((c) => !header.includes(c));
+  const missingRequired = schema.required.filter((c) => !header.includes(c));
 
   const rows: CsvRow[] = table.slice(1).map((cells) => {
     const row: CsvRow = {};
@@ -175,6 +241,39 @@ export function buildImportTemplate(): string {
   return `${header}\r\n${row}\r\n`;
 }
 
+/**
+ * The employee template.
+ *
+ * Headers print in Odoo's own spelling — "Employee Name", not "employee_name" —
+ * so a file downloaded here and a file exported from Odoo are the same shape,
+ * and somebody holding the two side by side has nothing to reconcile.
+ */
+export function buildEmployeeTemplate(): string {
+  const headings: Record<EmployeeColumn, string> = {
+    employee_name: 'Employee Name',
+    employee_id: 'Employee ID',
+    job_position: 'Job Position',
+    company: 'Company',
+    work_email: 'Work Email',
+    work_phone: 'Work Phone',
+  };
+
+  const example: Record<EmployeeColumn, string> = {
+    employee_name: 'Achmad Taufik',
+    employee_id: 'SP012603-0791',
+    job_position: 'Tax Staff',
+    company: 'PT Stargate Pasific Resources',
+    work_email: 'achmad.taufik@aspire.id',
+    work_phone: '082179467973',
+  };
+
+  const escape = (value: string) => `"${value.replace(/"/g, '""')}"`;
+  const header = EMPLOYEE_COLUMNS.map((c) => escape(headings[c])).join(',');
+  const row = EMPLOYEE_COLUMNS.map((c) => escape(example[c])).join(',');
+
+  return `${header}\r\n${row}\r\n`;
+}
+
 export interface RowProblem {
   column: string;
   message: string;
@@ -183,14 +282,21 @@ export interface RowProblem {
 export interface RowError {
   row: number;
   name: string;
+  /** The second identifying column: a serial number for assets, a NIK for people. */
   serial: string;
   problems: RowProblem[];
 }
 
-/** The error report, as a file somebody can open next to the original. */
-export function buildErrorReport(errors: RowError[]): string {
+/**
+ * The error report, as a file somebody can open next to the original.
+ *
+ * `idColumn` names the second heading, so an employee report says `nik` rather
+ * than `serial_number`. The report is meant to be read beside the source file,
+ * and a heading naming nothing in that file is just noise.
+ */
+export function buildErrorReport(errors: RowError[], idColumn = 'serial_number'): string {
   const escape = (value: string) => `"${String(value).replace(/"/g, '""')}"`;
-  const lines = [['row', 'name', 'serial_number', 'column', 'problem'].map(escape).join(',')];
+  const lines = [['row', 'name', idColumn, 'column', 'problem'].map(escape).join(',')];
 
   for (const error of errors) {
     for (const problem of error.problems) {

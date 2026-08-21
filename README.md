@@ -292,19 +292,59 @@ Types & deep links: **Warranty expiring** (gold clock → asset), **BAST awaitin
 
 List of modules, each with icon chip, label, sub-label, chevron:
 `Movement` (Transfer history between HO and Site) · `Maintenance` (Open tickets and service records) ·
+`Accessories` (Mice, keyboards, cables — counted, not serialised) ·
 `Documents` · `Reports & Export` (Excel and PDF with filters) · `Import Excel`
 (Template → validate → import) · `Master data` · `Audit log` (Immutable record of every action) ·
 `Settings`.
 
 ### 8. Master data
 
-Back to More. Entity chips: `Category, Brand, Model, Vendor, Department, Location, Status, Condition`.
+Back to More. Entity chips: `Category, Brand, Model, Vendor, Department, Location, Status,
+Condition`, plus `Unit` and `Company` — appended rather than slotted in, so the eight the design
+specifies stay in the order it specifies. A `Unit` needs a code and a location; a `Company` needs a
+code. A company's meta line counts **people**, not assets, because no asset points at one.
 An inline add/edit row (royal `+` icon, text field with placeholder `New <entity> name`, navy
 `Add` / `Save` button). Rows show the name and `<Entity> · used by n assets`, with edit (pencil) and
 delete (red-tinted trash) buttons. **Validation:** empty → "Enter a name first"; duplicate →
 `"<name>" already exists in <Entity>`. Toasts: `<name> added to <Entity>`, `Record updated`,
 `<name> deleted`. Deletion must be blocked (or soft-deleted) when the record is referenced — see the
 FK notes in `DATABASE.md`. Empty state: "No records yet / Add the first one using the field above."
+
+### 8b. Accessories — **added after this document was written**
+
+> Not in `CITE Assets.dc.html`. There was no design to follow, so this screen is built entirely
+> from primitives and tokens already defined above — `Card`, `ListCard`, `Chip`, `PickerSheet`,
+> `Badge`, and the KPI tile from Home. **No new colour, radius or spacing value was invented.**
+> Recorded here so the contract exists after the fact rather than not at all.
+
+The reason it exists: `assets.serial_number` is NOT NULL UNIQUE, so a mouse or a cable could never
+be registered at all. Accessories are **counted, not identified** — a row is a kind of thing at one
+location with a quantity.
+
+**List** (`More → Accessories`) — deliberately the same shape as the asset register: title,
+`n available · n out · <scope>` meta line, the same category filter pill, the same 220ms-debounced
+search field. Rows use the asset card at `padding 13`: 42px category icon chip, name, `Category ·
+Location`, and on the right the available count in `assetCode` type over `of <total>` in `badge`
+type. Tapping opens the detail.
+
+**Detail** — three KPI tiles (`Total`, `Out`, `Available`), then `Assign to` (navy, disabled at
+zero available) and `Edit`. Below, **Who has them**: one row per hand-out, `n × Name` with
+`Out since <date>` or `<date> → <date>`, plus the BAST number when there is one. An active row
+carries `BAST` and `Return`; a closed one carries a `Returned` badge. Returned rows stay — they are
+evidence somebody held three of these in March.
+
+**Assign sheet** — person picker, a quantity field (the only field the asset flow does not have,
+because a pile is not a thing), date, notes. Refused above the available count, and the message
+names the remainder. On success a sheet offers **Raise a BAST Perlengkapan**.
+
+**Add / edit** (`accessory-edit`) — three cards: what it is, how many and where, purchase. `Total
+owned` is the number owned, not the number on the shelf; the server refuses to take it below what
+is currently out. **Location is fixed after creation** — it still shows where the stock is, but
+does not open, because moving a pile between locations is a physical event with a count attached,
+not a dropdown.
+
+**Empty states** — `No accessories match / Try a different name, or widen the global data scope.`
+with a `Reset filters` action when a filter is active.
 
 ### 9. Settings
 

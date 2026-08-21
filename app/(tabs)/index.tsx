@@ -19,7 +19,6 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
-import Svg, { Circle } from 'react-native-svg';
 import {
   ArrowLeftRight,
   Clock,
@@ -32,7 +31,9 @@ import {
 
 import { useTheme } from '@/theme';
 import { Button, Card, EmptyState, Screen, SkeletonKpiGrid } from '@/components/ui';
-import { donutSegments, fetchDashboard, type NamedCount, type RecentEvent } from '@/api/dashboard';
+import { fetchDashboard, type RecentEvent } from '@/api/dashboard';
+import { Bars } from '@/components/charts/Bars';
+import { Donut } from '@/components/charts/Donut';
 import { formatRelative } from '@/lib/dates';
 import { greetingFor, useSessionStore } from '@/store/useSessionStore';
 import { useScopeSentence, useScopeStore } from '@/store/useScopeStore';
@@ -202,7 +203,7 @@ export default function HomeScreen() {
             Assets by category
           </Text>
           <Card padding={15}>
-            <CategoryDonut categories={data.byCategory} />
+            <Donut data={data.byCategory} />
           </Card>
 
           {data.byLocation.length > 0 ? (
@@ -295,117 +296,6 @@ function KpiTile({
   );
 }
 
-/**
- * The donut, drawn with stroke-dasharray on concentric circles.
- *
- * Rotated −90° so the first segment starts at twelve o'clock. A chart that
- * begins at three o'clock reads as though something is missing from the top.
- */
-function CategoryDonut({ categories }: { categories: NamedCount[] }) {
-  const t = useTheme();
-  const { segments, total } = donutSegments(categories);
-
-  const radius = t.sizes.donutRadius;
-  const stroke = t.sizes.donutStroke;
-  const size = (radius + stroke) * 2;
-  const circumference = 2 * Math.PI * radius;
-
-  let offset = 0;
-
-  return (
-    <View style={styles.donutRow}>
-      <View>
-        <Svg width={size} height={size}>
-          <Circle
-            cx={size / 2}
-            cy={size / 2}
-            r={radius}
-            stroke={t.color.soft}
-            strokeWidth={stroke}
-            fill="none"
-          />
-          {total > 0
-            ? segments.map((s) => {
-                const length = (s.count / total) * circumference;
-                const element = (
-                  <Circle
-                    key={s.name}
-                    cx={size / 2}
-                    cy={size / 2}
-                    r={radius}
-                    stroke={s.color}
-                    strokeWidth={stroke}
-                    fill="none"
-                    strokeDasharray={`${length} ${circumference - length}`}
-                    strokeDashoffset={-offset}
-                    transform={`rotate(-90 ${size / 2} ${size / 2})`}
-                  />
-                );
-                offset += length;
-                return element;
-              })
-            : null}
-        </Svg>
-
-        <View style={[styles.donutCentre, { width: size, height: size }]} pointerEvents="none">
-          <Text style={[t.type.kpiNumber, { color: t.color.text }]}>{total}</Text>
-          <Text style={[t.type.kpiLabel, { color: t.color.sub }]}>TOTAL</Text>
-        </View>
-      </View>
-
-      <View style={styles.legend}>
-        {segments.map((s) => (
-          <View key={s.name} style={styles.legendRow}>
-            <View style={[styles.legendDot, { backgroundColor: s.color }]} />
-            <Text
-              numberOfLines={1}
-              style={[t.type.meta, styles.legendName, { color: t.color.sub }]}
-            >
-              {s.name}
-            </Text>
-            <Text style={[t.type.metaStrong, { color: t.color.text }]}>{s.count}</Text>
-          </View>
-        ))}
-      </View>
-    </View>
-  );
-}
-
-function Bars({ rows, total }: { rows: NamedCount[]; total: number }) {
-  const t = useTheme();
-  // Scaled against the largest row rather than the total: with one location
-  // holding 95% every other bar would be a sliver and the comparison useless.
-  const largest = Math.max(...rows.map((r) => r.count), 1);
-
-  return (
-    <View style={styles.bars}>
-      {rows.map((row) => (
-        <View key={row.name}>
-          <View style={styles.barTop}>
-            <Text
-              numberOfLines={1}
-              style={[t.type.bodySmall, styles.barName, { color: t.color.text }]}
-            >
-              {row.name}
-            </Text>
-            <Text style={[t.type.metaStrong, { color: t.color.sub }]}>
-              {`${row.count} · ${total > 0 ? Math.round((row.count / total) * 100) : 0}%`}
-            </Text>
-          </View>
-          <View style={[styles.barTrack, { backgroundColor: t.color.soft }]}>
-            <LinearGradient
-              colors={[...t.gradients.bar.colors]}
-              start={t.gradients.bar.start}
-              end={t.gradients.bar.end}
-              style={[styles.barFill, { width: `${(row.count / largest) * 100}%` }]}
-            />
-          </View>
-        </View>
-      ))}
-    </View>
-  );
-}
-
 function RecentRow({
   event,
   last,
@@ -479,23 +369,6 @@ const styles = StyleSheet.create({
   sectionLabel: { marginTop: 22, marginBottom: 10, marginLeft: 2 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 9 },
   action: { width: '31.5%', alignItems: 'center', gap: 7, paddingVertical: 14, borderWidth: 1 },
-
-  donutRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  donutCentre: {
-    position: 'absolute',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  legend: { flex: 1, gap: 7 },
-  legendRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  legendDot: { width: 8, height: 8, borderRadius: 8 },
-  legendName: { flex: 1, minWidth: 0 },
-
-  bars: { gap: 13 },
-  barTop: { flexDirection: 'row', alignItems: 'baseline', gap: 10, marginBottom: 6 },
-  barName: { flex: 1, minWidth: 0 },
-  barTrack: { height: 8, borderRadius: 8, overflow: 'hidden' },
-  barFill: { height: '100%', borderRadius: 8 },
 
   recentRow: {
     flexDirection: 'row',

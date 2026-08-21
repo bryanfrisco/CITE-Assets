@@ -2,7 +2,8 @@
  * Sign an E-BAST on the screen — client instruction, 2026-07-30:
  * "saya mau ttd digital dengan langsung tanda tangan dari layar secara langsung".
  *
- * One block per visit (`?id=…&role=handover|receiver`) rather than both at once.
+ * One block per visit (`?id=…&role=handover|receiver|receiver_2`) rather than
+ * all at once. `receiver_2` is the other shift on a shared handy-talkie.
  * The two signatures are given by two different people, usually minutes apart
  * and often with the phone changing hands, so a single form holding both would
  * mean each person watching the other sign before either was saved.
@@ -60,7 +61,12 @@ export default function SignBastScreen() {
   const queryClient = useQueryClient();
 
   const { id, role: roleParam } = useLocalSearchParams<{ id: string; role: string }>();
-  const role: SignatureRole = roleParam === 'receiver' ? 'receiver' : 'handover';
+  const role: SignatureRole =
+    roleParam === 'receiver' || roleParam === 'receiver_2' ? roleParam : 'handover';
+  // Both recipient blocks read their name off the assignment rather than
+  // offering a picker: choosing a name here could only ever contradict the
+  // record the document is describing.
+  const isRecipient = role === 'receiver' || role === 'receiver_2';
 
   const detail = useQuery({
     queryKey: ['bastDetail', id],
@@ -74,7 +80,7 @@ export default function SignBastScreen() {
   const signatories = useQuery({
     queryKey: ['bastSignatories'],
     queryFn: fetchSignatories,
-    enabled: role === 'handover',
+    enabled: !isRecipient,
   });
 
   const [strokes, setStrokes] = useState<SignatureStrokes>([]);
@@ -88,11 +94,15 @@ export default function SignBastScreen() {
   const bast = detail.data;
   const chosen = signatories.data?.find((s) => s.id === signatoryId);
 
-  const signerName = role === 'receiver' ? (bast?.employeeName ?? '') : (chosen?.full_name ?? '');
-  const signerTitle =
-    role === 'receiver'
-      ? (bast?.departmentName ?? null)
-      : (chosen?.title ?? chosen?.department_name ?? null);
+  const recipientName =
+    role === 'receiver_2' ? (bast?.secondaryName ?? '') : (bast?.employeeName ?? '');
+  const recipientTitle =
+    role === 'receiver_2' ? (bast?.secondaryTitle ?? null) : (bast?.departmentName ?? null);
+
+  const signerName = isRecipient ? recipientName : (chosen?.full_name ?? '');
+  const signerTitle = isRecipient
+    ? recipientTitle
+    : (chosen?.title ?? chosen?.department_name ?? null);
 
   const addPerson = useMutation({
     mutationFn: () => addSignatory(newName, newTitle || null),
@@ -216,14 +226,14 @@ export default function SignBastScreen() {
         ) : null}
 
         <Card padding={15} title="Penanda tangan" style={styles.card}>
-          {role === 'receiver' ? (
+          {isRecipient ? (
             <>
               <Text style={[t.type.fieldLabel, { color: t.color.sub }]}>Nama</Text>
               <Text style={[t.type.body, styles.fixedValue, { color: t.color.text }]}>
-                {bast.employeeName}
+                {recipientName}
               </Text>
               <Text style={[t.type.meta, { color: t.color.sub }]}>
-                {`${bast.departmentName} · taken from the assignment, so the document and the record cannot disagree`}
+                {`${recipientTitle ?? bast.departmentName} · taken from the assignment, so the document and the record cannot disagree`}
               </Text>
             </>
           ) : signatories.isPending ? (

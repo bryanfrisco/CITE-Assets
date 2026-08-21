@@ -75,7 +75,7 @@ interface Wording {
   captions: [string, string];
 }
 
-const WORDING: Record<'handover' | 'return', Wording> = {
+const WORDING: Record<'handover' | 'return' | 'accessory', Wording> = {
   handover: {
     title: 'BERITA ACARA SERAH TERIMA BARANG',
     opening: (unit) => `telah diserah terimakan 1 (Satu) unit ${unit} dari Divisi IT kepada :`,
@@ -95,6 +95,18 @@ const WORDING: Record<'handover' | 'return', Wording> = {
     // Note the left column is still the CITE side. On a withdrawal the IT
     // officer is the one RECEIVING, which is why these are not simply swapped.
     captions: ['Yang Menerima', 'Yang Memberikan'],
+  },
+  // Perlengkapan handed over on its own: mice, headsets, cables. There is no
+  // asset on this sheet, so the opening sentence names no unit and counts
+  // nothing — the goods table below carries the quantities instead.
+  accessory: {
+    title: 'BERITA ACARA SERAH TERIMA PERLENGKAPAN',
+    opening: () => 'telah diserah terimakan perlengkapan IT dari Divisi IT kepada :',
+    purpose: (company) =>
+      `Perlengkapan Tersebut akan dipergunakan untuk kegiatan operasional perusahaan ${company} dengan rincian sebagai berikut :`,
+    closing:
+      'Demikian Berita Acara serah terima perlengkapan ini buat, agar dapat diketahui serta ditandatangani bersama serta diketahui oleh pihak - pihak yang berkepentingan.',
+    captions: ['Yang Menyerahkan', 'Yang Menerima'],
   },
 };
 
@@ -126,15 +138,18 @@ interface BastItem {
 interface BastDocument {
   id: string;
   bastNumber: string;
-  kind: 'handover' | 'return';
+  kind: 'handover' | 'return' | 'accessory';
   longDate: string;
   /** "Senin tanggal Dua puluh lima Bulan Mei Tahun Dua ribu dua puluh enam". */
   dateWords: string;
   /** "Jakarta, 25 Mei 2026". */
   placeDate: string;
-  assetCode: string;
-  assetName: string;
+  /** Both null on a BAST Perlengkapan — that sheet has no asset. */
+  assetCode: string | null;
+  assetName: string | null;
   employeeName: string;
+  /** The other shift on a shared asset. Null on every other document. */
+  secondaryName?: string | null;
   employeeNik: string;
   employeeTitle: string;
   departmentName: string;
@@ -146,7 +161,7 @@ interface BastDocument {
   handedOverBy: string;
   handedOverDept: string;
   items: BastItem[];
-  signatures: { handover?: Signature; receiver?: Signature };
+  signatures: { handover?: Signature; receiver?: Signature; receiver_2?: Signature };
   versions: BastVersionRow[];
 }
 
@@ -268,7 +283,7 @@ function render(doc: BastDocument): Uint8Array {
   y -= 32;
   y = paragraph(
     c,
-    `Pada hari ini ${doc.dateWords}, ${w.opening(doc.assetName)}`,
+    `Pada hari ini ${doc.dateWords}, ${w.opening(doc.assetName ?? '')}`,
     MARGIN,
     y,
     CONTENT_W,
@@ -370,24 +385,50 @@ function render(doc: BastDocument): Uint8Array {
   y -= 12;
   c.text(doc.placeDate, MARGIN, y, { size: 10, color: BODY });
 
-  // ---- two signature blocks ------------------------------------------------
+  // ---- signature blocks ----------------------------------------------------
+  //
+  // Left column is always the CITE side. The right column carries one block per
+  // recipient, STACKED rather than spread: a shared handy-talkie has two, and
+  // widening the sheet is not an option on A4.
+  //
+  // The second block is made room for by moving the first one up, never by
+  // shrinking the signature box — strokes are normalised 0..1 and would shrink
+  // with it, which is how a signature turns into a smudge.
   const rightX = MARGIN + CONTENT_W * 0.56;
   const handover = doc.signatures?.handover;
   const receiver = doc.signatures?.receiver;
+  const receiver2 = doc.signatures?.receiver_2;
+  const hasSecond = Boolean(doc.secondaryName);
 
-  const blocks: [string, Signature | undefined, string, number][] = [
-    [w.captions[0], handover, handover?.signerName ?? doc.handedOverBy, MARGIN],
-    [w.captions[1], receiver, receiver?.signerName ?? doc.employeeName, rightX],
+  // The gap between a caption and its ruled name IS the signature box, so its
+  // height is fixed rather than derived — the strokes are normalised 0..1 and
+  // would shrink into a smudge along with any smaller box.
+  const BLOCK_H = 96;
+  // Clear of the first block's electronic-signature timestamp, which sits 14pt
+  // below its ruled name.
+  const STACK_GAP = 24;
+  const captionY = y - 15;
+
+  // [caption, signature, printed name, x, the y its own caption sits on]
+  const blocks: [string, Signature | undefined, string, number, number][] = [
+    [w.captions[0], handover, handover?.signerName ?? doc.handedOverBy, MARGIN, captionY],
+    [w.captions[1], receiver, receiver?.signerName ?? doc.employeeName, rightX, captionY],
   ];
 
-  const captionY = y - 15;
-  // The gap between the caption and the ruled name is the signature box. It is
-  // widened to match the on-screen preview — a box that fits on screen and not
-  // on paper is a box nobody can trust.
-  const nameY = captionY - 96;
+  if (hasSecond) {
+    blocks.push([
+      w.captions[1],
+      receiver2,
+      receiver2?.signerName ?? doc.secondaryName ?? '',
+      rightX,
+      captionY - BLOCK_H - STACK_GAP,
+    ]);
+  }
 
-  for (const [caption, signature, name, x] of blocks) {
-    c.text(caption, x, captionY, { size: 10, color: BODY });
+  for (const [caption, signature, name, x, blockCaptionY] of blocks) {
+    const nameY = blockCaptionY - BLOCK_H;
+
+    c.text(caption, x, blockCaptionY, { size: 10, color: BODY });
     if (signature) drawSignature(c, signature, x + 80, nameY, 170, 78);
 
     c.text(name, x, nameY, { size: 10, face: 'bold', color: INK });

@@ -11,11 +11,13 @@ import { useRouter } from 'expo-router';
 import {
   ArrowLeftRight,
   BarChart3,
+  Boxes,
   FileSpreadsheet,
   Grid3x3,
   QrCode,
   Settings as SettingsIcon,
   ShieldCheck,
+  UserPlus,
   Users,
   Wrench,
 } from 'lucide-react-native';
@@ -44,7 +46,9 @@ export default function MoreScreen() {
       | '/transfer'
       | '/accounts'
       | '/maintenance'
+      | '/accessories'
       | '/import'
+      | '/import-employees'
       | '/reports'
       | '/audit';
   }[] = [
@@ -73,17 +77,33 @@ export default function MoreScreen() {
       route: '/reports' as const,
     },
     {
+      icon: <Boxes {...iconProps} />,
+      title: 'Accessories',
+      subtitle: 'Mice, keyboards, cables — counted, not serialised',
+      route: '/accessories' as const,
+    },
+    {
       icon: <FileSpreadsheet {...iconProps} />,
       title: 'Import assets',
       subtitle: 'Template → check → import',
       route: '/import' as const,
     },
+    ...(can('account.manage')
+      ? [
+          {
+            icon: <UserPlus {...iconProps} />,
+            title: 'Import employees',
+            subtitle: 'Straight from the Odoo hr.employee export',
+            route: '/import-employees' as const,
+          },
+        ]
+      : []),
     ...(can('master.write')
       ? [
           {
             icon: <Grid3x3 {...iconProps} />,
             title: 'Master data',
-            subtitle: 'Categories, brands, models, vendors',
+            subtitle: 'Categories, brands, units, companies',
             route: '/master' as const,
           },
         ]

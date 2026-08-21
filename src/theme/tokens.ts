@@ -75,6 +75,11 @@ export const badgeToneByLabel: Record<string, BadgeTone> = {
   // asset status
   Assigned: 'assigned',
   Active: 'assigned',
+  // Fitted into a vehicle. It shares the 'assigned' tone rather than getting a
+  // seventh colour, because it means the same thing to somebody scanning the
+  // list — in use, not available — and README's token table has no eighth
+  // badge colour to draw from.
+  Installed: 'assigned',
   Available: 'available',
   Maintenance: 'maintenance',
   Broken: 'broken',

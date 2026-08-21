@@ -304,6 +304,8 @@ export default function AssetsScreen() {
         onSelect={(o) => setCategory(o.id)}
         onDismiss={() => setSheet(null)}
         emptyMessage="No categories in master data yet"
+        clearLabel="All categories"
+        onClear={() => setCategory(null)}
       />
 
       <PickerSheet

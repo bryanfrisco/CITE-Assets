@@ -73,6 +73,8 @@ import {
   type TimelineKind,
 } from '@/api/assets';
 import { attachTag, fetchAssetTagCode } from '@/api/tags';
+import { installAssetToUnit, removeAssetFromUnit } from '@/api/units';
+import { listMaster } from '@/api/masterData';
 import {
   DOCUMENT_KINDS,
   DOCUMENT_KIND_LABEL,
@@ -105,6 +107,14 @@ export default function AssetDetailScreen() {
   const [labelOpen, setLabelOpen] = useState(false);
   const [labelCode, setLabelCode] = useState('');
   const [labelError, setLabelError] = useState('');
+  const [fitOpen, setFitOpen] = useState(false);
+  const [unitPickerOpen, setUnitPickerOpen] = useState(false);
+  const [unitId, setUnitId] = useState<string | null>(null);
+  const [unitReason, setUnitReason] = useState('');
+  const [unitError, setUnitError] = useState('');
+  const [unfitOpen, setUnfitOpen] = useState(false);
+  const [unfitReason, setUnfitReason] = useState('');
+  const [unfitError, setUnfitError] = useState('');
 
   const detail = useQuery({
     queryKey: queryKeys.asset(code ?? ''),
@@ -132,6 +142,47 @@ export default function AssetDetailScreen() {
       toast(result.alreadyAttached ? 'That label was already on it' : 'Label attached');
     },
     onError: (e: Error) => setLabelError(e.message),
+  });
+
+  // Only fetched once the sheet is open: most assets are held by a person and
+  // will never go near a unit.
+  const units = useQuery({
+    queryKey: queryKeys.master('unit'),
+    queryFn: () => listMaster('unit'),
+    enabled: fitOpen,
+  });
+
+  const unitOptions = (units.data ?? [])
+    .filter((u) => u.isActive)
+    .map((u) => ({ id: u.id, name: u.name, detail: u.detail }));
+
+  const invalidateAsset = () => {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.asset(code ?? '') });
+    void queryClient.invalidateQueries({ queryKey: ['assets'] });
+    void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+  };
+
+  const fit = useMutation({
+    mutationFn: () => installAssetToUnit(detail.data!.asset.id, unitId!, unitReason),
+    onSuccess: (result) => {
+      setFitOpen(false);
+      setUnitId(null);
+      setUnitReason('');
+      invalidateAsset();
+      toast(`Fitted to ${result.unitCode}`);
+    },
+    onError: (e: Error) => setUnitError(e.message),
+  });
+
+  const unfit = useMutation({
+    mutationFn: () => removeAssetFromUnit(detail.data!.asset.id, unfitReason),
+    onSuccess: (result) => {
+      setUnfitOpen(false);
+      setUnfitReason('');
+      invalidateAsset();
+      toast(`Removed from ${result.removedFrom}`);
+    },
+    onError: (e: Error) => setUnfitError(e.message),
   });
 
   // The database refuses this for anything with an assignment, a movement, an
@@ -356,6 +407,33 @@ export default function AssetDetailScreen() {
               router.push(`/transfer?asset=${a.assetCode}`);
             }}
           />
+          {can('asset.edit') ? (
+            <Button
+              label={a.unitId ? 'Move to another unit' : 'Fit to a unit'}
+              variant="secondary"
+              block
+              onPress={() => {
+                setOverflowOpen(false);
+                setUnitError('');
+                setUnitId(null);
+                setUnitReason('');
+                setFitOpen(true);
+              }}
+            />
+          ) : null}
+          {can('asset.edit') && a.unitId ? (
+            <Button
+              label="Remove from unit"
+              variant="secondary"
+              block
+              onPress={() => {
+                setOverflowOpen(false);
+                setUnfitError('');
+                setUnfitReason('');
+                setUnfitOpen(true);
+              }}
+            />
+          ) : null}
           {can('asset.delete') ? (
             <Button
               label="Delete asset"
@@ -413,6 +491,107 @@ export default function AssetDetailScreen() {
               router.push('/scan');
             }}
           />
+        </View>
+      </BottomSheet>
+
+      <BottomSheet
+        visible={fitOpen}
+        onDismiss={() => setFitOpen(false)}
+        title={a.unitId ? 'Move to another unit' : 'Fit to a unit'}
+      >
+        <View style={styles.sheetActions}>
+          <Text style={[t.type.bodySmall, { color: t.color.text, lineHeight: 18 }]}>
+            A fitted asset has no holder and produces no handover note. It follows the vehicle, so
+            if the unit is at another location this asset moves there too.
+          </Text>
+
+          <SelectField
+            label="Unit"
+            required
+            value={unitOptions.find((u) => u.id === unitId)?.name}
+            placeholder={units.isPending ? 'Loading…' : 'Select a unit'}
+            onPress={() => setUnitPickerOpen(true)}
+          />
+
+          <Input
+            label="Why"
+            required
+            value={unitReason}
+            onChangeText={(value) => {
+              setUnitReason(value);
+              setUnitError('');
+            }}
+            placeholder="e.g. Fitted for the Konawe haul road rollout"
+            multiline
+            numberOfLines={2}
+          />
+
+          {unitError ? (
+            <Text style={[t.type.meta, { color: t.color.error, lineHeight: 16 }]}>{unitError}</Text>
+          ) : null}
+
+          <Button
+            label="Fit it"
+            block
+            disabled={!unitId || unitReason.trim().length === 0}
+            loading={fit.isPending}
+            onPress={() => fit.mutate()}
+          />
+          <Button label="Cancel" variant="secondary" block onPress={() => setFitOpen(false)} />
+        </View>
+      </BottomSheet>
+
+      <PickerSheet
+        visible={unitPickerOpen}
+        title="Unit"
+        options={unitOptions}
+        selectedId={unitId}
+        onSelect={(option) => {
+          setUnitId(option.id);
+          setUnitError('');
+        }}
+        onDismiss={() => setUnitPickerOpen(false)}
+        emptyMessage="Add a unit in Master data first."
+      />
+
+      <BottomSheet
+        visible={unfitOpen}
+        onDismiss={() => setUnfitOpen(false)}
+        title={`Remove from ${a.unitCode ?? 'the unit'}?`}
+      >
+        <View style={styles.sheetActions}>
+          <Text style={[t.type.bodySmall, { color: t.color.text, lineHeight: 18 }]}>
+            It becomes Available again. Its location stays where the vehicle left it — record a
+            transfer if the asset itself has gone somewhere else.
+          </Text>
+
+          <Input
+            label="Why"
+            required
+            value={unfitReason}
+            onChangeText={(value) => {
+              setUnfitReason(value);
+              setUnfitError('');
+            }}
+            placeholder="e.g. Vehicle sold"
+            multiline
+            numberOfLines={2}
+          />
+
+          {unfitError ? (
+            <Text style={[t.type.meta, { color: t.color.error, lineHeight: 16 }]}>
+              {unfitError}
+            </Text>
+          ) : null}
+
+          <Button
+            label="Remove it"
+            block
+            disabled={unfitReason.trim().length === 0}
+            loading={unfit.isPending}
+            onPress={() => unfit.mutate()}
+          />
+          <Button label="Cancel" variant="secondary" block onPress={() => setUnfitOpen(false)} />
         </View>
       </BottomSheet>
 
@@ -880,7 +1059,15 @@ function Overview({ detail }: { detail: AssetDetail }) {
   return (
     <>
       <Card padding={14}>
-        <Row label="Assigned to" value={a.assignedToName} />
+        <Row
+          label="Assigned to"
+          value={
+            a.assignedToSecondaryName
+              ? `${a.assignedToName} + ${a.assignedToSecondaryName}`
+              : a.assignedToName
+          }
+        />
+        <Row label="Fitted to" value={a.unitCode ? `${a.unitCode} · ${a.unitName}` : null} />
         <Row label="Department" value={a.departmentName} />
         <Row label="Current location" value={a.locationName} />
         <Row label="Purchase date" value={a.purchaseDate} />

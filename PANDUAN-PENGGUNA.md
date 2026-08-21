@@ -35,9 +35,9 @@ Empat tombol di bawah, satu tombol **+** di tengah.
 | Tombol     | Isinya                                                                          |
 | ---------- | ------------------------------------------------------------------------------- |
 | **Home**   | Ringkasan: jumlah aset, sebaran status, aktivitas terakhir                      |
-| **Assets** | Daftar aset, pencarian, filter status                                           |
+| **Assets** | Daftar aset, pencarian, filter status dan kategori                             |
 | **E-BAST** | Semua berita acara serah terima                                                 |
-| **More**   | Movement, Labels, Maintenance, Import, Reports, Master data, Accounts, Settings |
+| **More**   | Movement, Labels, Maintenance, Accessories, Import, Reports, Master data, Accounts, Settings |
 
 Tombol **+** memuat lima tindakan yang paling sering: Scan Label, Add Asset, Assign Asset,
 Transfer Asset, Generate E-BAST.
@@ -194,6 +194,15 @@ Aset juga bisa didaftarkan tanpa stiker: **+ → Add Asset**.
 Di langkah terakhir ada saklar **Auto-generate E-BAST**. Biarkan menyala kalau serah
 terimanya perlu dokumen.
 
+Di langkah terakhir juga ada kartu **Accessories**: mouse, headset, kabel yang ikut
+diserahkan. Yang dipilih di situ langsung berkurang dari stok **dan** menjadi baris
+tambahan di E-BAST yang sama — jadi kertasnya cocok dengan isi tasnya.
+
+Di langkah pertama ada tautan opsional **Add a second holder**. Pakai itu hanya kalau
+barangnya benar-benar dipegang dua orang, seperti HT yang dipakai bergantian dua shift.
+Konsekuensinya: suratnya perlu **tiga** tanda tangan dan belum terbit sampai keduanya
+menandatangani. Pergantian shift harian tidak perlu dicatat.
+
 Setelah selesai: status aset jadi _Assigned_, pemegangnya tercatat, riwayat penugasan
 bertambah, dan kalau lokasinya berpindah, satu baris movement ikut tercatat.
 
@@ -234,8 +243,12 @@ Tabel `No | Jenis/Type | Serial Number | Kondisi` di surat bisa diisi lebih dari
 baris — laptop, charger, mouse. Buka surat → kartu **Rincian barang** → **Edit the list**.
 
 Charger dan mouse **tidak** menjadi aset di register: barang seperti itu tidak punya
-serial dan tidak perlu didaftar. Mereka hanya ada di kertas. Kalau daftarnya tidak pernah
-disentuh, surat mencetak satu baris berisi aset itu sendiri.
+serial dan tidak perlu didaftar. Kalau daftarnya tidak pernah disentuh, surat mencetak
+satu baris berisi aset itu sendiri.
+
+> **Ini sudah berubah.** Dulu barang seperti itu hanya ada di kertas. Sekarang ada
+> **Accessories** (§10) — stoknya dihitung, dan yang diserahkan bersama laptop bisa
+> ikut masuk ke surat ini secara otomatis dari wizard Assign.
 
 Begitu surat berstatus **Signed**, daftarnya terkunci. Tanda tangan harus menjamin isi
 yang tidak berubah lagi.
@@ -372,6 +385,44 @@ Admin dulu.
 Ubah **Active** jadi _Inactive_. Mereka tidak bisa masuk dan tidak ditawarkan saat
 penugasan, tapi **tetap ada di semua catatan yang sudah menyebut nama mereka**. Riwayat
 tidak dihapus hanya karena seseorang berhenti.
+
+---
+
+## 7.5 Import karyawan dari Odoo
+
+**More → Import employees** (hanya Super Admin).
+
+Untuk ratusan orang sekaligus. Ekspor `hr.employee` dari Odoo sebagai **CSV**, lalu
+masukkan **apa adanya** — nama kolomnya sudah dikenali, tidak ada yang perlu diganti.
+
+Tiga langkah, dan yang tengah adalah intinya:
+
+1. **Template** — bisa diunduh kalau Anda mau mengetik sendiri. Bentuknya sama persis
+   dengan hasil export Odoo.
+2. **Review** — aplikasi menjalankan importnya "kosongan" dulu dan menampilkan
+   **Baru / Diperbarui / Tidak berubah / Dilewati**. Belum ada satu baris pun yang ditulis.
+3. **Import** — kalau ada yang bermasalah, tombolnya **tidak langsung menulis**. Muncul
+   ringkasan masalahnya dengan tiga pilihan: lihat daftarnya, lanjutkan yang lain, atau
+   batal. Kalau berkasnya bersih, sheet ini tidak muncul sama sekali.
+
+Yang perlu Anda tahu:
+
+- **Import hanya menulis enam kolom**: nama, Employee ID, jabatan, perusahaan, email,
+  telepon. **Peran, login, dan lokasi tidak pernah disentuh** — jadi import bulanan
+  tidak akan mencabut akses orang atau menghapus lokasi yang sudah Anda rapikan.
+- **Sel kosong tidak menghapus apa pun.** Kolom kosong di Odoo berarti "tidak dicatat di
+  sini", bukan "hapus yang sudah ada".
+- **Nilai yang tidak masuk akal dikosongkan, orangnya tetap masuk.** Email yang bukan
+  alamat, atau Employee ID kosong, dilaporkan sebagai peringatan — orangnya tetap
+  terdaftar dan bisa menerima aset.
+- **Satu-satunya yang benar-benar dilewati**: baris tanpa nama, dan Employee ID yang
+  sudah dipakai baris lain di berkas yang sama.
+- Import ulang **memperbarui**, tidak menggandakan. Pencocokannya lewat Employee ID;
+  kalau kosong, lewat nama + perusahaan.
+- Semua masuk sebagai **Record only** — import tidak pernah memberi login.
+
+Perusahaan (`PT Stargate Pasific Resources`, `PT Stargate Mineral Asia`,
+`PT Rajawali Sigi Lestari`) dikelola di **More → Master data → Company**.
 
 ---
 
@@ -531,7 +582,11 @@ terbaca lama setelah semua orang lupa siapa boleh melihat apa.
 
 **More → Master data** (Corporate IT dan Super Admin)
 
-Kategori, merek, model, vendor, departemen, lokasi.
+Kategori, merek, model, vendor, departemen, lokasi, **Unit** dan **Company**.
+
+Dua yang terakhir ditambahkan belakangan. **Unit** adalah kendaraan tempat sebuah aset
+terpasang (§17); **Company** adalah badan usaha tempat seseorang bekerja, dipakai oleh
+import karyawan (§7.5). Unit wajib punya kode dan lokasi; Company wajib punya kode.
 
 Menonaktifkan sebuah entri menyembunyikannya dari form aset baru, tapi **setiap aset lama
 tetap menyimpan rujukannya**. Itulah gunanya nonaktif, bukan hapus.
@@ -579,3 +634,126 @@ punya alasan yang sama: catatan yang bisa diubah belakangan tidak bisa dijadikan
    percakapan; keduanya sebaiknya diganti dari dashboard Supabase. Aplikasi tidak memakai
    service role key sama sekali, jadi menggantinya tidak merusak apa pun.
 4. **Jalankan backup pertama** dan pastikan berkasnya benar-benar bisa dibuka.
+
+
+---
+
+## 16. Accessories — barang yang dihitung, bukan didaftar
+
+**More → Accessories**
+
+Mouse, keyboard, kabel, headset. Barang yang tidak punya serial dan tidak masuk register
+aset, tapi tetap perlu diketahui **tinggal berapa**.
+
+Bedanya dengan aset: aset itu satu benda dan jelas siapa pemegangnya; accessory itu
+tumpukan, dan yang perlu dilihat orang adalah sisanya.
+
+### 16.1 Menambah stok
+
+**Add an accessory** → nama, kategori, lokasi, dan **Total owned**.
+
+`Total owned` adalah jumlah yang **dimiliki**, bukan yang ada di rak. Yang tersedia
+dihitung sendiri: total dikurangi yang sedang dipegang orang. Sistem menolak menurunkan
+total di bawah jumlah yang sedang keluar — register yang bilang lima ada padahal tujuh
+di tangan orang lebih buruk daripada tidak ada register.
+
+**Lokasi tidak bisa diubah setelah dibuat.** Stok di lokasi lain adalah catatan
+tersendiri. Jadi "Logitech M170" di HO dan di Site adalah dua baris dengan dua stok —
+dan itu yang membuat scope selector bekerja di layar ini tanpa filter tambahan.
+
+### 16.2 Assign to dan Return
+
+Kata yang dipakai sama dengan aset: **Assign to** dan **Return**.
+
+Bedanya cuma satu isian: **berapa**. Sistem menolak kalau melebihi yang tersedia, dan
+pesannya menyebut sisanya.
+
+Setiap penyerahan tetap tersimpan di riwayat setelah barangnya kembali. Baris "Returned"
+tetap bukti bahwa orang itu pernah memegang tiga di bulan Maret.
+
+### 16.3 Suratnya
+
+Ada tiga waktu pemberian, dan perlakuannya berbeda:
+
+| Kapan | Yang terjadi |
+| --- | --- |
+| Bersamaan dengan assign aset | Dipilih di langkah 3 wizard → jadi baris tambahan di E-BAST aset itu |
+| Menyusul, E-BAST aset masih **Draft** | Buka suratnya → **Rincian barang** → tambahkan barisnya |
+| Menyusul, E-BAST aset sudah **Signed** | **Terbit surat baru**: Berita Acara Serah Terima Perlengkapan |
+
+Yang ketiga bukan pilihan desain, tapi keharusan: surat yang sudah ditandatangani tidak
+boleh berubah. Di atas kertas pun Anda tidak meminta orang menandatangani ulang surat
+bulan lalu — Anda buat berita acara baru.
+
+Setelah menyerahkan accessory, aplikasi menawarkan **Raise a BAST Perlengkapan**. Nomornya
+dari urutan yang sama, dua tanda tangan seperti biasa, dan surat lamanya tetap utuh.
+
+---
+
+## 17. Unit — aset yang terpasang di kendaraan
+
+Radio rig tidak dipegang siapa-siapa; dia terpasang di dump truck. **Unit adalah tempat,
+bukan orang.**
+
+### 17.1 Membuat unit
+
+**More → Master data → Unit** → kode (`DT-042`), nama, dan **lokasi**. Lokasi unit itulah
+yang menjawab "Unit A ada di mana".
+
+Unit sengaja **bukan** Location. Location menentukan hak akses, kop surat E-BAST, dan
+prefix stiker — memasukkan dump truck ke situ akan membuatnya muncul di scope selector
+dan di kop surat serah terima.
+
+### 17.2 Memasang dan melepas
+
+**Buka aset → ⋯ → Fit to a unit** → pilih unitnya, isi **alasannya** (wajib).
+
+Yang terjadi: status aset jadi **Installed**, barisnya "Fitted to" terisi, dan aset itu
+hilang dari daftar yang bisa di-assign ke orang. Kalau unitnya di lokasi lain, asetnya
+ikut pindah ke sana dan satu baris movement tercatat.
+
+**Alasan wajib** karena aset yang terpasang di unit tidak punya pemegang dan tidak
+menerbitkan surat. Log otomatis mencatat siapa dan kapan, tapi tidak bisa mencatat
+kenapa — dan enam bulan lagi, "kenapa radio ini di DT-042 dan bukan DT-011" hanya bisa
+dijawab oleh isian itu.
+
+Aset yang masih dipegang orang **tidak bisa** dipasang ke unit. Kembalikan dulu.
+
+**Remove from unit** mengembalikannya ke **Available**. Lokasinya tetap di tempat
+kendaraan itu meninggalkannya — catat transfer kalau barangnya memang pindah.
+
+---
+
+## 18. Reports — nilai dan sebarannya
+
+**More → Reports & Export**
+
+Nilai ditampilkan **tiga angka sekaligus**: Assets, Accessories, dan Total. Tidak ada
+yang perlu dipilih atau diingat.
+
+Nilai accessory dihitung dari **harga satuan × jumlah yang dimiliki**. Menyerahkan mouse
+ke seseorang tidak membuat perusahaan lebih miskin, jadi angkanya tidak berubah saat
+barang keluar.
+
+Semua angka adalah **yang dibayarkan**, bukan angka setelah penyusutan. Aplikasi ini
+tidak punya kebijakan penyusutan, dan mengarangnya berarti menaruh angka yang terlihat
+resmi di depan Finance.
+
+Di bawahnya ada **Breakdown** dengan chip `Category / Location / Department`. Kategori
+dan lokasi menghitung aset dan accessory bersama; departemen hanya aset, karena accessory
+milik rak, bukan milik tim.
+
+---
+
+## 19. Melihat apa yang dipegang seseorang
+
+**More → Accounts → pilih orang** → kartu **Holdings**.
+
+Dua daftar: aset dan accessories yang sedang dia pegang. Barisnya bisa ditekan menuju
+detailnya.
+
+Aset yang dipegang berdua diberi keterangan **second holder**, supaya sepasang pemegang
+tidak terlihat seperti dua serah terima terpisah.
+
+Yang sudah dikembalikan tidak muncul di sini — riwayatnya ada di halaman aset atau
+accessory-nya sendiri.

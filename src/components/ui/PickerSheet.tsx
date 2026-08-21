@@ -27,6 +27,16 @@ export interface PickerSheetProps {
   onDismiss: () => void;
   /** Copy shown when there is nothing to pick — usually a master data hint. */
   emptyMessage?: string;
+  /**
+   * Renders a first row that clears the selection, e.g. `All categories`.
+   *
+   * Without it the only way to undo a filter is the small × on the pill that
+   * opened this sheet, which is easy to miss — the sheet is where people look
+   * for the choice they made, so it is where "no choice" belongs too. Selecting
+   * it calls `onClear`; omit both and the row is not rendered at all.
+   */
+  clearLabel?: string;
+  onClear?: () => void;
 }
 
 export function PickerSheet({
@@ -37,15 +47,38 @@ export function PickerSheet({
   onSelect,
   onDismiss,
   emptyMessage = 'No records yet',
+  clearLabel,
+  onClear,
 }: PickerSheetProps) {
   const t = useTheme();
+  const showClear = Boolean(clearLabel && onClear);
 
   return (
     <BottomSheet visible={visible} onDismiss={onDismiss} title={title}>
-      {options.length === 0 ? (
+      {options.length === 0 && !showClear ? (
         <Text style={[t.type.meta, styles.empty, { color: t.color.sub }]}>{emptyMessage}</Text>
       ) : (
         <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
+          {showClear ? (
+            <Pressable
+              onPress={() => {
+                onClear!();
+                onDismiss();
+              }}
+              accessibilityRole="button"
+              accessibilityState={{ selected: !selectedId }}
+              accessibilityLabel={clearLabel}
+              style={({ pressed }) => [
+                styles.row,
+                { backgroundColor: pressed ? t.color.soft : 'transparent' },
+              ]}
+            >
+              <View style={styles.rowText}>
+                <Text style={[t.type.body, { color: t.color.text }]}>{clearLabel}</Text>
+              </View>
+              {!selectedId ? <Check size={17} color={t.color.royal} strokeWidth={2.2} /> : null}
+            </Pressable>
+          ) : null}
           {options.map((option, i) => {
             const selected = option.id === selectedId;
             return (
@@ -61,7 +94,7 @@ export function PickerSheet({
                 style={({ pressed }) => [
                   styles.row,
                   {
-                    borderTopWidth: i === 0 ? 0 : 1,
+                    borderTopWidth: i === 0 && !showClear ? 0 : 1,
                     borderTopColor: t.color.line,
                     backgroundColor: pressed ? t.color.soft : 'transparent',
                   },

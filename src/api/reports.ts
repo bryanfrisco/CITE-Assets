@@ -231,3 +231,52 @@ export function buildReportHtml(
   </table>
 </body></html>`;
 }
+
+/**
+ * The value analytics on the Reports screen.
+ *
+ * Three figures, not one: assets, accessories, and the two together. A picker
+ * would make somebody remember which of the three they were looking at, and
+ * the whole point of showing them side by side is that nobody has to.
+ *
+ * Every figure is what was PAID. This system has no depreciation policy, and
+ * inventing one would put an authoritative-looking number in front of Finance.
+ */
+export interface ValueBreakdown {
+  name: string;
+  count: number;
+}
+
+export interface ValueAnalytics {
+  assets: {
+    count: number;
+    value: number;
+    byCategory: ValueBreakdown[];
+    byLocation: ValueBreakdown[];
+    byDepartment: ValueBreakdown[];
+  };
+  accessories: {
+    count: number;
+    qty: number;
+    value: number;
+    byCategory: ValueBreakdown[];
+    byLocation: ValueBreakdown[];
+  };
+}
+
+export async function fetchValueAnalytics(
+  locations: string[],
+  filters: ReportFilters = {},
+  from?: string | null,
+  to?: string | null,
+): Promise<ValueAnalytics> {
+  const { data, error } = await supabase.rpc('value_analytics', {
+    p_locations: locations,
+    p_from: from || null,
+    p_to: to || null,
+    p_category: filters.categoryId ?? null,
+    p_department: filters.departmentId ?? null,
+  });
+  if (error) throw new Error(error.message);
+  return data as ValueAnalytics;
+}

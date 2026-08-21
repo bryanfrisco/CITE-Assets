@@ -98,6 +98,11 @@ export default function BastListScreen() {
           active={kind === 'return'}
           onPress={() => setKind('return')}
         />
+        <Chip
+          label={`Perlengkapan${stats.data ? ` ${stats.data.accessory}` : ''}`}
+          active={kind === 'accessory'}
+          onPress={() => setKind('accessory')}
+        />
       </ChipRow>
 
       {scope.length === 0 ? (
@@ -127,7 +132,9 @@ export default function BastListScreen() {
               ? 'A Berita Acara Penarikan Barang is raised when an asset is returned.'
               : kind === 'handover'
                 ? 'A Berita Acara Serah Terima Barang is raised when an asset is assigned.'
-                : 'Berita Acara records appear here once an assignment or a return generates one.'
+                : kind === 'accessory'
+                  ? 'A Berita Acara Serah Terima Perlengkapan is raised from an accessory hand-out.'
+                  : 'Berita Acara records appear here once an assignment or a return generates one.'
           }
         />
       ) : (

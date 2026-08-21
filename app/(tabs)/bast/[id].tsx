@@ -33,6 +33,7 @@ import {
   generateBastPdf,
   setBastItems,
   signatureCaption,
+  signatureRolesFor,
   signedBastUrl,
   uploadSignedScan,
   type BastDetail,
@@ -98,8 +99,12 @@ export default function BastDetailScreen() {
     void queryClient.invalidateQueries({ queryKey: ['bastDetail', bast.id] });
     void queryClient.invalidateQueries({ queryKey: ['bast'] });
     void queryClient.invalidateQueries({ queryKey: ['bastStats'] });
-    // The signed scan mirrors into the asset's Documents tab.
-    void queryClient.invalidateQueries({ queryKey: queryKeys.asset(bast.assetCode) });
+    // The signed scan mirrors into the asset's Documents tab — when there is
+    // an asset. A BAST Perlengkapan has none, and asset('') would invalidate a
+    // key nothing uses.
+    if (bast.assetCode) {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.asset(bast.assetCode) });
+    }
   };
 
   const openFile = async (path: string) => {
@@ -275,7 +280,7 @@ export default function BastDetailScreen() {
             issued automatically.
           </Text>
 
-          {(['handover', 'receiver'] as SignatureRole[]).map((role) => {
+          {signatureRolesFor(b).map((role) => {
             const signature = b.signatures?.[role];
             return (
               <Pressable
@@ -450,19 +455,30 @@ function PaperPreview({ bast }: { bast: BastDetail }) {
   const p = t.paper;
 
   const isReturn = bast.kind === 'return';
+  // Perlengkapan names no unit and counts nothing in the opening line: the
+  // quantities live in the goods table, which on that sheet is the whole
+  // document. Kept in step with the WORDING table in generate-bast-pdf, so the
+  // preview and the PDF cannot say different things.
+  const isAccessory = bast.kind === 'accessory';
   const company = `${bast.companyName} ${bast.officeLabel}`;
 
-  const opening = isReturn
-    ? `Pada hari ini ${bast.dateWords}, telah diberikan 1 (Satu) unit ${bast.assetName} kepada Divisi IT dari :`
-    : `Pada hari ini ${bast.dateWords}, telah diserah terimakan 1 (Satu) unit ${bast.assetName} dari Divisi IT kepada :`;
+  const opening = isAccessory
+    ? `Pada hari ini ${bast.dateWords}, telah diserah terimakan perlengkapan IT dari Divisi IT kepada :`
+    : isReturn
+      ? `Pada hari ini ${bast.dateWords}, telah diberikan 1 (Satu) unit ${bast.assetName} kepada Divisi IT dari :`
+      : `Pada hari ini ${bast.dateWords}, telah diserah terimakan 1 (Satu) unit ${bast.assetName} dari Divisi IT kepada :`;
 
-  const purpose = isReturn
-    ? `Alat Tersebut akan dikembalikan ke perusahaan ${company} dengan rincian sebagai berikut :`
-    : `Alat Tersebut akan dipergunakan untuk kegiatan operasional perusahaan ${company} dengan rincian sebagai berikut :`;
+  const purpose = isAccessory
+    ? `Perlengkapan Tersebut akan dipergunakan untuk kegiatan operasional perusahaan ${company} dengan rincian sebagai berikut :`
+    : isReturn
+      ? `Alat Tersebut akan dikembalikan ke perusahaan ${company} dengan rincian sebagai berikut :`
+      : `Alat Tersebut akan dipergunakan untuk kegiatan operasional perusahaan ${company} dengan rincian sebagai berikut :`;
 
-  const closing = isReturn
-    ? 'Demikian Berita Acara penarikan barang ini buat, agar dapat diketahui serta ditandatangani bersama serta diketahui oleh pihak - pihak yang berkepentingan.'
-    : 'Demikian Berita Acara serah terima barang ini buat, agar dapat diketahui serta ditandatangani bersama serta diketahui oleh pihak - pihak yang berkepentingan.';
+  const closing = isAccessory
+    ? 'Demikian Berita Acara serah terima perlengkapan ini buat, agar dapat diketahui serta ditandatangani bersama serta diketahui oleh pihak - pihak yang berkepentingan.'
+    : isReturn
+      ? 'Demikian Berita Acara penarikan barang ini buat, agar dapat diketahui serta ditandatangani bersama serta diketahui oleh pihak - pihak yang berkepentingan.'
+      : 'Demikian Berita Acara serah terima barang ini buat, agar dapat diketahui serta ditandatangani bersama serta diketahui oleh pihak - pihak yang berkepentingan.';
 
   const party: [string, string][] = [
     ['Nama', bast.employeeName],
@@ -590,26 +606,41 @@ function PaperPreview({ bast }: { bast: BastDetail }) {
       <Text style={[styles.paperSentence, { color: p.body }]}>{closing}</Text>
       <Text style={[styles.paperPlace, { color: p.body }]}>{bast.placeDate}</Text>
 
+      {/* Left column is the CITE side. The right column carries one block per
+          recipient, stacked rather than spread, so a shared handy-talkie does
+          not make the sheet wider than the paper it prints on. */}
       <View style={styles.signatures}>
-        {(
-          [
-            ['handover', bast.handedOverBy],
-            ['receiver', bast.employeeName],
-          ] as const
-        ).map(([role, fallbackName]) => {
-          const signature = bast.signatures?.[role];
-          return (
-            <View key={role} style={styles.signature}>
-              <Text style={[styles.signatureCaption, { color: p.body }]}>
-                {signatureCaption(bast.kind, role)}
-              </Text>
-              <PreviewSignature signature={signature} />
-              <Text style={[styles.signatureName, { color: p.ink, borderBottomColor: p.ink }]}>
-                {signature?.signerName ?? fallbackName}
-              </Text>
-            </View>
-          );
-        })}
+        <View style={styles.signature}>
+          <Text style={[styles.signatureCaption, { color: p.body }]}>
+            {signatureCaption(bast.kind, 'handover')}
+          </Text>
+          <PreviewSignature signature={bast.signatures?.handover} />
+          <Text style={[styles.signatureName, { color: p.ink, borderBottomColor: p.ink }]}>
+            {bast.signatures?.handover?.signerName ?? bast.handedOverBy}
+          </Text>
+        </View>
+
+        <View style={styles.signature}>
+          {(
+            [
+              ['receiver', bast.employeeName],
+              ...(bast.secondaryName ? ([['receiver_2', bast.secondaryName]] as const) : []),
+            ] as const
+          ).map(([role, fallbackName]) => {
+            const signature = bast.signatures?.[role as SignatureRole];
+            return (
+              <View key={role} style={styles.signatureStacked}>
+                <Text style={[styles.signatureCaption, { color: p.body }]}>
+                  {signatureCaption(bast.kind, role as SignatureRole)}
+                </Text>
+                <PreviewSignature signature={signature} />
+                <Text style={[styles.signatureName, { color: p.ink, borderBottomColor: p.ink }]}>
+                  {signature?.signerName ?? fallbackName}
+                </Text>
+              </View>
+            );
+          })}
+        </View>
       </View>
 
       <View style={[styles.paperFooter, { borderTopColor: p.tableBorder }]}>
@@ -908,7 +939,8 @@ const styles = StyleSheet.create({
   paperPlace: { fontSize: 8.5, marginTop: 14 },
   // Left column is the CITE side on BOTH documents — the caption changes, the
   // side does not. Left-aligned within each column, as on the scans.
-  signatures: { flexDirection: 'row', gap: 14, marginTop: 10 },
+  signatures: { flexDirection: 'row', alignItems: 'flex-start', gap: 14, marginTop: 10 },
+  signatureStacked: { marginBottom: 10 },
   signature: { flex: 1 },
   signatureCaption: { fontSize: 8.5 },
   signatureSpace: { alignSelf: 'stretch', marginTop: 6, justifyContent: 'flex-end' },

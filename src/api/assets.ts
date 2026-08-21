@@ -152,6 +152,13 @@ export interface AssetDetailAsset {
   conditionName: string;
   assignedToId: string | null;
   assignedToName: string | null;
+  /** The other shift on a shared asset. Null for everything held by one person. */
+  assignedToSecondaryId: string | null;
+  assignedToSecondaryName: string | null;
+  /** The vehicle it is fitted to, if any. Null for everything held by a person. */
+  unitId: string | null;
+  unitCode: string | null;
+  unitName: string | null;
   purchaseDate: string | null;
   purchasePrice: string | number | null;
   warrantyStart: string | null;

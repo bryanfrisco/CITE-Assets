@@ -9,7 +9,16 @@
 import { supabase } from '@/lib/supabase';
 
 export type MasterEntity =
-  'category' | 'brand' | 'model' | 'vendor' | 'department' | 'location' | 'status' | 'condition';
+  | 'category'
+  | 'brand'
+  | 'model'
+  | 'vendor'
+  | 'department'
+  | 'location'
+  | 'status'
+  | 'condition'
+  | 'unit'
+  | 'company';
 
 export interface MasterEntityMeta {
   key: MasterEntity;
@@ -17,7 +26,14 @@ export interface MasterEntityMeta {
   label: string;
 }
 
-/** README § Master data — the eight entity chips, in the order the design lists them. */
+/**
+ * README § Master data — the eight entity chips, in the order the design lists them,
+ * followed by the two the README does not cover.
+ *
+ * `unit` is a vehicle a fitted asset lives in (DT-042); `company` is the legal
+ * entity a person belongs to. Both are appended rather than slotted in, so the
+ * chip order the design specifies is still the order people see first.
+ */
 export const MASTER_ENTITIES: MasterEntityMeta[] = [
   { key: 'category', label: 'Category' },
   { key: 'brand', label: 'Brand' },
@@ -27,6 +43,8 @@ export const MASTER_ENTITIES: MasterEntityMeta[] = [
   { key: 'location', label: 'Location' },
   { key: 'status', label: 'Status' },
   { key: 'condition', label: 'Condition' },
+  { key: 'unit', label: 'Unit' },
+  { key: 'company', label: 'Company' },
 ];
 
 export function labelFor(entity: MasterEntity): string {
@@ -45,6 +63,7 @@ export interface MasterRecord {
   code?: string;
   kind?: string;
   color?: string;
+  locationId?: string;
 }
 
 /** Extra columns the schema requires that README's single name field does not cover. */
@@ -56,6 +75,7 @@ export interface MasterExtra {
   brandId?: string;
   categoryId?: string;
   color?: string;
+  locationId?: string;
 }
 
 export async function listMaster(entity: MasterEntity): Promise<MasterRecord[]> {

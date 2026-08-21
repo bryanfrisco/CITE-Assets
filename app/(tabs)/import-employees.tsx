@@ -1,20 +1,24 @@
 /**
- * Import assets from a CSV — Phase 7.
+ * Import employees from the Odoo hr.employee export.
  *
- * IMPLEMENTATION_PLAN.md § Phase 7, "Done when": a file with 45 rows and 3 bad
- * ones imports 42 and returns a downloadable error report.
+ * Same three steps as Import assets — template, see what will happen, commit —
+ * because they are the same job and learning it twice would be a tax on the
+ * one person who does both.
  *
- * Three steps, and the middle one is the point: pick a file, SEE what will
- * happen, then commit. The preview is a real dry run through the importer, not
- * a second opinion about it, so "42 will be added" is a promise the same code
- * then keeps.
+ * Two things differ, and both come from the file being a monthly re-export
+ * rather than a one-off load:
  *
- * Nothing is imported until the second button is pressed. A register is not
- * something to find out about afterwards.
+ *   1. The counts are New / Updated / Unchanged / Skipped. An employee list is
+ *      imported again every month, and "526 valid" would hide the only number
+ *      that matters, which is how many records are about to CHANGE.
+ *
+ *   2. When the preview finds problems, Import does not fire straight away. A
+ *      sheet names them and offers to go back. On a clean file the sheet never
+ *      appears — a confirmation that always appears is one nobody reads.
  */
 
-import React, { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as DocumentPicker from 'expo-document-picker';
@@ -23,15 +27,16 @@ import { File, Paths } from 'expo-file-system';
 import { AlertCircle, ChevronLeft, Download, FileDown, Upload } from 'lucide-react-native';
 
 import { useTheme } from '@/theme';
-import { Badge, Button, Card, EmptyState, Screen, Skeleton } from '@/components/ui';
+import { BottomSheet, Button, Card, EmptyState, Screen, Skeleton } from '@/components/ui';
 import {
+  EMPLOYEE_IMPORT,
+  buildEmployeeTemplate,
   buildErrorReport,
-  buildImportTemplate,
   parseImportCsv,
   type CsvRow,
   type RowError,
 } from '@/lib/csv';
-import { fetchImportHistory, importAssets, type ImportResult } from '@/api/imports';
+import { fetchImportHistory, importAccounts, type EmployeeImportResult } from '@/api/imports';
 import { useToast } from '@/store/useUiStore';
 import { usePermissions } from '@/auth';
 
@@ -46,7 +51,7 @@ async function share(name: string, contents: string, dialogTitle: string) {
   }
 }
 
-export default function ImportScreen() {
+export default function ImportEmployeesScreen() {
   const t = useTheme();
   const router = useRouter();
   const toast = useToast();
@@ -55,13 +60,15 @@ export default function ImportScreen() {
 
   const [fileName, setFileName] = useState<string | null>(null);
   const [rows, setRows] = useState<CsvRow[] | null>(null);
-  const [preview, setPreview] = useState<ImportResult | null>(null);
+  const [preview, setPreview] = useState<EmployeeImportResult | null>(null);
   const [warning, setWarning] = useState('');
   const [error, setError] = useState('');
+  const [confirming, setConfirming] = useState(false);
+  const [showProblems, setShowProblems] = useState(false);
 
   const history = useQuery({
-    queryKey: ['importHistory', 'assets'],
-    queryFn: () => fetchImportHistory('assets'),
+    queryKey: ['importHistory', 'employees'],
+    queryFn: () => fetchImportHistory('employees'),
   });
 
   const reset = () => {
@@ -70,7 +77,12 @@ export default function ImportScreen() {
     setPreview(null);
     setWarning('');
     setError('');
+    setConfirming(false);
+    setShowProblems(false);
   };
+
+  const willWrite = preview ? preview.created + preview.updated : 0;
+  const problemCount = preview ? preview.skipped + preview.warnings.length : 0;
 
   const pick = useMutation({
     mutationFn: async () => {
@@ -83,19 +95,18 @@ export default function ImportScreen() {
 
       const chosen = picked.assets[0];
       const text = await new File(chosen.uri).text();
-      const parsed = parseImportCsv(text);
+      const parsed = parseImportCsv(text, EMPLOYEE_IMPORT);
 
       if (parsed.missingRequired.length > 0) {
-        throw new Error(
-          `The file is missing ${parsed.missingRequired.join(', ')} — download the template`,
-        );
+        throw new Error('The file has no Employee Name column — download the template');
       }
       if (parsed.rows.length === 0) {
         throw new Error('The file has a header but no rows');
       }
 
-      // Validated by the importer itself, so this is a real rehearsal.
-      const result = await importAssets(parsed.rows, true, chosen.name);
+      // A real dry run through the importer, so the numbers shown are a promise
+      // the same code then keeps.
+      const result = await importAccounts(parsed.rows, true, chosen.name);
       return { name: chosen.name, rows: parsed.rows, result, unknown: parsed.unknownColumns };
     },
     onSuccess: (data) => {
@@ -106,7 +117,7 @@ export default function ImportScreen() {
       setError('');
       setWarning(
         data.unknown.length > 0
-          ? `Ignored ${data.unknown.length} column${data.unknown.length === 1 ? '' : 's'} the template does not use: ${data.unknown.join(', ')}`
+          ? `Ignored ${data.unknown.length} column${data.unknown.length === 1 ? '' : 's'} this import does not use: ${data.unknown.join(', ')}`
           : '',
       );
     },
@@ -117,38 +128,64 @@ export default function ImportScreen() {
   });
 
   const commit = useMutation({
-    mutationFn: () => importAssets(rows!, false, fileName ?? 'import.csv'),
+    mutationFn: () => importAccounts(rows!, false, fileName ?? 'employees.csv'),
     onSuccess: (result) => {
       toast(
-        result.invalid === 0
-          ? `${result.valid} assets imported`
-          : `${result.valid} imported · ${result.invalid} skipped`,
+        result.updated > 0
+          ? `${result.created} added · ${result.updated} updated`
+          : `${result.created} employee${result.created === 1 ? '' : 's'} added`,
       );
-      void queryClient.invalidateQueries({ queryKey: ['assets'] });
-      void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-      void queryClient.invalidateQueries({ queryKey: ['importHistory'] });
+      void queryClient.invalidateQueries({ queryKey: ['accounts'] });
+      void queryClient.invalidateQueries({ queryKey: ['importHistory', 'employees'] });
       reset();
     },
-    onError: (e: Error) => setError(e.message),
+    onError: (e: Error) => {
+      setConfirming(false);
+      setError(e.message);
+    },
   });
 
   const downloadTemplate = useMutation({
-    mutationFn: () => share('cite-assets-template.csv', buildImportTemplate(), 'Import template'),
+    mutationFn: () =>
+      share('cite-employees-template.csv', buildEmployeeTemplate(), 'Employee template'),
     onError: (e: Error) => setError(e.message),
   });
 
   const downloadErrors = useMutation({
     mutationFn: (errors: RowError[]) =>
-      share('cite-assets-import-errors.csv', buildErrorReport(errors), 'Rows that were skipped'),
+      share(
+        'cite-employees-skipped.csv',
+        buildErrorReport(errors, 'nik'),
+        'Rows that were skipped',
+      ),
     onError: (e: Error) => setError(e.message),
   });
 
-  if (!can('asset.create')) {
+  /** Import goes through the sheet only when there is something to warn about. */
+  const startImport = () => {
+    if (problemCount > 0) setConfirming(true);
+    else commit.mutate();
+  };
+
+  const counts = useMemo(
+    () =>
+      preview
+        ? ([
+            ['New', preview.created],
+            ['Updated', preview.updated],
+            ['Unchanged', preview.unchanged],
+            ['Skipped', preview.skipped],
+          ] as const)
+        : [],
+    [preview],
+  );
+
+  if (!can('account.manage')) {
     return (
       <Screen>
         <EmptyState
           title="Not available"
-          description="Importing assets needs a role that can create them."
+          description="Importing employees is a Super Admin task."
           actionLabel="Back"
           onAction={() => router.back()}
         />
@@ -169,16 +206,20 @@ export default function ImportScreen() {
         <Text style={[t.type.metaStrong, { color: t.color.royal }]}>Back</Text>
       </Pressable>
 
-      <Text style={[t.type.screenTitle, { color: t.color.text }]}>Import assets</Text>
+      <Text style={[t.type.screenTitle, { color: t.color.text }]}>Import employees</Text>
       <Text style={[t.type.bodySmall, styles.subtitle, { color: t.color.sub }]}>
-        Nothing is added until you have seen what will happen
+        Nothing is written until you have seen what will happen
       </Text>
 
       <Card padding={15} title="1 · The template" style={styles.card}>
         <Text style={[t.type.meta, styles.hint, { color: t.color.sub }]}>
-          Sixteen columns, one filled-in example row. Categories, brands, locations and departments
-          must already exist in Master data — a name the register has never heard of is reported,
-          not created, so one typo cannot quietly become a second category.
+          Six columns, named exactly as Odoo names them — so the file you export from hr.employee
+          can be used as it is, with no columns to rename. Company names must already exist in
+          Master data.
+        </Text>
+        <Text style={[t.type.meta, styles.hint, { color: t.color.sub }]}>
+          This import only ever writes name, employee ID, job position, company, email and phone.
+          Roles, sign-ins and locations are set inside the app and are never touched.
         </Text>
         <Button
           label="Download the template"
@@ -191,7 +232,7 @@ export default function ImportScreen() {
         />
       </Card>
 
-      <Card padding={15} title="2 · Check the file" style={styles.card}>
+      <Card padding={15} title="2 · Review" style={styles.card}>
         <Button
           label={fileName ? 'Choose a different file' : 'Choose a CSV'}
           block
@@ -213,17 +254,7 @@ export default function ImportScreen() {
         {preview ? (
           <>
             <View style={styles.counts}>
-              {(
-                [
-                  ['Rows', preview.total, undefined],
-                  ['Will be added', preview.valid, 'available' as const],
-                  [
-                    'Skipped',
-                    preview.invalid,
-                    preview.invalid > 0 ? ('retired' as const) : undefined,
-                  ],
-                ] as const
-              ).map(([label, value, tone]) => (
+              {counts.map(([label, value]) => (
                 <Card key={label} radius="kpiTile" padding={12} style={styles.countTile}>
                   <Text style={[t.type.kpiNumber, styles.countValue, { color: t.color.text }]}>
                     {value}
@@ -231,12 +262,30 @@ export default function ImportScreen() {
                   <Text style={[t.type.kpiLabel, styles.countLabel, { color: t.color.sub }]}>
                     {label}
                   </Text>
-                  {tone ? <Badge label=" " tone={tone} /> : null}
                 </Card>
               ))}
             </View>
 
-            {preview.invalid > 0 ? (
+            {preview.warningSummary.length > 0 ? (
+              <>
+                <Text style={[t.type.sectionLabel, styles.errorsLabel, { color: t.color.sub }]}>
+                  Values that will be left blank
+                </Text>
+                {preview.warningSummary.map((w) => (
+                  <Text
+                    key={w.message}
+                    style={[t.type.meta, styles.summaryRow, { color: t.color.sub }]}
+                  >
+                    {`${w.count} × ${w.message}`}
+                  </Text>
+                ))}
+                <Text style={[t.type.meta, styles.hint, { color: t.color.sub }]}>
+                  These rows still import. Only the unusable value is dropped.
+                </Text>
+              </>
+            ) : null}
+
+            {preview.skipped > 0 ? (
               <>
                 <Text style={[t.type.sectionLabel, styles.errorsLabel, { color: t.color.sub }]}>
                   What will be skipped
@@ -259,7 +308,7 @@ export default function ImportScreen() {
                   </Text>
                 ) : null}
                 <Button
-                  label="Download the error report"
+                  label="Download the skipped rows"
                   variant="secondary"
                   block
                   loading={downloadErrors.isPending}
@@ -268,11 +317,13 @@ export default function ImportScreen() {
                   style={styles.action}
                 />
               </>
-            ) : (
+            ) : null}
+
+            {problemCount === 0 ? (
               <Text style={[t.type.meta, styles.hint, { color: t.color.success }]}>
-                Every row can be imported.
+                Every row can be imported as it stands.
               </Text>
-            )}
+            ) : null}
           </>
         ) : null}
       </Card>
@@ -280,16 +331,20 @@ export default function ImportScreen() {
       {preview ? (
         <Card padding={15} title="3 · Import" style={styles.card}>
           <Text style={[t.type.meta, styles.hint, { color: t.color.sub }]}>
-            {preview.valid > 0
-              ? `${preview.valid} asset${preview.valid === 1 ? '' : 's'} will be added. The skipped rows are left alone — fix them and import the file again; the ones already added will be reported as duplicates rather than doubled.`
-              : 'Nothing in this file can be imported yet.'}
+            {willWrite > 0
+              ? `${preview.created} will be added and ${preview.updated} updated. Everyone comes in as Record only — nobody gets a sign-in from an import.`
+              : 'This file would change nothing. Everyone in it already matches what is stored.'}
           </Text>
           <Button
-            label={`Import ${preview.valid} asset${preview.valid === 1 ? '' : 's'}`}
+            label={
+              willWrite > 0
+                ? `Import ${willWrite} row${willWrite === 1 ? '' : 's'}`
+                : 'Nothing to import'
+            }
             block
-            disabled={preview.valid === 0}
+            disabled={willWrite === 0}
             loading={commit.isPending}
-            onPress={() => commit.mutate()}
+            onPress={startImport}
             style={styles.action}
           />
         </Card>
@@ -308,6 +363,8 @@ export default function ImportScreen() {
 
       {history.isPending ? (
         <Skeleton height={60} radius={t.radii.card} />
+      ) : history.isError ? (
+        <Text style={[t.type.meta, { color: t.color.error }]}>Could not load past imports.</Text>
       ) : (history.data ?? []).length === 0 ? (
         <Text style={[t.type.meta, { color: t.color.sub }]}>None yet.</Text>
       ) : (
@@ -328,7 +385,7 @@ export default function ImportScreen() {
                   {batch.file_name}
                 </Text>
                 <Text style={[t.type.meta, { color: t.color.sub, marginTop: 3 }]}>
-                  {`${batch.imported_rows} imported · ${batch.skipped_rows} skipped · ${batch.imported_by_name}`}
+                  {`${batch.imported_rows} written · ${batch.skipped_rows} skipped · ${batch.imported_by_name}`}
                 </Text>
               </View>
               <Text style={[t.type.meta, { color: t.color.sub }]}>
@@ -341,6 +398,85 @@ export default function ImportScreen() {
           ))}
         </Card>
       )}
+
+      {/* The wizard the client asked for: on a file with problems, Import stops
+          here first and says what they are. */}
+      <BottomSheet
+        visible={confirming}
+        onDismiss={() => {
+          setConfirming(false);
+          setShowProblems(false);
+        }}
+        title={`${problemCount} row${problemCount === 1 ? '' : 's'} need attention`}
+        subtitle={
+          preview
+            ? `${preview.skipped} will be skipped entirely, and ${preview.warnings.length} value${preview.warnings.length === 1 ? '' : 's'} will be left blank. The other ${willWrite} can be imported now.`
+            : undefined
+        }
+      >
+        {showProblems && preview ? (
+          <ScrollView style={styles.problemList} showsVerticalScrollIndicator={false}>
+            {preview.errors.map((row) => (
+              <View key={`e-${row.row}`} style={[styles.errorRow, { borderColor: t.color.line }]}>
+                <Text style={[t.type.metaStrong, { color: t.color.text }]}>
+                  {`Row ${row.row}${row.name ? ` · ${row.name}` : ''} — skipped`}
+                </Text>
+                {row.problems.map((problem, i) => (
+                  <Text key={i} style={[t.type.meta, { color: t.color.error, marginTop: 2 }]}>
+                    {`${problem.column} — ${problem.message}`}
+                  </Text>
+                ))}
+              </View>
+            ))}
+            {preview.warnings.map((w, i) => (
+              <View key={`w-${i}`} style={[styles.errorRow, { borderColor: t.color.line }]}>
+                <Text style={[t.type.metaStrong, { color: t.color.text }]}>
+                  {`Row ${w.row}${w.name ? ` · ${w.name}` : ''}`}
+                </Text>
+                <Text style={[t.type.meta, { color: t.color.sub, marginTop: 2 }]}>
+                  {`${w.column} — ${w.message}`}
+                </Text>
+              </View>
+            ))}
+          </ScrollView>
+        ) : (
+          <>
+            {preview?.warningSummary.map((w) => (
+              <Text
+                key={w.message}
+                style={[t.type.meta, styles.summaryRow, { color: t.color.sub }]}
+              >
+                {`${w.count} × ${w.message}`}
+              </Text>
+            ))}
+            <Button
+              label="Review the problems"
+              variant="secondary"
+              block
+              onPress={() => setShowProblems(true)}
+              style={styles.action}
+            />
+          </>
+        )}
+
+        <Button
+          label={`Import the other ${willWrite} anyway`}
+          block
+          loading={commit.isPending}
+          onPress={() => commit.mutate()}
+          style={styles.action}
+        />
+        <Button
+          label="Cancel"
+          variant="link"
+          block
+          onPress={() => {
+            setConfirming(false);
+            setShowProblems(false);
+          }}
+          style={styles.action}
+        />
+      </BottomSheet>
     </Screen>
   );
 }
@@ -357,8 +493,10 @@ const styles = StyleSheet.create({
   countValue: { fontSize: 20 },
   countLabel: { marginTop: 3 },
   errorsLabel: { marginTop: 18, marginBottom: 9 },
+  summaryRow: { marginBottom: 5, lineHeight: 16 },
   errorRow: { borderWidth: 1, borderRadius: 12, padding: 11, marginBottom: 8 },
   errorLine: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
+  problemList: { maxHeight: 300, marginBottom: 4 },
   historyLabel: { marginTop: 12, marginBottom: 9, marginLeft: 2 },
   historyRow: {
     flexDirection: 'row',

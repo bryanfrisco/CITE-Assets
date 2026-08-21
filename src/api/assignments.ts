@@ -174,3 +174,25 @@ export async function fetchMovements(scope: string[], assetId?: string): Promise
   if (error) throw new Error(error.message);
   return (data ?? []) as MovementRow[];
 }
+
+/**
+ * The other shift on a shared asset — a handy-talkie carried by two people.
+ *
+ * Called after the assignment exists rather than folded into assignAsset(),
+ * because widening a live RPC signature is the mistake migration 0029 exists
+ * to clean up after. Passing null clears the second holder again.
+ *
+ * Setting one makes the document need a THIRD signature: it is not finished
+ * until both holders have signed.
+ */
+export async function setSecondaryHolder(
+  assetId: string,
+  accountId: string | null,
+): Promise<{ assetId: string; assignmentId: string; secondaryName: string | null }> {
+  const { data, error } = await supabase.rpc('set_secondary_holder', {
+    p_asset: assetId,
+    p_account: accountId,
+  });
+  if (error) throw new Error(error.message);
+  return data as { assetId: string; assignmentId: string; secondaryName: string | null };
+}

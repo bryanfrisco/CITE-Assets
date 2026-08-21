@@ -29,3 +29,12 @@ supabase/.branches/
 
 expo-env.d.ts
 # @end expo-cli
+
+# Real HR exports. This repository is public, and hr.employee carries the full
+# name, employee number, job title, email and phone of every person in the
+# company. tests/import-accounts.mjs reads it when it is present and skips
+# itself when it is not, so nothing here depends on it being committed.
+Hr Employee*.csv
+Hr Employee*.xlsx
+*hr.employee*.csv
+*hr.employee*.xlsx

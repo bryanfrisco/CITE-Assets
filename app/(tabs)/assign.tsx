@@ -35,7 +35,7 @@ import React, { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertCircle, Check, ChevronLeft } from 'lucide-react-native';
+import { AlertCircle, Check, ChevronLeft, X } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import { useTheme } from '@/theme';
@@ -63,6 +63,14 @@ import {
 } from '@/api/assignments';
 import { fetchAssetFormOptions, type Option } from '@/api/assets';
 import { todayIso } from '@/lib/dates';
+import {
+  assignAccessory,
+  attachAccessoriesToBast,
+  fetchAccessories,
+  type AccessoryRow,
+} from '@/api/accessories';
+import { bastIdByNumber } from '@/api/bast';
+import { setSecondaryHolder } from '@/api/assignments';
 import { queryKeys } from '@/lib/queryClient';
 import { useScopeStore } from '@/store/useScopeStore';
 import { useToast } from '@/store/useUiStore';
@@ -122,6 +130,16 @@ export default function AssignScreen() {
   const [expectedReturn, setExpectedReturn] = useState('');
   const [notes, setNotes] = useState('');
   const [autoBast, setAutoBast] = useState(true);
+  // accessoryId -> how many. Only ever populated in assign mode: a return
+  // hands nothing out, and the accessories that went with the laptop come back
+  // through their own Return button where the quantity is already known.
+  const [accessoryPicks, setAccessoryPicks] = useState<Record<string, number>>({});
+  const [accessorySheet, setAccessorySheet] = useState(false);
+  // The other shift on a shared handy-talkie. Optional and hidden behind a
+  // link, because almost everything has one holder and the wizard must not get
+  // heavier for the exception.
+  const [secondHolderId, setSecondHolderId] = useState<string | null>(null);
+  const [secondSheet, setSecondSheet] = useState(false);
   const [condition, setCondition] = useState<Option | null>(null);
   const [conditionOpen, setConditionOpen] = useState(false);
 
@@ -153,6 +171,20 @@ export default function AssignScreen() {
     setCondition(conditions.find((c) => c.name === asset.condition_name) ?? null);
   }
 
+  // Stock the person could be given alongside the asset. Fetched only in
+  // assign mode, and only what is actually on a shelf in the current scope.
+  const accessories = useQuery({
+    queryKey: ['accessories', scope, 'assignable'],
+    queryFn: () => fetchAccessories(scope),
+    enabled: !isReturn && scope.length > 0,
+  });
+
+  const availableAccessories = (accessories.data ?? []).filter(
+    (a: AccessoryRow) => a.is_active && a.available_qty > 0,
+  );
+
+  const pickedAccessories = availableAccessories.filter((a) => (accessoryPicks[a.id] ?? 0) > 0);
+
   const commit = useMutation({
     mutationFn: async () => {
       if (isReturn) {
@@ -174,7 +206,35 @@ export default function AssignScreen() {
         notes: notes || null,
         autoBast,
       });
-      return { bastNumber: result.bastNumber };
+
+      // Accessories go out AFTER the assignment succeeds, one call each. Stock
+      // only moves here; putting the lines on the document is a separate step
+      // below, so a failure to write paper can never leave the shelf wrong.
+      // Before the accessories, so the draft BAST already knows it needs a
+      // third signature by the time anything is written on it.
+      if (secondHolderId) {
+        await setSecondaryHolder(asset!.id, secondHolderId);
+      }
+
+      const checkoutIds: string[] = [];
+      for (const picked of pickedAccessories) {
+        const out = await assignAccessory(
+          picked.id,
+          employee!.id,
+          accessoryPicks[picked.id] ?? 1,
+          date,
+          notes || undefined,
+        );
+        checkoutIds.push(out.checkoutId);
+      }
+
+      if (checkoutIds.length > 0 && result.bastNumber) {
+        // assign_asset() hands back the number it minted, not the id.
+        const bastId = await bastIdByNumber(result.bastNumber);
+        if (bastId) await attachAccessoriesToBast(bastId, checkoutIds);
+      }
+
+      return { bastNumber: result.bastNumber, accessories: checkoutIds.length };
     },
     onSuccess: (result) => {
       setDone(result);
@@ -182,6 +242,7 @@ export default function AssignScreen() {
       void queryClient.invalidateQueries({ queryKey: ['assets'] });
       void queryClient.invalidateQueries({ queryKey: ['assignableAssets'] });
       void queryClient.invalidateQueries({ queryKey: ['bast'] });
+      void queryClient.invalidateQueries({ queryKey: ['accessories'] });
       if (asset)
         void queryClient.invalidateQueries({ queryKey: queryKeys.asset(asset.asset_code) });
     },
@@ -384,6 +445,45 @@ export default function AssignScreen() {
                   description="Add people in Settings, or widen the scope from the header."
                 />
               )}
+
+              {employee ? (
+                <Card radius="cardMedium" padding={14} style={styles.secondHolder}>
+                  <Text style={[t.type.metaStrong, { color: t.color.text }]}>
+                    {secondHolderId ? 'Two people are answerable for this' : 'Held by two people?'}
+                  </Text>
+                  <Text style={[t.type.meta, styles.accessoryHint, { color: t.color.sub }]}>
+                    A handy-talkie carried on opposite shifts, for example. The document is raised
+                    once for the pair and is not finished until BOTH have signed it. Shift changes
+                    are not recorded.
+                  </Text>
+
+                  {secondHolderId ? (
+                    <View style={styles.accessoryRow}>
+                      <View style={styles.accessoryText}>
+                        <Text numberOfLines={1} style={[t.type.bodySmall, { color: t.color.text }]}>
+                          {employees.data?.find((e) => e.id === secondHolderId)?.full_name}
+                        </Text>
+                      </View>
+                      <Pressable
+                        onPress={() => setSecondHolderId(null)}
+                        accessibilityRole="button"
+                        accessibilityLabel="Remove the second holder"
+                        hitSlop={10}
+                      >
+                        <X size={16} color={t.color.sub} strokeWidth={1.9} />
+                      </Pressable>
+                    </View>
+                  ) : (
+                    <Button
+                      label="Add a second holder"
+                      variant="secondary"
+                      block
+                      onPress={() => setSecondSheet(true)}
+                      style={styles.accessoryAdd}
+                    />
+                  )}
+                </Card>
+              ) : null}
             </View>
           ) : null}
 
@@ -508,6 +608,72 @@ export default function AssignScreen() {
                   multiline
                 />
 
+                {!isReturn ? (
+                  <Card radius="cardMedium" padding={14} title="Accessories">
+                    <Text style={[t.type.meta, styles.accessoryHint, { color: t.color.sub }]}>
+                      Anything handed over with it — a mouse, a headset, a cable. These go on the
+                      same E-BAST as extra lines, so the paper matches the bag.
+                    </Text>
+
+                    {pickedAccessories.map((a) => (
+                      <View key={a.id} style={styles.accessoryRow}>
+                        <View style={styles.accessoryText}>
+                          <Text
+                            numberOfLines={1}
+                            style={[t.type.bodySmall, { color: t.color.text }]}
+                          >
+                            {a.name}
+                          </Text>
+                          <Text style={[t.type.meta, { color: t.color.sub, marginTop: 2 }]}>
+                            {`${a.available_qty} available · ${a.location_name}`}
+                          </Text>
+                        </View>
+                        <Input
+                          value={String(accessoryPicks[a.id] ?? 1)}
+                          onChangeText={(v) => {
+                            const n = Number(v.replace(/[^0-9]/g, '') || '0');
+                            setAccessoryPicks((prev) => ({
+                              ...prev,
+                              [a.id]: Math.min(Math.max(n, 0), a.available_qty),
+                            }));
+                          }}
+                          keyboardType="number-pad"
+                          containerStyle={styles.accessoryQty}
+                        />
+                        <Pressable
+                          onPress={() =>
+                            setAccessoryPicks((prev) => {
+                              const next = { ...prev };
+                              delete next[a.id];
+                              return next;
+                            })
+                          }
+                          accessibilityRole="button"
+                          accessibilityLabel={`Remove ${a.name}`}
+                          hitSlop={10}
+                        >
+                          <X size={16} color={t.color.sub} strokeWidth={1.9} />
+                        </Pressable>
+                      </View>
+                    ))}
+
+                    <Button
+                      label={pickedAccessories.length > 0 ? 'Add another' : 'Add accessories'}
+                      variant="secondary"
+                      block
+                      disabled={availableAccessories.length === 0}
+                      onPress={() => setAccessorySheet(true)}
+                      style={styles.accessoryAdd}
+                    />
+
+                    {availableAccessories.length === 0 ? (
+                      <Text style={[t.type.meta, styles.accessoryHint, { color: t.color.sub }]}>
+                        Nothing in stock at the locations in scope.
+                      </Text>
+                    ) : null}
+                  </Card>
+                ) : null}
+
                 <Card radius="cardMedium" padding={14}>
                   <Switch
                     value={autoBast}
@@ -519,6 +685,12 @@ export default function AssignScreen() {
                         : 'Berita Acara Serah Terima Barang draft'
                     }
                   />
+                  {!autoBast && pickedAccessories.length > 0 ? (
+                    <Text style={[t.type.meta, styles.accessoryHint, { color: t.color.sub }]}>
+                      With this off the accessories still go out and are still recorded — they just
+                      will not be on any document.
+                    </Text>
+                  ) : null}
                 </Card>
               </View>
             </View>
@@ -568,6 +740,38 @@ export default function AssignScreen() {
         onSelect={(option) => setCondition(option as Option)}
         onDismiss={() => setConditionOpen(false)}
         emptyMessage="No condition records yet — add one in Master data."
+      />
+
+      <PickerSheet
+        visible={secondSheet}
+        title="Second holder"
+        options={(employees.data ?? [])
+          .filter((e) => e.id !== employee?.id)
+          .map((e) => ({
+            id: e.id,
+            name: e.full_name,
+            detail: [e.department_name, e.location_name, e.nik].filter(Boolean).join(' · '),
+          }))}
+        selectedId={secondHolderId}
+        onSelect={(option) => setSecondHolderId(option.id)}
+        onDismiss={() => setSecondSheet(false)}
+        emptyMessage="Nobody else in this scope."
+      />
+
+      <PickerSheet
+        visible={accessorySheet}
+        title="Add an accessory"
+        options={availableAccessories
+          .filter((a) => !((accessoryPicks[a.id] ?? 0) > 0))
+          .map((a) => ({
+            id: a.id,
+            name: a.name,
+            detail: `${a.available_qty} available · ${a.location_name}`,
+          }))}
+        selectedId={null}
+        onSelect={(option) => setAccessoryPicks((prev) => ({ ...prev, [option.id]: 1 }))}
+        onDismiss={() => setAccessorySheet(false)}
+        emptyMessage="Everything in stock is already on the list."
       />
     </Screen>
   );
@@ -680,4 +884,10 @@ const styles = StyleSheet.create({
   doneValue: { flex: 1, textAlign: 'right' },
   doneAction: { marginTop: 16, height: 46, minHeight: 46 },
   doneSecondary: { marginTop: 9 },
+  accessoryHint: { marginTop: 8, lineHeight: 16 },
+  accessoryRow: { flexDirection: 'row', alignItems: 'center', gap: 9, marginTop: 11 },
+  accessoryText: { flex: 1, minWidth: 0 },
+  accessoryQty: { width: 66 },
+  accessoryAdd: { marginTop: 12 },
+  secondHolder: { marginTop: 14 },
 });
