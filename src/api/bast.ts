@@ -430,3 +430,42 @@ export async function bastIdByNumber(bastNumber: string): Promise<string | null>
   if (error) throw new Error(error.message);
   return (data?.id as string | undefined) ?? null;
 }
+
+/**
+ * Voiding and deleting, which are not the same thing.
+ *
+ * `voidBast` is what "delete" means for a document that exists: the status
+ * becomes void, the number stays spent so no two documents can share a
+ * reference, and the reason is recorded. Always available.
+ *
+ * `deleteBast` really removes the row, and only for a draft that was never
+ * signed, has no signatures and no rendered PDF — a document raised by
+ * accident, with nothing to preserve. A signed Berita Acara is the evidence a
+ * handover happened; deleting it would remove the proof rather than the
+ * mistake, so the server refuses.
+ */
+export async function voidBast(id: string, reason: string): Promise<{ bastNumber: string }> {
+  const { data, error } = await supabase.rpc('void_bast', { p_bast: id, p_reason: reason });
+  if (error) throw new Error(error.message);
+  return data as { bastNumber: string };
+}
+
+export async function deleteBast(id: string, reason: string): Promise<{ bastNumber: string }> {
+  const { data, error } = await supabase.rpc('delete_bast', { p_bast: id, p_reason: reason });
+  if (error) throw new Error(error.message);
+  return data as { bastNumber: string };
+}
+
+/**
+ * File a paper document as what it actually is.
+ *
+ * A Berita Acara raised by the app knows its own kind — assigning produces a
+ * Serah Terima, returning produces a Penarikan. Paper does not, and only the
+ * person holding the sheet knows which they have. Refused once signed: the
+ * title on the page is part of what somebody put their name to.
+ */
+export async function setBastKind(id: string, kind: BastKind): Promise<{ kind: BastKind }> {
+  const { data, error } = await supabase.rpc('set_bast_kind', { p_bast: id, p_kind: kind });
+  if (error) throw new Error(error.message);
+  return data as { kind: BastKind };
+}

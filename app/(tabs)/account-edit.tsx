@@ -29,6 +29,7 @@ import { AlertCircle, ChevronLeft, KeyRound, ShieldOff } from 'lucide-react-nati
 import { useTheme } from '@/theme';
 import {
   Badge,
+  BottomSheet,
   Button,
   Card,
   EmptyState,
@@ -42,6 +43,7 @@ import {
   ROLE_LABEL,
   ROLE_SUMMARY,
   createAccount,
+  deleteAccount,
   fetchAccountHoldings,
   fetchAccounts,
   manageCredentials,
@@ -70,6 +72,21 @@ export default function AccountEditScreen() {
 
   const accounts = useQuery({ queryKey: ['accounts', ''], queryFn: () => fetchAccounts() });
   const options = useQuery({ queryKey: ['assetFormOptions'], queryFn: fetchAssetFormOptions });
+
+  // The server refuses this for anybody with history behind them and says
+  // exactly what is in the way. That message is shown verbatim rather than
+  // softened, because it names the thing the person has to deal with.
+  const remove = useMutation({
+    mutationFn: () => deleteAccount(id!, removeReason),
+    onSuccess: (result) => {
+      setRemoveOpen(false);
+      setRemoveReason('');
+      void queryClient.invalidateQueries({ queryKey: ['accounts'] });
+      toast(`${result.fullName} deleted`);
+      router.back();
+    },
+    onError: (e: Error) => setRemoveError(e.message),
+  });
   // Companies live in master data rather than the asset form options, because
   // nothing about an asset needs them.
   const companiesQuery = useQuery({
@@ -98,6 +115,9 @@ export default function AccountEditScreen() {
     isActive: boolean;
   } | null>(null);
 
+  const [removeOpen, setRemoveOpen] = useState(false);
+  const [removeReason, setRemoveReason] = useState('');
+  const [removeError, setRemoveError] = useState('');
   const [picker, setPicker] = useState<'department' | 'company' | 'location' | 'role' | null>(null);
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -525,6 +545,27 @@ person and have them change it — there is no email on this project to send it 
           </Card>
         ) : null}
 
+        {editing ? (
+          <Card padding={15} title="Remove" style={styles.card}>
+            <Text style={[t.type.meta, styles.credHint, { color: t.color.sub }]}>
+              Deleting is for somebody entered by mistake. Anybody who has held an asset, signed a
+              document or recorded a movement cannot be deleted — set them to Inactive instead, and
+              every record keeps naming them.
+            </Text>
+            <Button
+              label="Delete this person"
+              variant="destructive"
+              block
+              onPress={() => {
+                setRemoveError('');
+                setRemoveReason('');
+                setRemoveOpen(true);
+              }}
+              style={styles.removeButton}
+            />
+          </Card>
+        ) : null}
+
         {error ? (
           <View style={styles.errorRow}>
             <AlertCircle size={14} color={t.color.error} strokeWidth={2} />
@@ -540,6 +581,53 @@ person and have them change it — there is no email on this project to send it 
           onPress={() => save.mutate()}
         />
       </ScrollView>
+
+      <BottomSheet
+        visible={removeOpen}
+        onDismiss={() => setRemoveOpen(false)}
+        title={form ? `Delete ${form.fullName}?` : ''}
+      >
+        <View style={styles.sheet}>
+          <Text style={[t.type.bodySmall, { color: t.color.text, lineHeight: 18 }]}>
+            This removes the person entirely. It is refused for anybody with history behind them,
+            and the refusal will say what is in the way.
+          </Text>
+
+          <Input
+            label="Why"
+            required
+            value={removeReason}
+            onChangeText={(value) => {
+              setRemoveReason(value);
+              setRemoveError('');
+            }}
+            placeholder="e.g. Duplicate of the same person, entered twice"
+            multiline
+            numberOfLines={2}
+          />
+
+          {removeError ? (
+            <Text style={[t.type.meta, { color: t.color.error, lineHeight: 16 }]}>
+              {removeError}
+            </Text>
+          ) : null}
+
+          <Button
+            label="Delete permanently"
+            variant="destructive"
+            block
+            disabled={removeReason.trim().length === 0}
+            loading={remove.isPending}
+            onPress={() => remove.mutate()}
+          />
+          <Button
+            label="Keep them"
+            variant="secondary"
+            block
+            onPress={() => setRemoveOpen(false)}
+          />
+        </View>
+      </BottomSheet>
 
       <PickerSheet
         visible={picker === 'department'}
@@ -611,5 +699,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   holdingText: { flex: 1, minWidth: 0 },
+  removeButton: { marginTop: 12 },
+  sheet: { gap: 12 },
   errorRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 10 },
 });

@@ -22,9 +22,21 @@ import { Check, ChevronLeft, Download, PenLine, Plus, Trash2, Upload } from 'luc
 import { LinearGradient } from 'expo-linear-gradient';
 
 import { useTheme } from '@/theme';
-import { Badge, Button, Card, EmptyState, Input, Screen, Skeleton } from '@/components/ui';
+import {
+  Badge,
+  BottomSheet,
+  Button,
+  Card,
+  Chip,
+  ChipRow,
+  EmptyState,
+  Input,
+  Screen,
+  Skeleton,
+} from '@/components/ui';
 import {
   BAST_KIND_LABEL,
+  type BastKind,
   BAST_KIND_TITLE,
   BAST_STATUS_LABEL,
   MAX_SIGNED_BAST_BYTES,
@@ -32,8 +44,11 @@ import {
   fetchBastDetail,
   generateBastPdf,
   setBastItems,
+  deleteBast,
+  setBastKind,
   signatureCaption,
   signatureRolesFor,
+  voidBast,
   signedBastUrl,
   uploadSignedScan,
   type BastDetail,
@@ -95,6 +110,10 @@ export default function BastDetailScreen() {
   const [progress, setProgress] = useState<number | null>(null);
   const [uploadedName, setUploadedName] = useState<string | null>(null);
 
+  const [removeOpen, setRemoveOpen] = useState(false);
+  const [removeReason, setRemoveReason] = useState('');
+  const [removeError, setRemoveError] = useState('');
+
   const invalidate = (bast: BastDetail) => {
     void queryClient.invalidateQueries({ queryKey: ['bastDetail', bast.id] });
     void queryClient.invalidateQueries({ queryKey: ['bast'] });
@@ -106,6 +125,50 @@ export default function BastDetailScreen() {
       void queryClient.invalidateQueries({ queryKey: queryKeys.asset(bast.assetCode) });
     }
   };
+
+  const refreshLists = () => {
+    void queryClient.invalidateQueries({ queryKey: ['bast'] });
+    void queryClient.invalidateQueries({ queryKey: ['bastStats'] });
+    void queryClient.invalidateQueries({ queryKey: ['bastDetail'] });
+  };
+
+  // Which of the two the paper in somebody's hand actually is. Only offered
+  // while the document is unsigned: the title on the page is part of what was
+  // put a name to.
+  const changeKind = useMutation({
+    mutationFn: (kind: BastKind) => setBastKind(id, kind),
+    onSuccess: (result) => {
+      refreshLists();
+      toast(`Filed as ${BAST_KIND_LABEL[result.kind]}`);
+    },
+    onError: (e: Error) => toast(e.message, 'error'),
+  });
+
+  // Void keeps the number spent and the row readable; delete only works on a
+  // draft that was never signed. The server decides which is allowed and says
+  // why, so both buttons are offered and the message does the teaching.
+  const voidDoc = useMutation({
+    mutationFn: () => voidBast(id, removeReason),
+    onSuccess: (result) => {
+      setRemoveOpen(false);
+      setRemoveReason('');
+      refreshLists();
+      toast(`${result.bastNumber} voided`);
+    },
+    onError: (e: Error) => setRemoveError(e.message),
+  });
+
+  const deleteDoc = useMutation({
+    mutationFn: () => deleteBast(id, removeReason),
+    onSuccess: (result) => {
+      setRemoveOpen(false);
+      setRemoveReason('');
+      refreshLists();
+      toast(`${result.bastNumber} deleted`);
+      router.back();
+    },
+    onError: (e: Error) => setRemoveError(e.message),
+  });
 
   const openFile = async (path: string) => {
     const url = await signedBastUrl(path);
@@ -338,6 +401,29 @@ export default function BastDetailScreen() {
       <Card radius="cardMedium" padding={16} style={styles.uploadCard}>
         <Text style={[t.type.sectionLabel, { color: t.color.sub }]}>Signed document</Text>
 
+        {/* Filing an old paper sheet: the app cannot know whether what somebody
+            is holding is a handover or a withdrawal, and only the person with
+            it in their hand can say. Hidden once signed, because by then the
+            title on the page is part of what was signed. */}
+        {b.status !== 'signed' && can('bast.write') ? (
+          <>
+            <Text style={[t.type.meta, styles.kindHint, { color: t.color.sub }]}>
+              Which document is this? Set it before uploading a paper copy — after signing it cannot
+              change.
+            </Text>
+            <ChipRow style={styles.kindRow}>
+              {(['handover', 'return', 'accessory'] as BastKind[]).map((k) => (
+                <Chip
+                  key={k}
+                  label={BAST_KIND_LABEL[k]}
+                  active={b.kind === k}
+                  onPress={() => changeKind.mutate(k)}
+                />
+              ))}
+            </ChipRow>
+          </>
+        ) : null}
+
         {busy ? (
           <View style={styles.progressBlock}>
             <View style={styles.progressRow}>
@@ -417,6 +503,20 @@ export default function BastDetailScreen() {
           </Text>
         )}
 
+        {can('bast.write') && b.status !== 'void' ? (
+          <Button
+            label="Void or delete this document"
+            variant="secondary"
+            block
+            onPress={() => {
+              setRemoveError('');
+              setRemoveReason('');
+              setRemoveOpen(true);
+            }}
+            style={styles.removeButton}
+          />
+        ) : null}
+
         <View style={[styles.divider, { backgroundColor: t.color.line }]} />
 
         <Text style={[t.type.sectionLabel, styles.historyLabel, { color: t.color.sub }]}>
@@ -438,6 +538,50 @@ export default function BastDetailScreen() {
           ))
         )}
       </Card>
+      <BottomSheet
+        visible={removeOpen}
+        onDismiss={() => setRemoveOpen(false)}
+        title={`${b.bastNumber}`}
+        subtitle="Voiding keeps the record and the number; deleting only works on a draft nobody has signed."
+      >
+        <View style={styles.sheet}>
+          <Input
+            label="Why"
+            required
+            value={removeReason}
+            onChangeText={(value) => {
+              setRemoveReason(value);
+              setRemoveError('');
+            }}
+            placeholder="e.g. Raised twice for the same handover"
+            multiline
+            numberOfLines={2}
+          />
+
+          {removeError ? (
+            <Text style={[t.type.meta, { color: t.color.error, lineHeight: 16 }]}>
+              {removeError}
+            </Text>
+          ) : null}
+
+          <Button
+            label="Void it"
+            block
+            disabled={removeReason.trim().length === 0}
+            loading={voidDoc.isPending}
+            onPress={() => voidDoc.mutate()}
+          />
+          <Button
+            label="Delete permanently"
+            variant="destructive"
+            block
+            disabled={removeReason.trim().length === 0}
+            loading={deleteDoc.isPending}
+            onPress={() => deleteDoc.mutate()}
+          />
+          <Button label="Cancel" variant="secondary" block onPress={() => setRemoveOpen(false)} />
+        </View>
+      </BottomSheet>
     </Screen>
   );
 }
@@ -941,6 +1085,10 @@ const styles = StyleSheet.create({
   // side does not. Left-aligned within each column, as on the scans.
   signatures: { flexDirection: 'row', alignItems: 'flex-start', gap: 14, marginTop: 10 },
   signatureStacked: { marginBottom: 10 },
+  kindHint: { marginTop: 10, lineHeight: 16 },
+  kindRow: { marginTop: 10, marginBottom: 4 },
+  removeButton: { marginTop: 14 },
+  sheet: { gap: 12 },
   signature: { flex: 1 },
   signatureCaption: { fontSize: 8.5 },
   signatureSpace: { alignSelf: 'stretch', marginTop: 6, justifyContent: 'flex-end' },

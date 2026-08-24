@@ -35,7 +35,7 @@ import React, { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertCircle, Check, ChevronLeft, X } from 'lucide-react-native';
+import { AlertCircle, Check, ChevronLeft, Search, X } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import { useTheme } from '@/theme';
@@ -124,6 +124,12 @@ export default function AssignScreen() {
   const options = useQuery({ queryKey: ['assetFormOptions'], queryFn: fetchAssetFormOptions });
 
   const [step, setStep] = useState(1);
+  // 527 people came in from the Odoo import, so the list is no longer
+  // something anybody scrolls. Filtering happens here rather than in SQL: the
+  // rows are already loaded, and widening assignable_employees() would change
+  // a live signature for no gain at this size.
+  const [personQuery, setPersonQuery] = useState('');
+  const [assetQuery, setAssetQuery] = useState('');
   const [employee, setEmployee] = useState<EmployeeRow | null>(null);
   const [asset, setAsset] = useState<AssignableAssetRow | null>(null);
   const [date, setDate] = useState(today());
@@ -184,6 +190,22 @@ export default function AssignScreen() {
   );
 
   const pickedAccessories = availableAccessories.filter((a) => (accessoryPicks[a.id] ?? 0) > 0);
+
+  const matches = (haystack: (string | null | undefined)[], q: string) => {
+    const needle = q.trim().toLowerCase();
+    if (needle === '') return true;
+    return haystack.some((v) => (v ?? '').toLowerCase().includes(needle));
+  };
+
+  // Name, department, location, employee number — whichever somebody happens
+  // to remember about the person they are looking for.
+  const shownEmployees = (employees.data ?? []).filter((e) =>
+    matches([e.full_name, e.department_name, e.location_name, e.nik], personQuery),
+  );
+
+  const shownAssets = (assets.data ?? []).filter((a) =>
+    matches([a.asset_code, a.name, a.location_name], assetQuery),
+  );
 
   const commit = useMutation({
     mutationFn: async () => {
@@ -421,11 +443,37 @@ export default function AssignScreen() {
           {stage === 'employee' ? (
             <View style={styles.stepBody}>
               <Text style={[t.type.sectionLabel, styles.stepLabel, { color: t.color.sub }]}>
-                Select employee
+                {employees.data && employees.data.length > 0
+                  ? `Select employee · ${shownEmployees.length} of ${employees.data.length}`
+                  : 'Select employee'}
               </Text>
-              {employees.data && employees.data.length > 0 ? (
+
+              <Input
+                size="search"
+                value={personQuery}
+                onChangeText={setPersonQuery}
+                placeholder="Name, department, location, NIK…"
+                autoCapitalize="none"
+                autoCorrect={false}
+                icon={<Search size={17} color={t.color.sub} strokeWidth={1.8} />}
+                accessory={
+                  personQuery ? (
+                    <Pressable
+                      onPress={() => setPersonQuery('')}
+                      accessibilityRole="button"
+                      accessibilityLabel="Clear search"
+                      hitSlop={10}
+                    >
+                      <X size={16} color={t.color.sub} strokeWidth={1.9} />
+                    </Pressable>
+                  ) : null
+                }
+                containerStyle={styles.wizardSearch}
+              />
+
+              {shownEmployees.length > 0 ? (
                 <View style={styles.rows}>
-                  {employees.data.map((e) => (
+                  {shownEmployees.map((e) => (
                     <SelectableRow
                       key={e.id}
                       selected={employee?.id === e.id}
@@ -439,6 +487,13 @@ export default function AssignScreen() {
                     />
                   ))}
                 </View>
+              ) : personQuery.trim() !== '' ? (
+                <EmptyState
+                  title="Nobody matches that"
+                  description="Try part of a name, a department, or the employee number."
+                  actionLabel="Clear search"
+                  onAction={() => setPersonQuery('')}
+                />
               ) : (
                 <EmptyState
                   title="No employees in this scope"
@@ -490,11 +545,39 @@ export default function AssignScreen() {
           {stage === 'asset' ? (
             <View style={styles.stepBody}>
               <Text style={[t.type.sectionLabel, styles.stepLabel, { color: t.color.sub }]}>
-                {isReturn ? 'Select assigned asset' : 'Select available asset'}
+                {assets.data && assets.data.length > 0
+                  ? `${isReturn ? 'Select assigned asset' : 'Select available asset'} · ${shownAssets.length} of ${assets.data.length}`
+                  : isReturn
+                    ? 'Select assigned asset'
+                    : 'Select available asset'}
               </Text>
-              {assets.data && assets.data.length > 0 ? (
+
+              <Input
+                size="search"
+                value={assetQuery}
+                onChangeText={setAssetQuery}
+                placeholder="Asset code, name, location…"
+                autoCapitalize="none"
+                autoCorrect={false}
+                icon={<Search size={17} color={t.color.sub} strokeWidth={1.8} />}
+                accessory={
+                  assetQuery ? (
+                    <Pressable
+                      onPress={() => setAssetQuery('')}
+                      accessibilityRole="button"
+                      accessibilityLabel="Clear search"
+                      hitSlop={10}
+                    >
+                      <X size={16} color={t.color.sub} strokeWidth={1.9} />
+                    </Pressable>
+                  ) : null
+                }
+                containerStyle={styles.wizardSearch}
+              />
+
+              {shownAssets.length > 0 ? (
                 <View style={styles.rows}>
-                  {assets.data.map((a) => (
+                  {shownAssets.map((a) => (
                     <SelectableRow
                       key={a.id}
                       selected={asset?.id === a.id}
@@ -890,4 +973,5 @@ const styles = StyleSheet.create({
   accessoryQty: { width: 66 },
   accessoryAdd: { marginTop: 12 },
   secondHolder: { marginTop: 14 },
+  wizardSearch: { marginBottom: 12 },
 });

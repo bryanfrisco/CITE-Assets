@@ -8,7 +8,9 @@
 import React, { useEffect, useState, type ReactNode } from 'react';
 import {
   Animated,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -62,44 +64,54 @@ export function BottomSheet({
       onRequestClose={onDismiss}
       testID={testID}
     >
-      <View style={styles.fill}>
-        <Pressable
-          style={StyleSheet.absoluteFill}
-          onPress={onDismiss}
-          accessibilityRole="button"
-          accessibilityLabel="Close"
-        >
-          <Animated.View style={[StyleSheet.absoluteFill, { opacity: slide }]}>
-            <BlurView intensity={3} style={StyleSheet.absoluteFill}>
-              <View style={[StyleSheet.absoluteFill, { backgroundColor: t.color.backdrop }]} />
-            </BlurView>
-          </Animated.View>
-        </Pressable>
+      {/* A sheet is where the reason field, the quantity and the label go, so
+          it needs the same treatment as a full screen: the keyboard must lift
+          the sheet rather than bury its buttons. */}
+      <KeyboardAvoidingView
+        style={styles.fill}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <View style={styles.fill}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={onDismiss}
+            accessibilityRole="button"
+            accessibilityLabel="Close"
+          >
+            <Animated.View style={[StyleSheet.absoluteFill, { opacity: slide }]}>
+              <BlurView intensity={3} style={StyleSheet.absoluteFill}>
+                <View style={[StyleSheet.absoluteFill, { backgroundColor: t.color.backdrop }]} />
+              </BlurView>
+            </Animated.View>
+          </Pressable>
 
-        <Animated.View
-          style={[
-            styles.sheet,
-            {
-              backgroundColor: t.color.card,
-              borderTopLeftRadius: t.radii.sheet,
-              borderTopRightRadius: t.radii.sheet,
-              paddingBottom: Math.max(insets.bottom, 16) + 8,
-              transform: [{ translateY }],
-            },
-          ]}
-        >
-          <View style={[styles.grabber, { backgroundColor: t.color.line }]} />
-          {title ? (
-            <View style={styles.header}>
-              <Text style={[t.type.cardHeading, { color: t.color.text }]}>{title}</Text>
-              {subtitle ? (
-                <Text style={[t.type.meta, { color: t.color.sub, marginTop: 3 }]}>{subtitle}</Text>
-              ) : null}
-            </View>
-          ) : null}
-          {children}
-        </Animated.View>
-      </View>
+          <Animated.View
+            style={[
+              styles.sheet,
+              {
+                backgroundColor: t.color.card,
+                borderTopLeftRadius: t.radii.sheet,
+                borderTopRightRadius: t.radii.sheet,
+                paddingBottom: Math.max(insets.bottom, 16) + 8,
+                transform: [{ translateY }],
+              },
+            ]}
+          >
+            <View style={[styles.grabber, { backgroundColor: t.color.line }]} />
+            {title ? (
+              <View style={styles.header}>
+                <Text style={[t.type.cardHeading, { color: t.color.text }]}>{title}</Text>
+                {subtitle ? (
+                  <Text style={[t.type.meta, { color: t.color.sub, marginTop: 3 }]}>
+                    {subtitle}
+                  </Text>
+                ) : null}
+              </View>
+            ) : null}
+            {children}
+          </Animated.View>
+        </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

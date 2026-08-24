@@ -79,6 +79,7 @@ export const EMPLOYEE_COLUMNS = [
   'job_position',
   'company',
   'department',
+  'location',
   'work_email',
   'work_phone',
 ] as const;
@@ -100,6 +101,9 @@ export const EMPLOYEE_IMPORT: ImportSchema = {
     jabatan: 'job_position',
     departemen: 'department',
     department_name: 'department',
+    lokasi: 'location',
+    location_name: 'location',
+    site: 'location',
     email: 'work_email',
     phone: 'work_phone',
   },
@@ -267,6 +271,7 @@ export function buildEmployeeTemplate(): string {
     job_position: 'Job Position',
     company: 'Company',
     department: 'Department',
+    location: 'Location',
     work_email: 'Work Email',
     work_phone: 'Work Phone',
   };
@@ -277,6 +282,7 @@ export function buildEmployeeTemplate(): string {
     job_position: 'Tax Staff',
     company: 'PT Stargate Pasific Resources',
     department: 'Finance',
+    location: 'Head Office',
     work_email: 'achmad.taufik@aspire.id',
     work_phone: '082179467973',
   };

@@ -15,7 +15,7 @@
  * five exist while seven are in people's hands is worse than no register.
  */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -90,22 +90,27 @@ export default function AccessoryEditScreen() {
     queryFn: () => listMaster('location'),
   });
 
-  // Fill the form once the record arrives.
-  useEffect(() => {
-    const a = detail.data?.accessory;
-    if (!a) return;
-    setName(a.name);
-    setCategoryId(a.categoryId);
-    setBrandId(a.brandId);
-    setVendorId(a.vendorId);
-    setLocationId(a.locationId);
-    setModelNo(a.modelNo ?? '');
-    setTotalQty(String(a.totalQty));
-    setPurchaseDate(a.purchaseDate);
-    setPurchasePrice(a.purchasePrice == null ? '' : String(a.purchasePrice));
-    setNotes(a.notes ?? '');
-    setIsActive(a.isActive);
-  }, [detail.data]);
+  // Fill the form once, the moment the record arrives.
+  //
+  // Seeded during render rather than in an effect: an effect would paint the
+  // empty form first and then immediately paint it again, and React flags that
+  // as a cascading render. `assign.tsx` seeds its condition the same way.
+  const [seeded, setSeeded] = useState(false);
+  const loaded = detail.data?.accessory;
+  if (loaded && !seeded) {
+    setSeeded(true);
+    setName(loaded.name);
+    setCategoryId(loaded.categoryId);
+    setBrandId(loaded.brandId);
+    setVendorId(loaded.vendorId);
+    setLocationId(loaded.locationId);
+    setModelNo(loaded.modelNo ?? '');
+    setTotalQty(String(loaded.totalQty));
+    setPurchaseDate(loaded.purchaseDate);
+    setPurchasePrice(loaded.purchasePrice == null ? '' : String(loaded.purchasePrice));
+    setNotes(loaded.notes ?? '');
+    setIsActive(loaded.isActive);
+  }
 
   const opts = (rows: { id: string; name: string; isActive: boolean }[] | undefined) =>
     (rows ?? []).filter((r) => r.isActive).map((r) => ({ id: r.id, name: r.name }));

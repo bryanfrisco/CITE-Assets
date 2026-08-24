@@ -179,3 +179,20 @@ export async function fetchAccountHoldings(accountId: string): Promise<AccountHo
   if (error) throw new Error(error.message);
   return data as AccountHoldings;
 }
+
+/**
+ * Delete a person outright.
+ *
+ * Only possible while nothing points at them. Anything with history behind it
+ * has to be set Inactive instead, or the history ends up naming nobody — the
+ * server lists every blocker at once rather than one per attempt, and that
+ * message is shown to the person verbatim.
+ *
+ * The reason is compulsory and written to the audit log before the row goes,
+ * because a delete trigger can record what and when but never why.
+ */
+export async function deleteAccount(id: string, reason: string): Promise<{ fullName: string }> {
+  const { data, error } = await supabase.rpc('delete_account', { p_id: id, p_reason: reason });
+  if (error) throw new Error(error.message);
+  return data as { fullName: string };
+}

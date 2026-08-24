@@ -3,10 +3,27 @@
  *
  * Applies the README § Spacing rules: 18px horizontal padding, 16px content
  * top, and 132px bottom so content always clears the floating nav and FAB.
+ *
+ * KEYBOARD
+ * --------
+ * Every form on a phone ends with the button that submits it, and that button
+ * is the first thing an on-screen keyboard covers. Three things keep it
+ * reachable, and all three are needed:
+ *
+ *   * KeyboardAvoidingView shrinks the scroll area on iOS;
+ *   * `softwareKeyboardLayoutMode: "resize"` in app.json does the same on
+ *     Android — without it the whole window pans and the bottom is simply gone;
+ *   * the extra bottom padding below gives the last field somewhere to scroll
+ *     to once the area has shrunk.
+ *
+ * `keyboardShouldPersistTaps="handled"` was already here: it is what lets one
+ * tap both dismiss the keyboard and hit the button, rather than needing two.
  */
 
 import React, { type ReactNode } from 'react';
 import {
+  KeyboardAvoidingView,
+  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -58,26 +75,35 @@ export function Screen({
   }
 
   return (
-    <ScrollView
-      testID={testID}
-      style={[styles.fill, { backgroundColor: t.color.bg }, style]}
-      contentContainerStyle={[padding, contentStyle]}
-      showsVerticalScrollIndicator={false}
-      keyboardShouldPersistTaps="handled"
-      refreshControl={
-        onRefresh ? (
-          <RefreshControl
-            refreshing={refreshing ?? false}
-            onRefresh={onRefresh}
-            tintColor={t.color.sub}
-            colors={[t.color.royal]}
-            progressBackgroundColor={t.color.card}
-          />
-        ) : undefined
-      }
+    <KeyboardAvoidingView
+      style={[styles.fill, { backgroundColor: t.color.bg }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      {children}
-    </ScrollView>
+      <ScrollView
+        testID={testID}
+        style={[styles.fill, style]}
+        contentContainerStyle={[padding, contentStyle]}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+        // iOS only, and the tidiest of the three: the scroll view learns the
+        // keyboard's height by itself and insets for it.
+        automaticallyAdjustKeyboardInsets
+        refreshControl={
+          onRefresh ? (
+            <RefreshControl
+              refreshing={refreshing ?? false}
+              onRefresh={onRefresh}
+              tintColor={t.color.sub}
+              colors={[t.color.royal]}
+              progressBackgroundColor={t.color.card}
+            />
+          ) : undefined
+        }
+      >
+        {children}
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
