@@ -373,6 +373,74 @@ async function run() {
     check('set_bast_items works on a document with no asset', !edit.error, edit.error?.message);
   }
 
+  console.log('\nIt can actually become a PDF');
+  {
+    // Both halves of this were broken and neither showed up in code review:
+    // the storage policy resolved a file path to an asset (null here, so the
+    // upload was refused), and attach_signed_bast() mirrored every signed BAST
+    // into documents.asset_id, which is NOT NULL. A document that can be
+    // raised, read and signed but never rendered is not a document.
+    const strokes = [
+      Array.from({ length: 40 }, (_, i) => [0.05 + i * 0.02, 0.5 + Math.sin(i / 3) * 0.25]),
+    ];
+    const cable = (
+      await admin.rpc('create_accessory', {
+        p_input: {
+          name: `Cable for the PDF ${Date.now()}`,
+          categoryId: category.id,
+          locationId: ho.id,
+          totalQty: 4,
+        },
+      })
+    ).data.id;
+    const co = (
+      await admin.rpc('assign_accessory', { p_accessory: cable, p_account: person.id, p_qty: 1 })
+    ).data.checkoutId;
+    const paper = (
+      await admin.rpc('create_accessory_bast', { p_account: person.id, p_checkouts: [co] })
+    ).data;
+
+    for (const [role, name] of [
+      ['handover', 'Rizky Hidayat'],
+      ['receiver', person.full_name],
+    ]) {
+      await admin.rpc('sign_bast', {
+        p_bast: paper.bastId,
+        p_role: role,
+        p_name: name,
+        p_title: 'Operator',
+        p_strokes: strokes,
+      });
+    }
+
+    const pdf = await admin.functions.invoke('generate-bast-pdf', {
+      body: { bastId: paper.bastId, finalize: true },
+    });
+    check('the PDF renders', !pdf.error, pdf.error?.message);
+    check(
+      '...and is a real file, not an empty one',
+      (pdf.data?.fileSize ?? 0) > 10000,
+      String(pdf.data?.fileSize),
+    );
+
+    const version = (
+      await admin.from('bast_versions').select('kind, file_size').eq('bast_id', paper.bastId)
+    ).data;
+    check('a signed version is recorded', version?.[0]?.kind === 'signed', JSON.stringify(version));
+
+    const status = (await admin.from('bast').select('status').eq('id', paper.bastId).single()).data;
+    check('and the document is Signed', status.status === 'signed', status.status);
+
+    // The convenience mirror is skipped rather than attempted: there is no
+    // asset whose Documents tab it could appear on.
+    const mirrored = (await admin.from('documents').select('id').eq('bast_id', paper.bastId)).data;
+    check(
+      'nothing is mirrored into an asset that does not exist',
+      (mirrored ?? []).length === 0,
+      JSON.stringify(mirrored),
+    );
+  }
+
   console.log(failures === 0 ? '\nAll good.\n' : `\n${failures} failed.\n`);
   process.exit(failures === 0 ? 0 : 1);
 }
