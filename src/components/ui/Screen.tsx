@@ -7,23 +7,25 @@
  * KEYBOARD
  * --------
  * Every form on a phone ends with the button that submits it, and that button
- * is the first thing an on-screen keyboard covers. Three things keep it
- * reachable, and all three are needed:
+ * is the first thing an on-screen keyboard covers.
  *
- *   * KeyboardAvoidingView shrinks the scroll area on iOS;
- *   * `softwareKeyboardLayoutMode: "resize"` in app.json does the same on
- *     Android — without it the whole window pans and the bottom is simply gone;
- *   * the extra bottom padding below gives the last field somewhere to scroll
- *     to once the area has shrunk.
+ * The obvious fixes do not work here. Expo SDK 54+ forces edge-to-edge on
+ * Android, and Android 15 makes it mandatory: under edge-to-edge the window no
+ * longer SHRINKS for the keyboard, it keeps its full height and draws behind
+ * it. So `softwareKeyboardLayoutMode: "resize"` has nothing to resize and
+ * KeyboardAvoidingView has no height change to react to. Both were tried, and
+ * the bottom of the form stayed underneath the keyboard.
  *
- * `keyboardShouldPersistTaps="handled"` was already here: it is what lets one
- * tap both dismiss the keyboard and hit the button, rather than needing two.
+ * What does work is measuring the keyboard and padding by exactly that much —
+ * see useKeyboardInset(). It behaves the same on both platforms and does not
+ * depend on how the window is configured.
+ *
+ * `keyboardShouldPersistTaps="handled"` is what lets one tap both dismiss the
+ * keyboard and hit the button, rather than needing two.
  */
 
 import React, { type ReactNode } from 'react';
 import {
-  KeyboardAvoidingView,
-  Platform,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -33,6 +35,7 @@ import {
 } from 'react-native';
 
 import { useTheme } from '@/theme';
+import { useKeyboardInset } from '@/lib/useKeyboardInset';
 
 export interface ScreenProps {
   children: ReactNode;
@@ -59,11 +62,14 @@ export function Screen({
   testID,
 }: ScreenProps) {
   const t = useTheme();
+  const keyboard = useKeyboardInset();
 
   const padding: ViewStyle = {
     paddingHorizontal: bleed ? 0 : t.spacing.screenX,
     paddingTop: t.spacing.screenTop,
-    paddingBottom: t.spacing.screenBottom,
+    // The 132px base clears the floating nav and FAB; the keyboard height on
+    // top of it is what puts the last field within reach while typing.
+    paddingBottom: t.spacing.screenBottom + keyboard,
   };
 
   if (!scroll) {
@@ -75,35 +81,27 @@ export function Screen({
   }
 
   return (
-    <KeyboardAvoidingView
-      style={[styles.fill, { backgroundColor: t.color.bg }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    <ScrollView
+      testID={testID}
+      style={[styles.fill, { backgroundColor: t.color.bg }, style]}
+      contentContainerStyle={[padding, contentStyle]}
+      showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="interactive"
+      refreshControl={
+        onRefresh ? (
+          <RefreshControl
+            refreshing={refreshing ?? false}
+            onRefresh={onRefresh}
+            tintColor={t.color.sub}
+            colors={[t.color.royal]}
+            progressBackgroundColor={t.color.card}
+          />
+        ) : undefined
+      }
     >
-      <ScrollView
-        testID={testID}
-        style={[styles.fill, style]}
-        contentContainerStyle={[padding, contentStyle]}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="interactive"
-        // iOS only, and the tidiest of the three: the scroll view learns the
-        // keyboard's height by itself and insets for it.
-        automaticallyAdjustKeyboardInsets
-        refreshControl={
-          onRefresh ? (
-            <RefreshControl
-              refreshing={refreshing ?? false}
-              onRefresh={onRefresh}
-              tintColor={t.color.sub}
-              colors={[t.color.royal]}
-              progressBackgroundColor={t.color.card}
-            />
-          ) : undefined
-        }
-      >
-        {children}
-      </ScrollView>
-    </KeyboardAvoidingView>
+      {children}
+    </ScrollView>
   );
 }
 

@@ -22,6 +22,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Lock, Mail } from 'lucide-react-native';
 
 import { useTheme } from '@/theme';
+import { useKeyboardInset } from '@/lib/useKeyboardInset';
 import { Button, Card, Input } from '@/components/ui';
 import { signIn } from '@/api/session';
 
@@ -30,6 +31,7 @@ const logo = require('../assets/cite-logo.png');
 export default function SignInScreen() {
   const t = useTheme();
   const insets = useSafeAreaInsets();
+  const keyboard = useKeyboardInset();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -72,7 +74,12 @@ export default function SignInScreen() {
        * Android 16, so the gesture bar overlays the last row of content.
        */}
       <ScrollView
-        contentContainerStyle={[styles.scroll, { paddingBottom: insets.bottom + 28 }]}
+        contentContainerStyle={[
+          styles.scroll,
+          // Sign-in is two fields and a button, and the button is exactly
+          // what the keyboard covers.
+          { paddingBottom: insets.bottom + 28 + keyboard },
+        ]}
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
         bounces={false}

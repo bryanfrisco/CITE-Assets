@@ -59,6 +59,7 @@ import { fetchAssetDetail, fetchAssetFormOptions } from '@/api/assets';
 import { formatDate, todayIso } from '@/lib/dates';
 import { queryKeys } from '@/lib/queryClient';
 import { useScopeStore } from '@/store/useScopeStore';
+import { useKeyboardInset } from '@/lib/useKeyboardInset';
 import { useToast } from '@/store/useUiStore';
 
 export default function MaintenanceLogScreen() {
@@ -66,6 +67,7 @@ export default function MaintenanceLogScreen() {
   const router = useRouter();
   const toast = useToast();
   const insets = useSafeAreaInsets();
+  const keyboard = useKeyboardInset();
   const queryClient = useQueryClient();
   const scope = useScopeStore((s) => s.scope);
   const { asset: assetCode, id } = useLocalSearchParams<{ asset?: string; id?: string }>();
@@ -207,7 +209,10 @@ export default function MaintenanceLogScreen() {
       <ScrollView
         contentContainerStyle={[
           styles.scroll,
-          { paddingBottom: insets.bottom + t.spacing.screenBottom },
+          // Plus however much the keyboard is covering. Under Android
+          // edge-to-edge the window does not shrink for it, so nothing else
+          // moves the last field into reach — see useKeyboardInset().
+          { paddingBottom: insets.bottom + t.spacing.screenBottom + keyboard },
         ]}
         keyboardShouldPersistTaps="handled"
       >

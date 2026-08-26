@@ -51,6 +51,7 @@ import {
 } from '@/api/bast';
 import { isSignatureUsable, type SignatureStrokes } from '@/lib/signature';
 import { queryKeys } from '@/lib/queryClient';
+import { useKeyboardInset } from '@/lib/useKeyboardInset';
 import { useToast } from '@/store/useUiStore';
 
 export default function SignBastScreen() {
@@ -58,6 +59,7 @@ export default function SignBastScreen() {
   const router = useRouter();
   const toast = useToast();
   const insets = useSafeAreaInsets();
+  const keyboard = useKeyboardInset();
   const queryClient = useQueryClient();
 
   const { id, role: roleParam } = useLocalSearchParams<{ id: string; role: string }>();
@@ -193,7 +195,10 @@ export default function SignBastScreen() {
           // The floating nav sits OVER the content, so the last control on
           // the form would otherwise be underneath it. Same reserve the
           // Screen component uses.
-          { paddingBottom: insets.bottom + t.spacing.screenBottom },
+          // Plus however much the keyboard is covering. Under Android
+          // edge-to-edge the window does not shrink for it, so nothing else
+          // moves the last field into reach — see useKeyboardInset().
+          { paddingBottom: insets.bottom + t.spacing.screenBottom + keyboard },
         ]}
         keyboardShouldPersistTaps="handled"
       >
