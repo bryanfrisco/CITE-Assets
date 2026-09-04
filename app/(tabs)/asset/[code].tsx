@@ -33,6 +33,7 @@ import {
   Barcode,
   Camera,
   ChevronLeft,
+  ChevronRight,
   Download,
   FileText,
   Image as ImageIcon,
@@ -71,6 +72,7 @@ import {
   type AssetDetail,
   type AssetPhoto,
   type TimelineKind,
+  fetchAssetNeighbours,
 } from '@/api/assets';
 import { attachTag, fetchAssetTagCode } from '@/api/tags';
 import { installAssetToUnit, removeAssetFromUnit } from '@/api/units';
@@ -87,6 +89,7 @@ import {
 import { queryKeys } from '@/lib/queryClient';
 import { useToast } from '@/store/useUiStore';
 import { usePermissions } from '@/auth';
+import { useScopeStore } from '@/store/useScopeStore';
 
 const TABS = ['Overview', 'Specs', 'Timeline', 'Documents', 'Assignments', 'Maintenance'] as const;
 type Tab = (typeof TABS)[number];
@@ -98,6 +101,7 @@ export default function AssetDetailScreen() {
   const queryClient = useQueryClient();
   const { can } = usePermissions();
   const { code } = useLocalSearchParams<{ code: string }>();
+  const scope = useScopeStore((st) => st.scope);
 
   const [tab, setTab] = useState<Tab>('Overview');
   const [overflowOpen, setOverflowOpen] = useState(false);
@@ -115,6 +119,14 @@ export default function AssetDetailScreen() {
   const [unfitOpen, setUnfitOpen] = useState(false);
   const [unfitReason, setUnfitReason] = useState('');
   const [unfitError, setUnfitError] = useState('');
+
+  // Which assets sit either side of this one, so a shelf can be walked without
+  // going back to the list and paying for the scroll again.
+  const neighbours = useQuery({
+    queryKey: ['assetNeighbours', code, scope],
+    queryFn: () => fetchAssetNeighbours(code!, scope),
+    enabled: !!code && scope.length > 0,
+  });
 
   const detail = useQuery({
     queryKey: queryKeys.asset(code ?? ''),
@@ -252,7 +264,14 @@ export default function AssetDetailScreen() {
 
   return (
     <Screen>
-      <BackLink onPress={() => router.back()} />
+      <View style={styles.navRow}>
+        <BackLink onPress={() => router.back()} />
+
+        <View style={styles.stepNav}>
+          <StepButton direction="prev" code={neighbours.data?.prev_code ?? null} />
+          <StepButton direction="next" code={neighbours.data?.next_code ?? null} />
+        </View>
+      </View>
 
       <Hero
         detail={data}
@@ -1062,8 +1081,10 @@ function Overview({ detail }: { detail: AssetDetail }) {
         <Row
           label="Assigned to"
           value={
+            // Comma-separated, matching the register and the printed document.
+            // "+" read like an arithmetic note rather than a list of people.
             a.assignedToSecondaryName
-              ? `${a.assignedToName} + ${a.assignedToSecondaryName}`
+              ? `${a.assignedToName}, ${a.assignedToSecondaryName}`
               : a.assignedToName
           }
         />
@@ -1420,7 +1441,51 @@ function Maintenance({ detail }: { detail: AssetDetail }) {
   );
 }
 
+/**
+ * One arrow to the asset before or after this one.
+ *
+ * Rendered disabled rather than hidden at either end of the register, so the
+ * pair does not jump around as somebody steps through — a control that
+ * disappears is one people stop trusting.
+ */
+function StepButton({ direction, code }: { direction: 'prev' | 'next'; code: string | null }) {
+  const t = useTheme();
+  const router = useRouter();
+  const Icon = direction === 'prev' ? ChevronLeft : ChevronRight;
+
+  return (
+    <Pressable
+      disabled={!code}
+      onPress={() => code && router.replace({ pathname: '/asset/[code]', params: { code } })}
+      accessibilityRole="button"
+      accessibilityLabel={direction === 'prev' ? 'Previous asset' : 'Next asset'}
+      accessibilityState={{ disabled: !code }}
+      hitSlop={8}
+      style={({ pressed }) => [
+        styles.stepButton,
+        {
+          borderRadius: t.radii.chip,
+          borderColor: t.color.line,
+          opacity: code ? 1 : 0.35,
+          backgroundColor: pressed && code ? t.color.soft : 'transparent',
+        },
+      ]}
+    >
+      <Icon size={17} color={t.color.royal} strokeWidth={1.9} />
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
+  navRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  stepNav: { flexDirection: 'row', gap: 6 },
+  stepButton: {
+    width: 34,
+    height: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+  },
   back: { flexDirection: 'row', alignItems: 'center', gap: 2, marginBottom: 10, minHeight: 24 },
   loadingRows: { marginTop: 14, gap: 9 },
   hero: { overflow: 'hidden', marginBottom: 14 },

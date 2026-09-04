@@ -503,3 +503,31 @@ export async function removeAssetPhoto(photoId: string): Promise<{ remaining: nu
   await supabase.storage.from('asset-photos').remove([result.filePath]);
   return { remaining: result.remaining };
 }
+
+/**
+ * The assets either side of this one, by asset code within the current scope.
+ *
+ * Deliberately not the neighbours within whatever search or category filter was
+ * on screen: Next would then mean something different depending on how somebody
+ * arrived at the page. Asset code order is the one that matches the stickers on
+ * the shelf, so stepping through it is the same walk somebody does physically.
+ */
+export interface AssetNeighbours {
+  prev_code: string | null;
+  prev_name: string | null;
+  next_code: string | null;
+  next_name: string | null;
+}
+
+export async function fetchAssetNeighbours(
+  code: string,
+  locations: string[],
+): Promise<AssetNeighbours> {
+  const { data, error } = await supabase.rpc('asset_neighbours', {
+    p_code: code,
+    p_locations: locations,
+  });
+  if (error) throw new Error(error.message);
+  const row = (data ?? [])[0] as AssetNeighbours | undefined;
+  return row ?? { prev_code: null, prev_name: null, next_code: null, next_name: null };
+}
