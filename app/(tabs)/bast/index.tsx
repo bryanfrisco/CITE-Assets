@@ -19,7 +19,17 @@ import { Search, X } from 'lucide-react-native';
 import { useQuery } from '@tanstack/react-query';
 
 import { useTheme } from '@/theme';
-import { Badge, Card, Chip, ChipRow, EmptyState, Input, Screen, Skeleton } from '@/components/ui';
+import {
+  Badge,
+  Card,
+  Chip,
+  ChipRow,
+  DataTable,
+  EmptyState,
+  Input,
+  Screen,
+  Skeleton,
+} from '@/components/ui';
 import {
   BAST_KIND_LABEL,
   BAST_STATUS_LABEL,
@@ -30,6 +40,7 @@ import {
 } from '@/api/bast';
 import { queryKeys } from '@/lib/queryClient';
 import { useScopeLabel, useScopeStore } from '@/store/useScopeStore';
+import { useIsDesktop } from '@/lib/useBreakpoint';
 
 /** "24 Jul 2026" — the right-aligned date on each record card. */
 function shortDate(value: string): string {
@@ -46,6 +57,7 @@ export default function BastListScreen() {
   const t = useTheme();
   const router = useRouter();
   const scope = useScopeStore((s) => s.scope);
+  const isDesktop = useIsDesktop();
   const scopeLabel = useScopeLabel();
 
   const [kind, setKind] = useState<BastKind | 'all'>('all');
@@ -169,6 +181,77 @@ export default function BastListScreen() {
                   ? 'A Berita Acara Serah Terima Perlengkapan is raised from an accessory hand-out.'
                   : 'Berita Acara records appear here once an assignment or a return generates one.'
           }
+        />
+      ) : isDesktop ? (
+        <DataTable
+          rows={list.data ?? []}
+          keyOf={(r) => r.id}
+          onRowPress={(r) => router.push(`/bast/${r.id}`)}
+          labelOf={(r) => `${r.bast_number} ${BAST_STATUS_LABEL[r.status]}`}
+          columns={[
+            {
+              key: 'number',
+              header: 'Number',
+              weight: 1.6,
+              render: (r) => (
+                <Text style={[t.type.assetCode, { color: t.color.royal }]}>{r.bast_number}</Text>
+              ),
+            },
+            {
+              key: 'kind',
+              header: 'Kind',
+              render: (r) => (
+                <Text numberOfLines={1} style={[t.type.meta, { color: t.color.sub }]}>
+                  {BAST_KIND_LABEL[r.kind]}
+                </Text>
+              ),
+            },
+            {
+              key: 'status',
+              header: 'Status',
+              render: (r) => <Badge label={BAST_STATUS_LABEL[r.status]} />,
+            },
+            {
+              key: 'date',
+              header: 'Date',
+              render: (r) => (
+                <Text numberOfLines={1} style={[t.type.meta, { color: t.color.sub }]}>
+                  {shortDate(r.bast_date)}
+                </Text>
+              ),
+            },
+            {
+              key: 'asset',
+              header: 'Asset',
+              weight: 1.4,
+              render: (r) => (
+                <Text numberOfLines={1} style={[t.type.meta, { color: t.color.sub }]}>
+                  {r.asset_code ?? '—'}
+                </Text>
+              ),
+            },
+            {
+              // Every holder, not just the first — the whole point of the
+              // holder_label the server builds.
+              key: 'holders',
+              header: 'Held by',
+              weight: 2,
+              render: (r) => (
+                <Text numberOfLines={1} style={[t.type.body, { color: t.color.text }]}>
+                  {r.holder_label}
+                </Text>
+              ),
+            },
+            {
+              key: 'location',
+              header: 'Location',
+              render: (r) => (
+                <Text numberOfLines={1} style={[t.type.meta, { color: t.color.sub }]}>
+                  {r.location_name}
+                </Text>
+              ),
+            },
+          ]}
         />
       ) : (
         <View style={styles.records}>

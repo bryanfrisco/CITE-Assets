@@ -42,3 +42,6 @@ export type { DateFieldProps } from './DateField';
 
 export { SignaturePad } from './SignaturePad';
 export type { SignaturePadProps } from './SignaturePad';
+
+export { DataTable } from './DataTable';
+export type { DataTableProps, Column } from './DataTable';

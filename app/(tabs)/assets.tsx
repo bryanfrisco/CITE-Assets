@@ -19,6 +19,7 @@ import { useTheme } from '@/theme';
 import {
   Badge,
   Card,
+  DataTable,
   Chip,
   ChipRow,
   EmptyState,
@@ -32,10 +33,12 @@ import { ASSET_SORTS, countAssetsInScope, searchAssets, type AssetSort } from '@
 import { listMaster } from '@/api/masterData';
 import { queryKeys } from '@/lib/queryClient';
 import { useScopeLabel, useScopeStore } from '@/store/useScopeStore';
+import { useIsDesktop } from '@/lib/useBreakpoint';
 
 const ALL = 'All';
 
 export default function AssetsScreen() {
+  const isDesktop = useIsDesktop();
   const t = useTheme();
   const router = useRouter();
   const scope = useScopeStore((s) => s.scope);
@@ -222,6 +225,71 @@ export default function AssetsScreen() {
           description="Try a different asset code or widen the global data scope."
           actionLabel={filtering ? 'Reset filters' : undefined}
           onAction={filtering ? resetFilters : undefined}
+        />
+      ) : isDesktop ? (
+        <DataTable
+          rows={assets.data ?? []}
+          keyOf={(a) => a.id}
+          onRowPress={(a) => router.push(`/asset/${a.asset_code}`)}
+          labelOf={(a) => `${a.asset_code} ${a.name}`}
+          columns={[
+            {
+              key: 'code',
+              header: 'Code',
+              weight: 1.1,
+              render: (a) => (
+                <Text style={[t.type.assetCode, { color: t.color.royal }]}>{a.asset_code}</Text>
+              ),
+            },
+            {
+              key: 'name',
+              header: 'Asset',
+              weight: 2,
+              render: (a) => (
+                <Text numberOfLines={1} style={[t.type.body, { color: t.color.text }]}>
+                  {a.name}
+                </Text>
+              ),
+            },
+            {
+              key: 'category',
+              header: 'Category',
+              render: (a) => (
+                <Text numberOfLines={1} style={[t.type.meta, { color: t.color.sub }]}>
+                  {a.category_name}
+                </Text>
+              ),
+            },
+            {
+              key: 'status',
+              header: 'Status',
+              render: (a) => <Badge label={a.status_name} />,
+            },
+            {
+              key: 'condition',
+              header: 'Condition',
+              render: (a) => <Badge label={a.condition_name} />,
+            },
+            {
+              key: 'holder',
+              header: 'Held by',
+              weight: 1.6,
+              render: (a) => (
+                <Text numberOfLines={1} style={[t.type.meta, { color: t.color.sub }]}>
+                  {a.holder_name ?? 'Unassigned'}
+                </Text>
+              ),
+            },
+            {
+              key: 'location',
+              header: 'Location',
+              render: (a) => (
+                <Text numberOfLines={1} style={[t.type.meta, { color: t.color.sub }]}>
+                  {a.location_name}
+                </Text>
+              ),
+            },
+          ]}
         />
       ) : (
         <View style={styles.list}>

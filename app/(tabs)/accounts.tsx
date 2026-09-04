@@ -17,15 +17,26 @@ import { useQuery } from '@tanstack/react-query';
 import { ChevronLeft, Search, UserPlus } from 'lucide-react-native';
 
 import { useTheme } from '@/theme';
-import { Badge, Button, Card, EmptyState, Input, Screen, Skeleton } from '@/components/ui';
+import {
+  Badge,
+  Button,
+  Card,
+  DataTable,
+  EmptyState,
+  Input,
+  Screen,
+  Skeleton,
+} from '@/components/ui';
 import { Avatar } from '@/components/chrome';
 import { ROLE_LABEL, fetchAccounts, type AccountRow } from '@/api/accounts';
 import { usePermissions } from '@/auth';
+import { useIsDesktop } from '@/lib/useBreakpoint';
 
 export default function AccountsScreen() {
   const t = useTheme();
   const router = useRouter();
   const { can } = usePermissions();
+  const isDesktop = useIsDesktop();
 
   const [search, setSearch] = useState('');
 
@@ -37,6 +48,73 @@ export default function AccountsScreen() {
   const rows = accounts.data ?? [];
   const withLogin = rows.filter((r) => r.can_login);
   const recordOnly = rows.filter((r) => !r.can_login);
+
+  const columns = [
+    {
+      key: 'name',
+      header: 'Name',
+      weight: 2,
+      render: (r: AccountRow) => (
+        <Text numberOfLines={1} style={[t.type.body, { color: t.color.text }]}>
+          {r.full_name}
+        </Text>
+      ),
+    },
+    {
+      key: 'nik',
+      header: 'NIK',
+      weight: 1.3,
+      render: (r: AccountRow) => (
+        <Text numberOfLines={1} style={[t.type.meta, { color: t.color.sub }]}>
+          {r.nik ?? '—'}
+        </Text>
+      ),
+    },
+    {
+      key: 'title',
+      header: 'Job title',
+      weight: 1.8,
+      render: (r: AccountRow) => (
+        <Text numberOfLines={1} style={[t.type.meta, { color: t.color.sub }]}>
+          {r.job_title ?? '—'}
+        </Text>
+      ),
+    },
+    {
+      key: 'department',
+      header: 'Department',
+      weight: 1.4,
+      render: (r: AccountRow) => (
+        <Text numberOfLines={1} style={[t.type.meta, { color: t.color.sub }]}>
+          {r.department_name ?? '—'}
+        </Text>
+      ),
+    },
+    {
+      key: 'company',
+      header: 'Company',
+      weight: 1.6,
+      render: (r: AccountRow) => (
+        <Text numberOfLines={1} style={[t.type.meta, { color: t.color.sub }]}>
+          {r.company_name ?? '—'}
+        </Text>
+      ),
+    },
+    {
+      key: 'role',
+      header: 'Role',
+      render: (r: AccountRow) =>
+        r.role ? (
+          <Badge label={r.role.replace('_', ' ')} />
+        ) : (
+          <Text style={[t.type.meta, { color: t.color.sub }]}>—</Text>
+        ),
+    },
+  ];
+
+  const openRow = can('account.manage')
+    ? (r: AccountRow) => router.push(`/account-edit?id=${r.id}`)
+    : undefined;
 
   return (
     <Screen refreshing={accounts.isFetching} onRefresh={() => void accounts.refetch()}>
@@ -107,20 +185,30 @@ export default function AccountsScreen() {
               <Text style={[t.type.sectionLabel, styles.groupLabel, { color: t.color.sub }]}>
                 {`Can sign in · ${withLogin.length}`}
               </Text>
-              <Card padding={0} radius="listContainer">
-                {withLogin.map((row, i) => (
-                  <AccountRowView
-                    key={row.id}
-                    row={row}
-                    last={i === withLogin.length - 1}
-                    onPress={
-                      can('account.manage')
-                        ? () => router.push(`/account-edit?id=${row.id}`)
-                        : undefined
-                    }
-                  />
-                ))}
-              </Card>
+              {isDesktop ? (
+                <DataTable
+                  rows={withLogin}
+                  keyOf={(r) => r.id}
+                  columns={columns}
+                  onRowPress={openRow}
+                  labelOf={(r) => r.full_name}
+                />
+              ) : (
+                <Card padding={0} radius="listContainer">
+                  {withLogin.map((row, i) => (
+                    <AccountRowView
+                      key={row.id}
+                      row={row}
+                      last={i === withLogin.length - 1}
+                      onPress={
+                        can('account.manage')
+                          ? () => router.push(`/account-edit?id=${row.id}`)
+                          : undefined
+                      }
+                    />
+                  ))}
+                </Card>
+              )}
             </>
           ) : null}
 
@@ -129,20 +217,30 @@ export default function AccountsScreen() {
               <Text style={[t.type.sectionLabel, styles.groupLabel, { color: t.color.sub }]}>
                 {`Record only · ${recordOnly.length}`}
               </Text>
-              <Card padding={0} radius="listContainer">
-                {recordOnly.map((row, i) => (
-                  <AccountRowView
-                    key={row.id}
-                    row={row}
-                    last={i === recordOnly.length - 1}
-                    onPress={
-                      can('account.manage')
-                        ? () => router.push(`/account-edit?id=${row.id}`)
-                        : undefined
-                    }
-                  />
-                ))}
-              </Card>
+              {isDesktop ? (
+                <DataTable
+                  rows={recordOnly}
+                  keyOf={(r) => r.id}
+                  columns={columns}
+                  onRowPress={openRow}
+                  labelOf={(r) => r.full_name}
+                />
+              ) : (
+                <Card padding={0} radius="listContainer">
+                  {recordOnly.map((row, i) => (
+                    <AccountRowView
+                      key={row.id}
+                      row={row}
+                      last={i === recordOnly.length - 1}
+                      onPress={
+                        can('account.manage')
+                          ? () => router.push(`/account-edit?id=${row.id}`)
+                          : undefined
+                      }
+                    />
+                  ))}
+                </Card>
+              )}
             </>
           ) : null}
         </>

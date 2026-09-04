@@ -26,6 +26,7 @@ import {
   Badge,
   Button,
   Card,
+  DataTable,
   EmptyState,
   Input,
   PickerSheet,
@@ -36,6 +37,7 @@ import { expiryLabel, expiryTone, fetchLicenses } from '@/api/licenses';
 import { listMaster } from '@/api/masterData';
 import { queryKeys } from '@/lib/queryClient';
 import { usePermissions } from '@/auth';
+import { useIsDesktop } from '@/lib/useBreakpoint';
 
 type StatusFilter = 'available' | 'expiring' | 'expired';
 
@@ -49,6 +51,7 @@ export default function LicensesScreen() {
   const t = useTheme();
   const router = useRouter();
   const { can } = usePermissions();
+  const isDesktop = useIsDesktop();
 
   const [query, setQuery] = useState('');
   const [debounced, setDebounced] = useState('');
@@ -221,6 +224,78 @@ export default function LicensesScreen() {
           }
           actionLabel={filtering ? 'Reset filters' : undefined}
           onAction={filtering ? resetFilters : undefined}
+        />
+      ) : isDesktop ? (
+        <DataTable
+          rows={rows}
+          keyOf={(r) => r.id}
+          onRowPress={(r) => router.push({ pathname: '/license/[id]', params: { id: r.id } })}
+          labelOf={(r) => `${r.software}, ${r.available_seats} of ${r.total_seats} seats free`}
+          columns={[
+            {
+              key: 'software',
+              header: 'Software',
+              weight: 1.8,
+              render: (r) => (
+                <Text numberOfLines={1} style={[t.type.body, { color: t.color.text }]}>
+                  {r.software}
+                </Text>
+              ),
+            },
+            {
+              key: 'category',
+              header: 'Category',
+              render: (r) => (
+                <Text numberOfLines={1} style={[t.type.meta, { color: t.color.sub }]}>
+                  {r.category_name}
+                </Text>
+              ),
+            },
+            {
+              key: 'vendor',
+              header: 'Vendor',
+              weight: 1.6,
+              render: (r) => (
+                <Text numberOfLines={1} style={[t.type.meta, { color: t.color.sub }]}>
+                  {r.vendor_name ?? '—'}
+                </Text>
+              ),
+            },
+            {
+              key: 'number',
+              header: 'Licence no.',
+              weight: 1.6,
+              render: (r) => (
+                <Text numberOfLines={1} style={[t.type.meta, { color: t.color.sub }]}>
+                  {r.license_number ?? '—'}
+                </Text>
+              ),
+            },
+            {
+              key: 'seats',
+              header: 'Seats',
+              align: 'right',
+              render: (r) => (
+                <Text style={[t.type.metaStrong, { color: t.color.text, textAlign: 'right' }]}>
+                  {`${r.used_seats}/${r.total_seats}`}
+                </Text>
+              ),
+            },
+            {
+              key: 'expiry',
+              header: 'Expiry',
+              weight: 1.3,
+              render: (r) =>
+                r.expiry_state === 'none' ? (
+                  <Text style={[t.type.meta, { color: t.color.sub }]}>—</Text>
+                ) : (
+                  <Badge
+                    label={expiryLabel(r.expiry_state, r.expiry_date)}
+                    tone={expiryTone(r.expiry_state)}
+                  />
+                ),
+            },
+          ]}
         />
       ) : (
         <View style={styles.list}>
