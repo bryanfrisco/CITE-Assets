@@ -129,7 +129,8 @@ async function main() {
       p_reason: 'test — checking it drops out of the service list',
     });
 
-    const without = (await admin.rpc('maintenance_due_list', { p_locations: locations })).data ?? [];
+    const without =
+      (await admin.rpc('maintenance_due_list', { p_locations: locations })).data ?? [];
     check(
       `an asset marked ${terminal.name} drops off the due list`,
       !without.some((d) => d.asset_id === victim.asset_id),

@@ -88,7 +88,11 @@ async function main() {
     p_asset: asset.id,
     p_accounts: [second.id, second.id],
   });
-  check('the same person twice is refused', dupe.error !== null, dupe.error ? '' : 'it was allowed');
+  check(
+    'the same person twice is refused',
+    dupe.error !== null,
+    dupe.error ? '' : 'it was allowed',
+  );
 
   const set = await admin.rpc('set_asset_holders', {
     p_asset: asset.id,
@@ -173,14 +177,20 @@ async function main() {
   console.log('\nThe register finds it by any of the three');
 
   for (const holder of holders) {
-    const hit = (
-      await admin.rpc('search_assets', { p_locations: locations, p_query: holder.name })
-    ).data;
-    check(`by ${holder.name}`, (hit ?? []).some((row) => row.asset_code === asset.asset_code));
+    const hit = (await admin.rpc('search_assets', { p_locations: locations, p_query: holder.name }))
+      .data;
+    check(
+      `by ${holder.name}`,
+      (hit ?? []).some((row) => row.asset_code === asset.asset_code),
+    );
   }
 
   const listed = (
-    await admin.rpc('bast_list', { p_locations: locations, p_kind: null, p_search: holders[2].name })
+    await admin.rpc('bast_list', {
+      p_locations: locations,
+      p_kind: null,
+      p_search: holders[2].name,
+    })
   ).data;
   check(
     'and the e-BAST register finds it by the third holder',
