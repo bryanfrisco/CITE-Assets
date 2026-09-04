@@ -16,3 +16,6 @@ export type { QuickActionSheetProps, QuickAction } from './QuickActionSheet';
 export { OfflineBanner } from './OfflineBanner';
 
 export { ToastHost } from './ToastHost';
+
+export { DesktopShell } from './DesktopShell';
+export type { DesktopShellProps } from './DesktopShell';

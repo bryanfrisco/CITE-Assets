@@ -33,6 +33,7 @@ import { useTheme } from '@/theme';
 import { Button, Card, EmptyState, Screen, SkeletonKpiGrid } from '@/components/ui';
 import { fetchDashboard, type RecentEvent } from '@/api/dashboard';
 import { Bars } from '@/components/charts/Bars';
+import { useIsDesktop } from '@/lib/useBreakpoint';
 import { Donut } from '@/components/charts/Donut';
 import { formatRelative } from '@/lib/dates';
 import { greetingFor, useSessionStore } from '@/store/useSessionStore';
@@ -49,6 +50,7 @@ const QUICK_ACTIONS = [
 ] as const;
 
 export default function HomeScreen() {
+  const isDesktop = useIsDesktop();
   const t = useTheme();
   const router = useRouter();
   const account = useSessionStore((s) => s.account);
@@ -116,6 +118,7 @@ export default function HomeScreen() {
                 data.addedThisMonth > 0 ? `+${data.addedThisMonth} this month` : 'none this month'
               }
               dot={t.color.royal}
+              wide={isDesktop}
               onPress={() => router.push('/assets')}
             />
             {data.byStatus.slice(0, 5).map((s) => (
@@ -127,6 +130,7 @@ export default function HomeScreen() {
                   data.total > 0 ? `${Math.round((s.count / data.total) * 100)}% of fleet` : ''
                 }
                 dot={s.color}
+                wide={isDesktop}
               />
             ))}
           </View>
@@ -199,34 +203,41 @@ export default function HomeScreen() {
             </>
           ) : null}
 
-          <Text style={[t.type.sectionLabel, styles.sectionLabel, { color: t.color.sub }]}>
-            Assets by category
-          </Text>
-          <Card padding={15}>
-            <Donut data={data.byCategory} />
-          </Card>
-
-          {data.byLocation.length > 0 ? (
-            <>
+          {/* Three views of the same fleet. Side by side on a wide screen
+              because comparing them is the point; stacked on a phone because
+              there is no other option. */}
+          <View style={isDesktop ? styles.chartRow : undefined}>
+            <View style={isDesktop ? styles.chartCol : undefined}>
               <Text style={[t.type.sectionLabel, styles.sectionLabel, { color: t.color.sub }]}>
-                By location
+                Assets by category
               </Text>
               <Card padding={15}>
-                <Bars rows={data.byLocation} total={data.total} />
+                <Donut data={data.byCategory} />
               </Card>
-            </>
-          ) : null}
+            </View>
 
-          {data.byDepartment.length > 0 ? (
-            <>
-              <Text style={[t.type.sectionLabel, styles.sectionLabel, { color: t.color.sub }]}>
-                By department
-              </Text>
-              <Card padding={15}>
-                <Bars rows={data.byDepartment} total={data.total} />
-              </Card>
-            </>
-          ) : null}
+            {data.byLocation.length > 0 ? (
+              <View style={isDesktop ? styles.chartCol : undefined}>
+                <Text style={[t.type.sectionLabel, styles.sectionLabel, { color: t.color.sub }]}>
+                  By location
+                </Text>
+                <Card padding={15}>
+                  <Bars rows={data.byLocation} total={data.total} />
+                </Card>
+              </View>
+            ) : null}
+
+            {data.byDepartment.length > 0 ? (
+              <View style={isDesktop ? styles.chartCol : undefined}>
+                <Text style={[t.type.sectionLabel, styles.sectionLabel, { color: t.color.sub }]}>
+                  By department
+                </Text>
+                <Card padding={15}>
+                  <Bars rows={data.byDepartment} total={data.total} />
+                </Card>
+              </View>
+            ) : null}
+          </View>
 
           {data.recent.length > 0 ? (
             <>
@@ -256,12 +267,15 @@ function KpiTile({
   value,
   delta,
   dot,
+  wide = false,
   onPress,
 }: {
   label: string;
   value: number;
   delta: string;
   dot: string;
+  /** Six across on a desktop rather than three, so the fleet reads in one line. */
+  wide?: boolean;
   onPress?: () => void;
 }) {
   const t = useTheme();
@@ -283,13 +297,16 @@ function KpiTile({
     </Card>
   );
 
-  if (!onPress) return body;
+  if (!onPress) return <View style={wide ? styles.kpiTileWide : styles.kpiTile}>{body}</View>;
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={`${label}, ${value}`}
-      style={({ pressed }) => [styles.kpiTile, { opacity: pressed ? 0.7 : 1 }]}
+      style={({ pressed }) => [
+        wide ? styles.kpiTileWide : styles.kpiTile,
+        { opacity: pressed ? 0.7 : 1 },
+      ]}
     >
       {body}
     </Pressable>
@@ -348,6 +365,11 @@ const styles = StyleSheet.create({
 
   kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 9 },
   kpiTile: { width: '31.5%' },
+  // Six across, so the whole fleet's status reads in one line on a desktop
+  // instead of wrapping to two rows with an empty half beside them.
+  kpiTileWide: { width: '15.6%', minWidth: 150 },
+  chartRow: { flexDirection: 'row', gap: 14, alignItems: 'flex-start' },
+  chartCol: { flex: 1, minWidth: 0 },
   kpiInner: { width: '100%' },
   kpiDot: { width: 7, height: 7, borderRadius: 7, marginBottom: 7 },
   kpiValue: { marginTop: 3, marginBottom: 2 },

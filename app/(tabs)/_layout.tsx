@@ -15,6 +15,7 @@ import { useTheme } from '@/theme';
 import {
   AppHeader,
   BottomNav,
+  DesktopShell,
   QuickActionSheet,
   OfflineBanner,
   ScopeDropdown,
@@ -24,6 +25,7 @@ import {
 import { fetchUnreadCount } from '@/api/notifications';
 import { useUiStore } from '@/store/useUiStore';
 import { usePermissions } from '@/auth';
+import { useIsDesktop } from '@/lib/useBreakpoint';
 
 /**
  * README § Global Chrome: "'Assets' stays active on Asset Detail; 'More' stays
@@ -72,6 +74,7 @@ export default function TabsLayout() {
   const router = useRouter();
   const pathname = usePathname();
   const { isReadOnly } = usePermissions();
+  const isDesktop = useIsDesktop();
 
   const [scopeOpen, setScopeOpen] = useState(false);
   const [fabOpen, setFabOpen] = useState(false);
@@ -106,6 +109,18 @@ export default function TabsLayout() {
       };
     router.push(routes[action]);
   };
+
+  if (isDesktop) {
+    return (
+      <View style={{ flex: 1, backgroundColor: t.color.bg }}>
+        <OfflineBanner />
+        <DesktopShell pathname={pathname} onPressScope={() => setScopeOpen((open) => !open)}>
+          <Slot />
+        </DesktopShell>
+        <ScopeDropdown visible={scopeOpen} onDismiss={() => setScopeOpen(false)} />
+      </View>
+    );
+  }
 
   return (
     <View style={{ flex: 1, backgroundColor: t.color.bg }}>
