@@ -18,10 +18,10 @@ import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronLeft, Wrench } from 'lucide-react-native';
+import { CalendarClock, ChevronLeft, Wrench } from 'lucide-react-native';
 
 import { useTheme } from '@/theme';
-import { Badge, Card, Chip, ChipRow, EmptyState, Screen, Skeleton } from '@/components/ui';
+import { Badge, Button, Card, Chip, ChipRow, EmptyState, Screen, Skeleton } from '@/components/ui';
 import { fetchMaintenance, fetchMaintenanceStats, type MaintenanceRecord } from '@/api/maintenance';
 import { formatDate } from '@/lib/dates';
 import { useScopeStore } from '@/store/useScopeStore';
@@ -105,6 +105,15 @@ export default function MaintenanceScreen() {
           {money(stats.data?.cost ?? 0)}
         </Text>
       </Card>
+
+      <Button
+        label="Service schedule"
+        variant="secondary"
+        block
+        icon={<CalendarClock size={15} color={t.color.text} strokeWidth={1.9} />}
+        onPress={() => router.push('/maintenance-schedule')}
+        style={styles.schedule}
+      />
 
       <ChipRow style={styles.filters}>
         {FILTERS.map((f) => (
@@ -214,6 +223,7 @@ function MaintenanceRow({
 }
 
 const styles = StyleSheet.create({
+  schedule: { marginBottom: 12 },
   back: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 12, minHeight: 24 },
   subtitle: { marginTop: 3, marginBottom: 14, lineHeight: 17 },
   stats: { flexDirection: 'row', gap: 9, marginBottom: 10 },

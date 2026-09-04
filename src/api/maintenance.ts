@@ -136,3 +136,71 @@ export async function editMaintenance(
   if (error) throw new Error(error.message);
   return data as MaintenanceResult;
 }
+
+/**
+ * Maintenance rules, set per asset CATEGORY.
+ *
+ * "Every laptop, every six months" is the sentence people say, so the rule
+ * hangs off the category rather than the asset. Writing it once covers every
+ * laptop bought afterwards, which is the part nobody remembers to do by hand.
+ */
+export interface MaintenanceScheduleRow {
+  category_id: string;
+  category_name: string;
+  /** Null when this category has no rule. */
+  every_months: number | null;
+  notes: string | null;
+  asset_count: number;
+}
+
+export async function fetchMaintenanceSchedules(): Promise<MaintenanceScheduleRow[]> {
+  const { data, error } = await supabase.rpc('maintenance_schedules_list');
+  if (error) throw new Error(error.message);
+  return (data ?? []) as MaintenanceScheduleRow[];
+}
+
+/** Pass null months to clear the rule for that category. */
+export async function setMaintenanceSchedule(
+  categoryId: string,
+  months: number | null,
+  notes?: string | null,
+): Promise<void> {
+  const { error } = await supabase.rpc('set_maintenance_schedule', {
+    p_category: categoryId,
+    p_months: months,
+    p_notes: notes ?? null,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export interface MaintenanceDueRow {
+  asset_id: string;
+  asset_code: string;
+  asset_name: string;
+  category_name: string;
+  location_name: string;
+  holder_name: string | null;
+  every_months: number;
+  /** Null when the asset has never been serviced. */
+  last_done: string | null;
+  due_on: string;
+  /** Positive when overdue, negative when it is still ahead. */
+  days_late: number;
+}
+
+/**
+ * What the rules say is due. Never stored — a stored due date drifts the moment
+ * somebody changes the rule, and applying to everything under it is the whole
+ * point of having a rule.
+ */
+export async function fetchMaintenanceDue(
+  locations: string[],
+  withinDays = 30,
+): Promise<MaintenanceDueRow[]> {
+  const { data, error } = await supabase.rpc('maintenance_due_list', {
+    p_locations: locations,
+    p_within_days: withinDays,
+  });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as MaintenanceDueRow[];
+}
