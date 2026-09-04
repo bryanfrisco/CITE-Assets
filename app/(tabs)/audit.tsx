@@ -24,6 +24,7 @@ import {
   AUDIT_ACTION_LABEL,
   AUDIT_FILTERS,
   AUDIT_PAGE_SIZE,
+  auditTargetHref,
   fetchAuditLog,
   fetchAuditStats,
   type AuditAction,
@@ -220,6 +221,8 @@ export default function AuditScreen() {
 
 function AuditRow({ entry, last }: { entry: AuditEntry; last: boolean }) {
   const t = useTheme();
+  const router = useRouter();
+  const href = auditTargetHref(entry);
 
   // The dot colour groups the log the way the Timeline does, so a person moving
   // between the two screens is reading the same vocabulary.
@@ -232,10 +235,8 @@ function AuditRow({ entry, last }: { entry: AuditEntry; last: boolean }) {
           ? t.color.gold
           : t.color.success;
 
-  return (
-    <View
-      style={[styles.row, { borderBottomWidth: last ? 0 : 1, borderBottomColor: t.color.line }]}
-    >
+  const body = (
+    <>
       <View style={styles.rail}>
         <View style={[styles.dot, { backgroundColor: tone }]} />
       </View>
@@ -261,7 +262,31 @@ function AuditRow({ entry, last }: { entry: AuditEntry; last: boolean }) {
           </Text>
         </View>
       </View>
-    </View>
+
+      {href ? <ChevronRight size={16} color={t.color.sub} strokeWidth={1.7} /> : null}
+    </>
+  );
+
+  const frame = { borderBottomWidth: last ? 0 : 1, borderBottomColor: t.color.line };
+
+  // Only entries that still point somewhere become links. One about a record
+  // that has since been deleted stays flat, because a link that goes nowhere
+  // is worse than no link at all.
+  if (!href) return <View style={[styles.row, frame]}>{body}</View>;
+
+  return (
+    <Pressable
+      onPress={() => router.push(href as Parameters<typeof router.push>[0])}
+      accessibilityRole="button"
+      accessibilityLabel={`Open ${entry.target_label ?? entry.summary}`}
+      style={({ pressed }) => [
+        styles.row,
+        frame,
+        { backgroundColor: pressed ? t.color.soft : 'transparent' },
+      ]}
+    >
+      {body}
+    </Pressable>
   );
 }
 

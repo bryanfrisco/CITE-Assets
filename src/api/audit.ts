@@ -74,6 +74,45 @@ export interface AuditEntry {
   created_at: string;
   /** One readable line, built in SQL so an export cannot disagree with the screen. */
   summary: string;
+  /**
+   * Where this entry happened, resolved server-side.
+   *
+   * Half of it is a join the client cannot make: an entry against
+   * `assignments` names an assignment, and what somebody wants to open is the
+   * asset it was about. Null when there is nothing left to open — a deleted
+   * record, or a table with no screen of its own — and the row then stays flat
+   * rather than pretending to be a link.
+   */
+  target_kind: 'asset' | 'bast' | 'account' | 'accessory' | 'license' | 'master' | null;
+  /** asset_code for an asset, otherwise an id. */
+  target_ref: string | null;
+  /** The master-data entity slug; only set when target_kind is 'master'. */
+  target_extra: string | null;
+}
+
+/** The route an audit entry points at, or null when it points nowhere. */
+export function auditTargetHref(entry: AuditEntry): string | null {
+  if (!entry.target_kind || !entry.target_ref) return null;
+  switch (entry.target_kind) {
+    case 'asset':
+      return `/asset/${entry.target_ref}`;
+    case 'bast':
+      return `/bast/${entry.target_ref}`;
+    case 'account':
+      return `/account-edit?id=${entry.target_ref}`;
+    case 'accessory':
+      return `/accessory/${entry.target_ref}`;
+    case 'license':
+      // A seat resolves to its licence — the seat is what changed, the licence
+      // is the screen somebody wants to land on.
+      return `/license/${entry.target_ref}`;
+    case 'master':
+      return entry.target_extra
+        ? `/master-usage?entity=${entry.target_extra}&id=${entry.target_ref}`
+        : null;
+    default:
+      return null;
+  }
 }
 
 export interface AuditStats {
