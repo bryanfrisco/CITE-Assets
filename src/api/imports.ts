@@ -69,6 +69,40 @@ export interface EmployeeImportResult {
   batchId: string | null;
 }
 
+/**
+ * The licence importer counts SEATS as well as licences, because a file of 71
+ * rows describing 15 licences would otherwise report "15" and leave somebody
+ * wondering where the other 56 went.
+ */
+export interface LicenseImportResult {
+  dryRun: boolean;
+  rows: number;
+  created: number;
+  updated: number;
+  unchanged: number;
+  /** Seat rows read — the figure the file's own length matches. */
+  seats: number;
+  skipped: number;
+  errors: RowError[];
+  warnings: EmployeeWarning[];
+  warningSummary: WarningCount[];
+  batchId: string | null;
+}
+
+export async function importLicenses(
+  rows: CsvRow[],
+  dryRun: boolean,
+  fileName: string,
+): Promise<LicenseImportResult> {
+  const { data, error } = await supabase.rpc('import_licenses', {
+    p_rows: rows,
+    p_dry_run: dryRun,
+    p_file_name: fileName,
+  });
+  if (error) throw new Error(error.message);
+  return data as LicenseImportResult;
+}
+
 export async function importAccounts(
   rows: CsvRow[],
   dryRun: boolean,
@@ -83,7 +117,7 @@ export async function importAccounts(
   return data as EmployeeImportResult;
 }
 
-export type ImportKind = 'assets' | 'employees';
+export type ImportKind = 'assets' | 'employees' | 'licenses';
 
 export interface ImportBatch {
   id: string;

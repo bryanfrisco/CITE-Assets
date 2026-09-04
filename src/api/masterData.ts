@@ -18,7 +18,8 @@ export type MasterEntity =
   | 'status'
   | 'condition'
   | 'unit'
-  | 'company';
+  | 'company'
+  | 'license_category';
 
 export interface MasterEntityMeta {
   key: MasterEntity;
@@ -45,6 +46,7 @@ export const MASTER_ENTITIES: MasterEntityMeta[] = [
   { key: 'condition', label: 'Condition' },
   { key: 'unit', label: 'Unit' },
   { key: 'company', label: 'Company' },
+  { key: 'license_category', label: 'License category' },
 ];
 
 export function labelFor(entity: MasterEntity): string {

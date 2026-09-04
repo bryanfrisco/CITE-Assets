@@ -330,3 +330,113 @@ export function buildErrorReport(errors: RowError[], idColumn = 'serial_number')
 
   return `${lines.join('\r\n')}\r\n`;
 }
+
+/**
+ * Licences, one row per SEAT.
+ *
+ * The row shape follows the real spreadsheet rather than the table: a licence
+ * with 28 seats is 28 rows, and only the first names the software. A blank
+ * `software` means "another seat of the licence above" — that is how the
+ * merged cells in the source file read, and reproducing it here means the
+ * export can be dropped in with the columns renamed and nothing else done.
+ *
+ * `software` is NOT required, precisely because of that: rows 2..28 legitimately
+ * leave it empty. The server refuses a file whose FIRST row has no software,
+ * which is the only case where a blank one is meaningless.
+ *
+ * Two columns from the source are deliberately absent. `ASSET STATUS` is not
+ * imported because Used/Standby is derived from whether a seat has a holder,
+ * and `DEPARTEMENT` is not imported because it is read from the holder's own
+ * record. Both are still ACCEPTED as aliases so the file parses, then compared
+ * against what the data implies and reported as warnings when they disagree.
+ */
+export const LICENSE_COLUMNS = [
+  'software',
+  'license_number',
+  'category',
+  'vendor',
+  'purchase_year',
+  'expiry_date',
+  'seat_account',
+  'seat_password',
+  'user_name',
+  'notes',
+] as const;
+
+export type LicenseColumn = (typeof LICENSE_COLUMNS)[number];
+
+export const LICENSE_IMPORT: ImportSchema = {
+  columns: LICENSE_COLUMNS,
+  required: [],
+  aliases: {
+    // The spreadsheet's own headings, already normalised by parseImportCsv.
+    akun_manager: 'seat_account',
+    manager_account: 'seat_account',
+    account: 'seat_account',
+    password: 'seat_password',
+    user: 'user_name',
+    holder: 'user_name',
+    pemakai: 'user_name',
+    expired_date: 'expiry_date',
+    expiry: 'expiry_date',
+    tanggal_expired: 'expiry_date',
+    purchase: 'purchase_year',
+    tahun_beli: 'purchase_year',
+    licence_number: 'license_number',
+    serial: 'license_number',
+    kategori: 'category',
+    supplier: 'vendor',
+  },
+};
+
+/** The downloadable template, headed the way the source spreadsheet heads it. */
+export function buildLicenseTemplate(): string {
+  const headings: Record<LicenseColumn, string> = {
+    software: 'Software',
+    license_number: 'License Number',
+    category: 'Category',
+    vendor: 'Vendor',
+    purchase_year: 'Purchase Year',
+    expiry_date: 'Expired Date',
+    seat_account: 'Akun Manager',
+    seat_password: 'Password',
+    user_name: 'User',
+    notes: 'Notes',
+  };
+
+  // Two rows on purpose: the second shows what a continuation seat looks like,
+  // which is the one thing about this format nobody guesses.
+  const first: Record<LicenseColumn, string> = {
+    software: 'AutoCAD',
+    license_number: 'Subscription ID : 5521692074',
+    category: 'MINING',
+    vendor: 'PT Alsentra Prima',
+    purchase_year: '2026',
+    expiry_date: '2027-03-12',
+    seat_account: 'hasbi.sutandiono@aspire.id',
+    seat_password: '',
+    user_name: 'Hasbi As-Siddiqi Sutandiono',
+    notes: '',
+  };
+
+  const second: Record<LicenseColumn, string> = {
+    software: '',
+    license_number: '',
+    category: '',
+    vendor: '',
+    purchase_year: '',
+    expiry_date: '',
+    seat_account: 'ferdy.ramadhony@aspire.id',
+    seat_password: '',
+    user_name: '',
+    notes: 'Leave Software empty to add another seat to the licence above',
+  };
+
+  const escape = (value: string) => `"${String(value).replace(/"/g, '""')}"`;
+  const line = (row: Record<LicenseColumn, string>) =>
+    LICENSE_COLUMNS.map((c) => escape(row[c])).join(',');
+
+  return [LICENSE_COLUMNS.map((c) => escape(headings[c])).join(','), line(first), line(second)]
+    .join('\r\n')
+    .concat('\r\n');
+}
