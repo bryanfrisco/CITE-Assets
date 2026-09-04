@@ -96,10 +96,13 @@ export default function SignBastScreen() {
   const bast = detail.data;
   const chosen = signatories.data?.find((s) => s.id === signatoryId);
 
-  const recipientName =
-    role === 'receiver_2' ? (bast?.secondaryName ?? '') : (bast?.employeeName ?? '');
-  const recipientTitle =
-    role === 'receiver_2' ? (bast?.secondaryTitle ?? null) : (bast?.departmentName ?? null);
+  // Looked up by role rather than by a chain of comparisons: naming only
+  // receiver_2 meant a third or fourth holder signed under the FIRST holder's
+  // name, which is the same class of bug as the printed document naming one
+  // receiver while carrying three signature boxes.
+  const holder = bast?.holders?.find((h) => h.role === role);
+  const recipientName = holder?.name ?? bast?.employeeName ?? '';
+  const recipientTitle = holder?.title ?? bast?.departmentName ?? null;
 
   const signerName = isRecipient ? recipientName : (chosen?.full_name ?? '');
   const signerTitle = isRecipient

@@ -360,6 +360,12 @@ export default function BastDetailScreen() {
 
           {signatureRolesFor(b).map((role) => {
             const signature = b.signatures?.[role];
+            // Whose block this is. Asking b.employeeName here is what made the
+            // second and third blocks all read as the first holder.
+            const expected =
+              role === 'handover'
+                ? 'Corporate IT'
+                : (b.holders?.find((h) => h.role === role)?.name ?? b.employeeName);
             return (
               <Pressable
                 key={role}
@@ -398,9 +404,7 @@ export default function BastDetailScreen() {
                   >
                     {signature
                       ? `${signature.signerName} · ${shortDate(signature.signedAt)}`
-                      : role === 'handover'
-                        ? 'Not signed yet · Corporate IT'
-                        : `Not signed yet · ${b.employeeName}`}
+                      : `Not signed yet · ${expected}`}
                   </Text>
                 </View>
 
@@ -829,11 +833,9 @@ function PaperPreview({ bast }: { bast: BastDetail }) {
         </View>
 
         <View style={styles.signature}>
-          {(
-            [
-              ['receiver', bast.employeeName],
-              ...(bast.secondaryName ? ([['receiver_2', bast.secondaryName]] as const) : []),
-            ] as const
+          {(bast.holders?.length
+            ? bast.holders.map((h) => [h.role, h.name] as const)
+            : ([['receiver', bast.employeeName]] as const)
           ).map(([role, fallbackName]) => {
             const signature = bast.signatures?.[role as SignatureRole];
             return (

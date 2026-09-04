@@ -499,6 +499,68 @@ export default function AssignScreen() {
                   : 'Select employee'}
               </Text>
 
+              {employee ? (
+                <Card radius="cardMedium" padding={14} style={styles.secondHolder}>
+                  {/* Named here as well as highlighted in the list below. After
+                      scrolling a few hundred rows, "who did I just pick?" should
+                      not require finding the highlighted one again. */}
+                  <Text style={[t.type.meta, { color: t.color.sub }]}>
+                    {isReturn ? 'Returned by' : 'Assigned to'}
+                  </Text>
+                  <Text
+                    numberOfLines={1}
+                    style={[t.type.body, { color: t.color.text, marginTop: 2, marginBottom: 10 }]}
+                  >
+                    {employee.full_name}
+                  </Text>
+
+                  <Text style={[t.type.metaStrong, { color: t.color.text }]}>
+                    {extraHolders.length > 0
+                      ? `${extraHolders.length + 1} people are answerable for this`
+                      : 'Held by more than one person?'}
+                  </Text>
+                  <Text style={[t.type.meta, styles.accessoryHint, { color: t.color.sub }]}>
+                    A handy-talkie carried on opposite shifts, for example. The document is raised
+                    once for the whole group, names every one of them, and is not finished until ALL
+                    of them have signed it. Shift changes are not recorded.
+                  </Text>
+
+                  {extraHolders.map((holderId, i) => (
+                    <View key={holderId} style={styles.accessoryRow}>
+                      <View style={styles.accessoryText}>
+                        <Text numberOfLines={1} style={[t.type.bodySmall, { color: t.color.text }]}>
+                          {`${i + 2}. ${
+                            employees.data?.find((e) => e.id === holderId)?.full_name ?? ''
+                          }`}
+                        </Text>
+                      </View>
+                      <Pressable
+                        onPress={() => setExtraHolders(extraHolders.filter((x) => x !== holderId))}
+                        accessibilityRole="button"
+                        accessibilityLabel="Remove this holder"
+                        hitSlop={10}
+                      >
+                        <X size={16} color={t.color.sub} strokeWidth={1.9} />
+                      </Pressable>
+                    </View>
+                  ))}
+
+                  {extraHolders.length < MAX_EXTRA_HOLDERS ? (
+                    <Button
+                      label={extraHolders.length === 0 ? 'Add a second holder' : 'Add another'}
+                      variant="secondary"
+                      block
+                      onPress={() => setSecondSheet(true)}
+                      style={styles.accessoryAdd}
+                    />
+                  ) : (
+                    <Text style={[t.type.meta, styles.accessoryHint, { color: t.color.sub }]}>
+                      Four people is the most one document can be addressed to.
+                    </Text>
+                  )}
+                </Card>
+              ) : null}
+
               <Input
                 size="search"
                 value={personQuery}
@@ -551,55 +613,6 @@ export default function AssignScreen() {
                   description="Add people in Settings, or widen the scope from the header."
                 />
               )}
-
-              {employee ? (
-                <Card radius="cardMedium" padding={14} style={styles.secondHolder}>
-                  <Text style={[t.type.metaStrong, { color: t.color.text }]}>
-                    {extraHolders.length > 0
-                      ? `${extraHolders.length + 1} people are answerable for this`
-                      : 'Held by more than one person?'}
-                  </Text>
-                  <Text style={[t.type.meta, styles.accessoryHint, { color: t.color.sub }]}>
-                    A handy-talkie carried on opposite shifts, for example. The document is raised
-                    once for the whole group, names every one of them, and is not finished until ALL
-                    of them have signed it. Shift changes are not recorded.
-                  </Text>
-
-                  {extraHolders.map((holderId, i) => (
-                    <View key={holderId} style={styles.accessoryRow}>
-                      <View style={styles.accessoryText}>
-                        <Text numberOfLines={1} style={[t.type.bodySmall, { color: t.color.text }]}>
-                          {`${i + 2}. ${
-                            employees.data?.find((e) => e.id === holderId)?.full_name ?? ''
-                          }`}
-                        </Text>
-                      </View>
-                      <Pressable
-                        onPress={() => setExtraHolders(extraHolders.filter((x) => x !== holderId))}
-                        accessibilityRole="button"
-                        accessibilityLabel="Remove this holder"
-                        hitSlop={10}
-                      >
-                        <X size={16} color={t.color.sub} strokeWidth={1.9} />
-                      </Pressable>
-                    </View>
-                  ))}
-
-                  {extraHolders.length < MAX_EXTRA_HOLDERS ? (
-                    <Button
-                      label={extraHolders.length === 0 ? 'Add a second holder' : 'Add another'}
-                      variant="secondary"
-                      block
-                      onPress={() => setSecondSheet(true)}
-                      style={styles.accessoryAdd}
-                    />
-                  ) : (
-                    <Text style={[t.type.meta, styles.accessoryHint, { color: t.color.sub }]}>
-                      Four people is the most one document can be addressed to.
-                    </Text>
-                  )}
-                </Card>
-              ) : null}
             </View>
           ) : null}
 
