@@ -52,6 +52,16 @@ export interface BastListRow {
   asset_code: string | null;
   asset_name: string | null;
   employee_name: string;
+  /** The second holder, when the asset is shared. Null for most documents. */
+  secondary_name: string | null;
+  /**
+   * Every holder in one string — "Ahmad" or "Ahmad, Rivaldi".
+   *
+   * Built server-side so the list, the search and the export cannot disagree
+   * about who a document is for. Printing only the first name made a pair of
+   * holders read as one person's handover.
+   */
+  holder_label: string;
   department_name: string | null;
   location_name: string;
   current_version: number;
@@ -89,7 +99,18 @@ export interface BastVersion {
  * officer signs on the left under "Yang Menerima". The caption is derived from
  * the kind, which is why it is a function rather than a lookup.
  */
-export type SignatureRole = 'handover' | 'receiver' | 'receiver_2';
+export type SignatureRole = 'handover' | 'receiver' | 'receiver_2' | 'receiver_3' | 'receiver_4';
+
+/** One holder of the document, in the order the paper names them. */
+export interface BastHolder {
+  position: number;
+  accountId: string;
+  name: string;
+  nik: string;
+  title: string;
+  department: string;
+  role: SignatureRole;
+}
 
 /**
  * The blocks a given document needs signed.
@@ -98,8 +119,27 @@ export type SignatureRole = 'handover' | 'receiver' | 'receiver_2';
  * holders are answerable and the document is not finished until both have put
  * their name on it.
  */
-export function signatureRolesFor(bast: { secondaryName?: string | null }): SignatureRole[] {
+export function signatureRolesFor(bast: {
+  holders?: BastHolder[] | null;
+  secondaryName?: string | null;
+}): SignatureRole[] {
+  // The holder list is the answer when the server sent one. secondaryName is
+  // the fallback for a payload from before holders existed, so an older cached
+  // document still shows the right number of blocks.
+  if (bast.holders?.length) {
+    return ['handover', ...bast.holders.map((h) => h.role)];
+  }
   return bast.secondaryName ? ['handover', 'receiver', 'receiver_2'] : ['handover', 'receiver'];
+}
+
+/** Every holder's name, as the documents and lists print it: "Ahmad, Rivaldi". */
+export function holderLabel(bast: {
+  holders?: BastHolder[] | null;
+  employeeName?: string | null;
+  secondaryName?: string | null;
+}): string {
+  if (bast.holders?.length) return bast.holders.map((h) => h.name).join(', ');
+  return [bast.employeeName, bast.secondaryName].filter(Boolean).join(', ');
 }
 
 export function signatureCaption(kind: BastKind, role: SignatureRole): string {
@@ -114,6 +154,8 @@ export const SIGNATURE_ROLE_SIDE: Record<SignatureRole, string> = {
   handover: 'Corporate IT',
   receiver: 'Employee',
   receiver_2: 'Second holder',
+  receiver_3: 'Third holder',
+  receiver_4: 'Fourth holder',
 };
 
 export interface BastSignature {
@@ -161,6 +203,8 @@ export interface BastDetail {
   /** The other shift, on a shared asset. Null on every other document. */
   secondaryId: string | null;
   secondaryName: string | null;
+  /** Every holder, position 1 first. The screens print all of them. */
+  holders: BastHolder[];
   secondaryNik: string | null;
   secondaryTitle: string | null;
   departmentName: string;
@@ -185,10 +229,15 @@ export const BAST_STATUS_LABEL: Record<BastStatus, string> = {
   void: 'Void',
 };
 
-export async function fetchBastList(scope: string[], kind?: BastKind): Promise<BastListRow[]> {
+export async function fetchBastList(
+  scope: string[],
+  kind?: BastKind,
+  search?: string | null,
+): Promise<BastListRow[]> {
   const { data, error } = await supabase.rpc('bast_list', {
     p_locations: scope,
     p_kind: kind ?? null,
+    p_search: search ?? null,
   });
   if (error) throw new Error(error.message);
   return (data ?? []) as BastListRow[];
@@ -444,6 +493,27 @@ export async function bastIdByNumber(bastNumber: string): Promise<string | null>
  * handover happened; deleting it would remove the proof rather than the
  * mistake, so the server refuses.
  */
+/**
+ * Brings a voided document back as a DRAFT.
+ *
+ * Voiding was a one-way door, and the symptom people hit was "the signature
+ * boxes are gone and I cannot sign". Restoring keeps the same number and the
+ * same handover, and records both the void and the restore, rather than
+ * spending a second number on a document that describes the same event.
+ *
+ * `signaturesOnFile` is how many signatures survived — bast_signatures is
+ * append-only, so nothing was destroyed by the void. It comes back as a draft
+ * rather than as signed, so a person decides what the document now says.
+ */
+export async function restoreBast(
+  id: string,
+  reason: string,
+): Promise<{ bastNumber: string; signaturesOnFile: number }> {
+  const { data, error } = await supabase.rpc('restore_bast', { p_bast: id, p_reason: reason });
+  if (error) throw new Error(error.message);
+  return data as { bastNumber: string; signaturesOnFile: number };
+}
+
 export async function voidBast(id: string, reason: string): Promise<{ bastNumber: string }> {
   const { data, error } = await supabase.rpc('void_bast', { p_bast: id, p_reason: reason });
   if (error) throw new Error(error.message);

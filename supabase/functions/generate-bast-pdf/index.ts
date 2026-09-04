@@ -150,6 +150,18 @@ interface BastDocument {
   employeeName: string;
   /** The other shift on a shared asset. Null on every other document. */
   secondaryName?: string | null;
+  /**
+   * Every holder, position 1 first. Sent by bast_detail(); the older
+   * secondary* fields are still there and say the same thing about position 2.
+   */
+  holders?: {
+    position: number;
+    name: string;
+    nik: string;
+    title: string;
+    department: string;
+    role: string;
+  }[];
   employeeNik: string;
   employeeTitle: string;
   departmentName: string;
@@ -161,7 +173,9 @@ interface BastDocument {
   handedOverBy: string;
   handedOverDept: string;
   items: BastItem[];
-  signatures: { handover?: Signature; receiver?: Signature; receiver_2?: Signature };
+  // Keyed by role, so a third and fourth holder need no new field here — the
+  // renderer looks each one up by the role its holder position maps to.
+  signatures: Partial<Record<string, Signature>>;
   versions: BastVersionRow[];
 }
 
@@ -295,20 +309,46 @@ function render(doc: BastDocument): Uint8Array {
   y -= 6;
   const blockX = MARGIN + 18;
   const colonX = blockX + 92;
-  const partyRows: [string, string][] = [
-    ['Nama', doc.employeeName],
-    // The withdrawal scan calls it NOKAR, the handover scan calls it NIK. They
-    // are the same employee number; one label beats guessing per document.
-    ['NIK', doc.employeeNik || '-'],
-    ['Jabatan', doc.employeeTitle || '-'],
-    ['Dept./Divisi', doc.departmentName || '-'],
-  ];
-  for (const [label, value] of partyRows) {
-    c.text(label, blockX, y, { size: 10, color: BODY });
-    c.text(':', colonX, y, { size: 10, color: BODY });
-    c.text(value, colonX + 10, y, { size: 10, color: INK });
-    y -= 15.5;
-  }
+  // One block per holder. A radio carried by three people names three people:
+  // printing only the first while carrying three signature boxes is what made
+  // the boxes look like they all belonged to the same person.
+  const parties = doc.holders?.length
+    ? doc.holders
+    : [
+        {
+          position: 1,
+          name: doc.employeeName,
+          nik: doc.employeeNik || '-',
+          title: doc.employeeTitle || '-',
+          department: doc.departmentName || '-',
+          role: 'receiver',
+        },
+      ];
+
+  parties.forEach((person, i) => {
+    // Numbered only when there is more than one, so the ordinary document is
+    // unchanged and a shared one reads unambiguously.
+    if (parties.length > 1) {
+      c.text(`${i + 1}.`, MARGIN + 4, y, { size: 10, face: 'bold', color: INK });
+    }
+
+    const rows: [string, string][] = [
+      ['Nama', person.name],
+      // The withdrawal scan calls it NOKAR, the handover scan calls it NIK.
+      // They are the same employee number; one label beats guessing per
+      // document.
+      ['NIK', person.nik || '-'],
+      ['Jabatan', person.title || '-'],
+      ['Dept./Divisi', person.department || '-'],
+    ];
+    for (const [label, value] of rows) {
+      c.text(label, blockX, y, { size: 10, color: BODY });
+      c.text(':', colonX, y, { size: 10, color: BODY });
+      c.text(value, colonX + 10, y, { size: 10, color: INK });
+      y -= 15.5;
+    }
+    if (i < parties.length - 1) y -= 7;
+  });
 
   // ---- what happens to it, and the goods table -----------------------------
   y -= 8;
@@ -396,9 +436,7 @@ function render(doc: BastDocument): Uint8Array {
   // with it, which is how a signature turns into a smudge.
   const rightX = MARGIN + CONTENT_W * 0.56;
   const handover = doc.signatures?.handover;
-  const receiver = doc.signatures?.receiver;
-  const receiver2 = doc.signatures?.receiver_2;
-  const hasSecond = Boolean(doc.secondaryName);
+  // Receivers are looked up per holder now, from doc.signatures by role.
 
   // The gap between a caption and its ruled name IS the signature box, so its
   // height is fixed rather than derived — the strokes are normalised 0..1 and
@@ -410,50 +448,103 @@ function render(doc: BastDocument): Uint8Array {
   const captionY = y - 15;
 
   // [caption, signature, printed name, x, the y its own caption sits on]
-  const blocks: [string, Signature | undefined, string, number, number][] = [
-    [w.captions[0], handover, handover?.signerName ?? doc.handedOverBy, MARGIN, captionY],
-    [w.captions[1], receiver, receiver?.signerName ?? doc.employeeName, rightX, captionY],
+  // One block for the CITE side, then one per holder. The signature the
+  // document needs is decided by the holder LIST, so a third or fourth person
+  // needs nothing special here.
+  type Block = { caption: string; signature?: Signature; name: string };
+
+  const blocks: Block[] = [
+    {
+      caption: w.captions[0],
+      signature: handover,
+      name: handover?.signerName ?? doc.handedOverBy,
+    },
+    ...parties.map((person) => {
+      const sig = doc.signatures?.[person.role as keyof typeof doc.signatures];
+      return { caption: w.captions[1], signature: sig, name: sig?.signerName ?? person.name };
+    }),
   ];
 
-  if (hasSecond) {
-    blocks.push([
-      w.captions[1],
-      receiver2,
-      receiver2?.signerName ?? doc.secondaryName ?? '',
-      rightX,
-      captionY - BLOCK_H - STACK_GAP,
-    ]);
-  }
+  // The first block sits on the left, the receivers stack down the right. When
+  // the stack would reach the page footer the rest go on a second sheet rather
+  // than being dropped or squeezed — the strokes are normalised 0..1, so a
+  // shorter box turns a signature into a smudge.
+  const FLOOR = 150;
+  const pages: Content[] = [c];
+  let canvas = c;
+  let column = { x: rightX, y: captionY };
+  let onSecondPage = false;
 
-  for (const [caption, signature, name, x, blockCaptionY] of blocks) {
+  const footerOn = (target: Content) => {
+    target.text(doc.companyName.toUpperCase(), MARGIN, 52, {
+      size: 8,
+      face: 'bold',
+      color: BODY,
+    });
+    if (doc.addressLine) target.text(doc.addressLine, MARGIN, 42, { size: 7.5, color: MUTED });
+  };
+
+  const drawBlock = (target: Content, b: Block, x: number, blockCaptionY: number) => {
     const nameY = blockCaptionY - BLOCK_H;
 
-    c.text(caption, x, blockCaptionY, { size: 10, color: BODY });
-    if (signature) drawSignature(c, signature, x + 80, nameY, 170, 78);
+    target.text(b.caption, x, blockCaptionY, { size: 10, color: BODY });
+    if (b.signature) drawSignature(target, b.signature, x + 80, nameY, 170, 78);
 
-    c.text(name, x, nameY, { size: 10, face: 'bold', color: INK });
-    const nameW = textWidth(name, 10, 'bold');
-    c.line(x, nameY - 3, x + nameW, nameY - 3, 0.8, INK);
+    target.text(b.name, x, nameY, { size: 10, face: 'bold', color: INK });
+    const nameW = textWidth(b.name, 10, 'bold');
+    target.line(x, nameY - 3, x + nameW, nameY - 3, 0.8, INK);
 
     // The timestamp is the part a wet signature cannot carry, and it is the
     // reason this counts as evidence rather than decoration.
-    if (signature) {
-      const when = new Date(signature.signedAt).toISOString().slice(0, 16).replace('T', ' ');
-      c.text(`Ditandatangani secara elektronik - ${when} UTC`, x, nameY - 14, {
+    if (b.signature) {
+      const when = new Date(b.signature.signedAt).toISOString().slice(0, 16).replace('T', ' ');
+      target.text(`Ditandatangani secara elektronik - ${when} UTC`, x, nameY - 14, {
         size: 6.5,
         color: MUTED,
       });
     }
+  };
+
+  // The CITE side always sits opposite the first receiver on page one.
+  drawBlock(canvas, blocks[0], MARGIN, captionY);
+
+  for (const block of blocks.slice(1)) {
+    if (column.y - BLOCK_H < FLOOR) {
+      if (!onSecondPage) {
+        footerOn(canvas);
+        canvas = new Content();
+        pages.push(canvas);
+        onSecondPage = true;
+
+        canvas.text(
+          `${w.title} - ${doc.bastNumber}`,
+          MARGIN,
+          PAGE_H - MARGIN_TOP,
+          { size: 9, color: MUTED },
+        );
+        canvas.text('Lanjutan tanda tangan', MARGIN, PAGE_H - MARGIN_TOP - 18, {
+          size: 11,
+          face: 'bold',
+          color: INK,
+        });
+        column = { x: MARGIN, y: PAGE_H - MARGIN_TOP - 56 };
+      } else {
+        // Second page, second column, then back to the top of the right one.
+        column =
+          column.x === MARGIN
+            ? { x: rightX, y: PAGE_H - MARGIN_TOP - 56 }
+            : { x: MARGIN, y: column.y - BLOCK_H - STACK_GAP };
+      }
+    }
+
+    drawBlock(canvas, block, column.x, column.y);
+    column = { ...column, y: column.y - BLOCK_H - STACK_GAP };
   }
 
-  // ---- footer --------------------------------------------------------------
-  c.text(doc.companyName.toUpperCase(), MARGIN, 52, { size: 8, face: 'bold', color: BODY });
-  if (doc.addressLine) {
-    c.text(doc.addressLine, MARGIN, 42, { size: 7.5, color: MUTED });
-  }
+  footerOn(canvas);
 
   return buildPdf(
-    c,
+    pages,
     { Im2: { width: aspireLogoWidth, height: aspireLogoHeight, data: decode(aspireLogoBase64) } },
     PAGE_W,
     PAGE_H,

@@ -237,12 +237,32 @@ export interface ImageXObject {
  * is how a missing letterhead logo degrades to no logo instead of a PDF a
  * reader refuses to open.
  */
+/**
+ * Assembles the file.
+ *
+ * Takes one Content per page. It used to take exactly one and hard-code
+ * `/Count 1`, which put a ceiling on the document: an A4 signature column fits
+ * about four blocks before it runs into the page footer, so a handover shared
+ * by more people than that had nowhere to print them. Paginating removes the
+ * ceiling instead of capping the people.
+ *
+ * Object numbering, for N pages:
+ *   1                catalog
+ *   2                pages tree
+ *   3 .. 2+N         one page object each
+ *   3+N .. 2+2N      one content stream each
+ *   3+2N, 4+2N       the two fonts
+ *   5+2N ..          images
+ */
 export function buildPdf(
-  content: Content,
+  content: Content | Content[],
   images: Record<string, ImageXObject>,
   pageWidth: number,
   pageHeight: number,
 ): Uint8Array {
+  const pages = Array.isArray(content) ? content : [content];
+  if (pages.length === 0) throw new Error('A PDF needs at least one page');
+
   const encoder = new TextEncoder();
   const chunks: Uint8Array[] = [];
   let length = 0;
@@ -258,48 +278,64 @@ export function buildPdf(
     offsets.push(length);
   };
 
-  // Objects 1-6 are fixed; the images follow from 7 upwards.
+  const pageCount = pages.length;
+  const firstPageObj = 3;
+  const firstContentObj = firstPageObj + pageCount;
+  const fontF1 = firstContentObj + pageCount;
+  const fontF2 = fontF1 + 1;
+  const firstImageObj = fontF2 + 1;
+
   const embedded = Object.entries(images).filter(([, image]) => image.data.length > 0);
-  const xobjects = embedded.map(([name], i) => `/${name} ${7 + i} 0 R`).join(' ');
+  const xobjects = embedded.map(([name], i) => `/${name} ${firstImageObj + i} 0 R`).join(' ');
 
   push('%PDF-1.4\n%\xE2\xE3\xCF\xD3\n');
 
   startObject();
   push('1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n');
 
+  const kids = pages.map((_, i) => `${firstPageObj + i} 0 R`).join(' ');
   startObject();
-  push('2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n');
+  push(`2 0 obj\n<< /Type /Pages /Kids [${kids}] /Count ${pageCount} >>\nendobj\n`);
+
+  // Every page shares the same fonts and images, so the resource dictionary is
+  // identical on each — the letterhead logo is available on page two as well.
+  pages.forEach((_, i) => {
+    startObject();
+    push(
+      `${firstPageObj + i} 0 obj\n<< /Type /Page /Parent 2 0 R ` +
+        `/MediaBox [0 0 ${n(pageWidth)} ${n(pageHeight)}] ` +
+        `/Resources << /Font << /F1 ${fontF1} 0 R /F2 ${fontF2} 0 R >> ` +
+        `/XObject << ${xobjects} >> >> ` +
+        `/Contents ${firstContentObj + i} 0 R >>\nendobj\n`,
+    );
+  });
+
+  pages.forEach((page, i) => {
+    const stream = page.toString();
+    startObject();
+    push(
+      `${firstContentObj + i} 0 obj\n<< /Length ${encoder.encode(stream).length} >>\nstream\n`,
+    );
+    push(stream);
+    push('\nendstream\nendobj\n');
+  });
 
   startObject();
   push(
-    '3 0 obj\n<< /Type /Page /Parent 2 0 R ' +
-      `/MediaBox [0 0 ${n(pageWidth)} ${n(pageHeight)}] ` +
-      `/Resources << /Font << /F1 5 0 R /F2 6 0 R >> /XObject << ${xobjects} >> >> ` +
-      '/Contents 4 0 R >>\nendobj\n',
-  );
-
-  const stream = content.toString();
-  startObject();
-  push(`4 0 obj\n<< /Length ${encoder.encode(stream).length} >>\nstream\n`);
-  push(stream);
-  push('\nendstream\nendobj\n');
-
-  startObject();
-  push(
-    '5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica ' +
+    `${fontF1} 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica ` +
       '/Encoding /WinAnsiEncoding >>\nendobj\n',
   );
 
   startObject();
   push(
-    '6 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold ' +
+    `${fontF2} 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold ` +
       '/Encoding /WinAnsiEncoding >>\nendobj\n',
   );
 
   embedded.forEach(([, image], i) => {
     startObject();
     push(
-      `${7 + i} 0 obj\n<< /Type /XObject /Subtype /Image ` +
+      `${firstImageObj + i} 0 obj\n<< /Type /XObject /Subtype /Image ` +
         `/Width ${image.width} /Height ${image.height} ` +
         '/ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /FlateDecode ' +
         `/Length ${image.data.length} >>\nstream\n`,

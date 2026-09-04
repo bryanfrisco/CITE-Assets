@@ -185,6 +185,29 @@ export async function fetchMovements(scope: string[], assetId?: string): Promise
  * Setting one makes the document need a THIRD signature: it is not finished
  * until both holders have signed.
  */
+/**
+ * Replaces the list of extra holders outright.
+ *
+ * The array is holders 2..N in order; an empty array clears them. Passing the
+ * whole list rather than adding one at a time is what lets a name be REMOVED —
+ * an add-only call could never express "it is these two now, not those three".
+ *
+ * At most three extra, because each position needs a signature role of its own
+ * and four of them exist. The printed document is no longer the limit: it runs
+ * to a second page when the signature column fills up.
+ */
+export async function setAssetHolders(
+  assetId: string,
+  accountIds: string[],
+): Promise<{ assetId: string; assignmentId: string; holderNames: string[] }> {
+  const { data, error } = await supabase.rpc('set_asset_holders', {
+    p_asset: assetId,
+    p_accounts: accountIds,
+  });
+  if (error) throw new Error(error.message);
+  return data as { assetId: string; assignmentId: string; holderNames: string[] };
+}
+
 export async function setSecondaryHolder(
   assetId: string,
   accountId: string | null,

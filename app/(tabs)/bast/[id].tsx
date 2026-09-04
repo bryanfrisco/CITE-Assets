@@ -48,6 +48,7 @@ import {
   setBastKind,
   signatureCaption,
   signatureRolesFor,
+  restoreBast,
   voidBast,
   signedBastUrl,
   uploadSignedScan,
@@ -98,7 +99,7 @@ export default function BastDetailScreen() {
   const router = useRouter();
   const toast = useToast();
   const queryClient = useQueryClient();
-  const { can } = usePermissions();
+  const { can, role } = usePermissions();
   const { id } = useLocalSearchParams<{ id: string }>();
 
   const detail = useQuery({
@@ -142,6 +143,20 @@ export default function BastDetailScreen() {
       toast(`Filed as ${BAST_KIND_LABEL[result.kind]}`);
     },
     onError: (e: Error) => toast(e.message, 'error'),
+  });
+
+  const [restoreOpen, setRestoreOpen] = useState(false);
+  const [restoreReason, setRestoreReason] = useState('');
+  const [restoreError, setRestoreError] = useState('');
+
+  const restore = useMutation({
+    mutationFn: () => restoreBast(id, restoreReason),
+    onSuccess: () => {
+      setRestoreOpen(false);
+      void queryClient.invalidateQueries({ queryKey: ['bastDetail', id] });
+      void queryClient.invalidateQueries({ queryKey: ['bast'] });
+    },
+    onError: (e: Error) => setRestoreError(e.message),
   });
 
   // Void keeps the number spent and the row readable; delete only works on a
@@ -503,6 +518,20 @@ export default function BastDetailScreen() {
           </Text>
         )}
 
+        {b.status === 'void' && role === 'super_admin' ? (
+          <Button
+            label="Restore this document"
+            variant="secondary"
+            block
+            onPress={() => {
+              setRestoreError('');
+              setRestoreReason('');
+              setRestoreOpen(true);
+            }}
+            style={styles.removeButton}
+          />
+        ) : null}
+
         {can('bast.write') && b.status !== 'void' ? (
           <Button
             label="Void or delete this document"
@@ -580,6 +609,41 @@ export default function BastDetailScreen() {
             onPress={() => deleteDoc.mutate()}
           />
           <Button label="Cancel" variant="secondary" block onPress={() => setRemoveOpen(false)} />
+        </View>
+      </BottomSheet>
+
+      <BottomSheet
+        visible={restoreOpen}
+        onDismiss={() => setRestoreOpen(false)}
+        title="Restore this document?"
+        subtitle="It comes back as a draft, keeping the same number. Both the void and this restore stay in the audit log."
+      >
+        {b.signatures?.handover || b.signatures?.receiver ? (
+          <Text style={[t.type.meta, { color: t.color.sub, marginBottom: 10 }]}>
+            Signatures already on this document survived the void and are still attached — nothing
+            was destroyed. It returns as a draft so you can check them before signing again.
+          </Text>
+        ) : null}
+
+        <Input
+          value={restoreReason}
+          onChangeText={setRestoreReason}
+          placeholder="Why is this being restored?"
+        />
+
+        {restoreError ? (
+          <Text style={[t.type.meta, { color: t.color.error, marginTop: 8 }]}>{restoreError}</Text>
+        ) : null}
+
+        <View style={styles.sheetActions}>
+          <Button
+            label="Restore it"
+            block
+            disabled={restoreReason.trim() === ''}
+            loading={restore.isPending}
+            onPress={() => restore.mutate()}
+          />
+          <Button label="Cancel" variant="secondary" block onPress={() => setRestoreOpen(false)} />
         </View>
       </BottomSheet>
     </Screen>

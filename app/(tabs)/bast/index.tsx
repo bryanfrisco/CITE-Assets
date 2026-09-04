@@ -12,13 +12,14 @@
  * question is narrower than that.
  */
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import { Search, X } from 'lucide-react-native';
 import { useQuery } from '@tanstack/react-query';
 
 import { useTheme } from '@/theme';
-import { Badge, Card, Chip, ChipRow, EmptyState, Screen, Skeleton } from '@/components/ui';
+import { Badge, Card, Chip, ChipRow, EmptyState, Input, Screen, Skeleton } from '@/components/ui';
 import {
   BAST_KIND_LABEL,
   BAST_STATUS_LABEL,
@@ -48,10 +49,19 @@ export default function BastListScreen() {
   const scopeLabel = useScopeLabel();
 
   const [kind, setKind] = useState<BastKind | 'all'>('all');
+  const [query, setQuery] = useState('');
+  const [debounced, setDebounced] = useState('');
+
+  // The same 220ms as every other register in the app, so typing feels the same
+  // here as it does in Assets.
+  useEffect(() => {
+    const id = setTimeout(() => setDebounced(query), 220);
+    return () => clearTimeout(id);
+  }, [query]);
 
   const list = useQuery({
-    queryKey: [...queryKeys.bast(scope), kind],
-    queryFn: () => fetchBastList(scope, kind === 'all' ? undefined : kind),
+    queryKey: [...queryKeys.bast(scope), kind, debounced],
+    queryFn: () => fetchBastList(scope, kind === 'all' ? undefined : kind, debounced),
     enabled: scope.length > 0,
   });
   const stats = useQuery({
@@ -104,6 +114,29 @@ export default function BastListScreen() {
           onPress={() => setKind('accessory')}
         />
       </ChipRow>
+
+      <Input
+        size="search"
+        value={query}
+        onChangeText={setQuery}
+        placeholder="Number, asset, person, department…"
+        autoCapitalize="none"
+        autoCorrect={false}
+        icon={<Search size={17} color={t.color.sub} strokeWidth={1.8} />}
+        accessory={
+          query ? (
+            <Pressable
+              onPress={() => setQuery('')}
+              accessibilityRole="button"
+              accessibilityLabel="Clear search"
+              hitSlop={10}
+            >
+              <X size={16} color={t.color.sub} strokeWidth={1.9} />
+            </Pressable>
+          ) : null
+        }
+        containerStyle={styles.search}
+      />
 
       {scope.length === 0 ? (
         <EmptyState
@@ -172,7 +205,7 @@ function RecordCard({ row, onPress }: { row: BastListRow; onPress: () => void })
           {row.asset_name}
         </Text>
         <Text numberOfLines={1} style={[t.type.meta, styles.recordMeta, { color: t.color.sub }]}>
-          {[BAST_KIND_LABEL[row.kind], row.employee_name, row.department_name, row.location_name]
+          {[BAST_KIND_LABEL[row.kind], row.holder_label, row.department_name, row.location_name]
             .filter(Boolean)
             .join(' · ')}
         </Text>
@@ -182,6 +215,7 @@ function RecordCard({ row, onPress }: { row: BastListRow; onPress: () => void })
 }
 
 const styles = StyleSheet.create({
+  search: { marginBottom: 12 },
   countLine: { marginTop: 3 },
   stats: { flexDirection: 'row', gap: 9, marginTop: 14, marginBottom: 12 },
   kinds: { marginBottom: 14 },
