@@ -46,6 +46,7 @@ import { Bars } from '@/components/charts/Bars';
 import { Donut } from '@/components/charts/Donut';
 import { todayIso } from '@/lib/dates';
 import { useScopeLabel, useScopeStore } from '@/store/useScopeStore';
+import { saveFile, savePdfFromHtml } from '@/lib/download';
 import { useToast } from '@/store/useUiStore';
 
 function money(value: string | number | null | undefined): string {
@@ -124,20 +125,12 @@ export default function ReportsScreen() {
       const data = rows.data ?? [];
       if (data.length === 0) throw new Error('Nothing matches these filters');
 
-      const file = new File(
-        Paths.cache,
+      await saveFile(
         `cite-assets-${new Date().toISOString().slice(0, 10)}.csv`,
+        buildReportCsv(data),
+        'text/csv',
+        'Asset register',
       );
-      if (file.exists) file.delete();
-      file.create();
-      file.write(buildReportCsv(data));
-
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(file.uri, {
-          mimeType: 'text/csv',
-          dialogTitle: 'Asset register',
-        });
-      }
       return data.length;
     },
     onSuccess: (n) => toast(`${n} rows exported`),
@@ -151,14 +144,11 @@ export default function ReportsScreen() {
       if (!summary.data) throw new Error('The summary is still loading');
 
       const html = buildReportHtml(data, summary.data, scopeLabel);
-      const { uri } = await Print.printToFileAsync({ html });
-
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(uri, {
-          mimeType: 'application/pdf',
-          dialogTitle: 'Asset register',
-        });
-      }
+      await savePdfFromHtml(
+        html,
+        `cite-assets-${new Date().toISOString().slice(0, 10)}.pdf`,
+        'Asset register',
+      );
       return data.length;
     },
     onSuccess: (n) => toast(`Report of ${n} assets created`),

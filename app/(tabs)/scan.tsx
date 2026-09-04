@@ -13,7 +13,7 @@
  */
 
 import React, { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { AlertCircle, Camera, ChevronLeft, ScanLine } from 'lucide-react-native';
@@ -52,6 +52,24 @@ export default function ScanScreen() {
     setResult(null);
     setError(null);
   };
+
+  // ------------------------------------------------------------------- web
+  // Scanning is a phone job by design (client decision): a laptop webcam points
+  // at the person, not at the sticker on the underside of a docking station.
+  // Said out loud rather than shown as a dead camera frame, and pointed at the
+  // thing somebody on a desktop actually wants — the search.
+  if (Platform.OS === 'web') {
+    return (
+      <Screen>
+        <EmptyState
+          title="Scanning is on the phone app"
+          description="A barcode is read by walking up to the label, so this one stays on the handset. On a computer, search the register by asset code instead."
+          actionLabel="Open the asset register"
+          onAction={() => router.push('/assets')}
+        />
+      </Screen>
+    );
+  }
 
   // ------------------------------------------------------------- permission
   if (!permission) {

@@ -64,6 +64,7 @@ import {
 import type { LabelLayout, Symbology, TapeWidth } from '@/lib/labels';
 import { formatDate } from '@/lib/dates';
 import { useScopeStore } from '@/store/useScopeStore';
+import { saveFile, savePdfFromHtml } from '@/lib/download';
 import { useToast } from '@/store/useUiStore';
 import { usePermissions } from '@/auth';
 
@@ -137,28 +138,20 @@ export default function LabelsScreen() {
 
   const share = async (codes: string[], batchLabel: string) => {
     // CSV first — it is the one that reaches the LW-700.
-    const csv = new File(Paths.cache, `labels-${batchLabel}.csv`);
-    if (csv.exists) csv.delete();
-    csv.create();
-    csv.write(buildLabelCsv(codes, 'CITE ASSETS'));
+    await saveFile(
+      `labels-${batchLabel}.csv`,
+      buildLabelCsv(codes, 'CITE ASSETS'),
+      'text/csv',
+      'Send the label data to your PC',
+    );
 
     const options = { tape, caption: 'CITE ASSETS', symbology };
     const html =
       layout === 'a4'
         ? await buildLabelSheetA4Html(codes, options)
         : await buildLabelSheetHtml(codes, options);
-    const { uri: pdfPath } = await Print.printToFileAsync({ html });
 
-    if (await Sharing.isAvailableAsync()) {
-      await Sharing.shareAsync(csv.uri, {
-        mimeType: 'text/csv',
-        dialogTitle: 'Send the label data to your PC',
-      });
-      await Sharing.shareAsync(pdfPath, {
-        mimeType: 'application/pdf',
-        dialogTitle: 'Label sheet (any printer)',
-      });
-    }
+    await savePdfFromHtml(html, `labels-${batchLabel}.pdf`, 'Label sheet (any printer)');
   };
 
   const print = useMutation({

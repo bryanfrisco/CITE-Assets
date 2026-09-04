@@ -20,8 +20,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as DocumentPicker from 'expo-document-picker';
-import * as Sharing from 'expo-sharing';
-import { File, Paths } from 'expo-file-system';
+import { File } from 'expo-file-system';
 import { AlertCircle, ChevronLeft, Download, FileDown, Upload } from 'lucide-react-native';
 
 import { useTheme } from '@/theme';
@@ -35,19 +34,9 @@ import {
   type RowError,
 } from '@/lib/csv';
 import { fetchImportHistory, importLicenses, type LicenseImportResult } from '@/api/imports';
+import { saveFile } from '@/lib/download';
 import { useToast } from '@/store/useUiStore';
 import { usePermissions } from '@/auth';
-
-/** Writes a file into the cache and hands it to the share sheet. */
-async function share(name: string, contents: string, dialogTitle: string) {
-  const file = new File(Paths.cache, name);
-  if (file.exists) file.delete();
-  file.create();
-  file.write(contents);
-  if (await Sharing.isAvailableAsync()) {
-    await Sharing.shareAsync(file.uri, { mimeType: 'text/csv', dialogTitle });
-  }
-}
 
 export default function ImportLicensesScreen() {
   const t = useTheme();
@@ -145,15 +134,21 @@ export default function ImportLicensesScreen() {
 
   const downloadTemplate = useMutation({
     mutationFn: () =>
-      share('cite-licenses-template.csv', buildLicenseTemplate(), 'Licence template'),
+      saveFile(
+        'cite-licenses-template.csv',
+        buildLicenseTemplate(),
+        'text/csv',
+        'Licence template',
+      ),
     onError: (e: Error) => setError(e.message),
   });
 
   const downloadErrors = useMutation({
     mutationFn: (errors: RowError[]) =>
-      share(
+      saveFile(
         'cite-licenses-skipped.csv',
         buildErrorReport(errors, 'license_number'),
+        'text/csv',
         'Rows that were skipped',
       ),
     onError: (e: Error) => setError(e.message),

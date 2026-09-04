@@ -18,8 +18,8 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as DocumentPicker from 'expo-document-picker';
+import { File } from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
-import { File, Paths } from 'expo-file-system';
 import { AlertCircle, ChevronLeft, Download, FileDown, Upload } from 'lucide-react-native';
 
 import { useTheme } from '@/theme';
@@ -32,19 +32,9 @@ import {
   type RowError,
 } from '@/lib/csv';
 import { fetchImportHistory, importAssets, type ImportResult } from '@/api/imports';
+import { saveFile } from '@/lib/download';
 import { useToast } from '@/store/useUiStore';
 import { usePermissions } from '@/auth';
-
-/** Writes a file into the cache and hands it to the share sheet. */
-async function share(name: string, contents: string, dialogTitle: string) {
-  const file = new File(Paths.cache, name);
-  if (file.exists) file.delete();
-  file.create();
-  file.write(contents);
-  if (await Sharing.isAvailableAsync()) {
-    await Sharing.shareAsync(file.uri, { mimeType: 'text/csv', dialogTitle });
-  }
-}
 
 export default function ImportScreen() {
   const t = useTheme();
@@ -133,13 +123,19 @@ export default function ImportScreen() {
   });
 
   const downloadTemplate = useMutation({
-    mutationFn: () => share('cite-assets-template.csv', buildImportTemplate(), 'Import template'),
+    mutationFn: () =>
+      saveFile('cite-assets-template.csv', buildImportTemplate(), 'text/csv', 'Import template'),
     onError: (e: Error) => setError(e.message),
   });
 
   const downloadErrors = useMutation({
     mutationFn: (errors: RowError[]) =>
-      share('cite-assets-import-errors.csv', buildErrorReport(errors), 'Rows that were skipped'),
+      saveFile(
+        'cite-assets-import-errors.csv',
+        buildErrorReport(errors),
+        'text/csv',
+        'Rows that were skipped',
+      ),
     onError: (e: Error) => setError(e.message),
   });
 
