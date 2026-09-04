@@ -63,6 +63,7 @@ import { fitSignaturePaths } from '@/lib/signature';
 import { queryKeys } from '@/lib/queryClient';
 import { useToast } from '@/store/useUiStore';
 import { usePermissions } from '@/auth';
+import { useIsDesktop } from '@/lib/useBreakpoint';
 
 /**
  * The company mark. It is now the ONLY mark on the letterhead — the CITE
@@ -672,6 +673,7 @@ export default function BastDetailScreen() {
 function PaperPreview({ bast }: { bast: BastDetail }) {
   const t = useTheme();
   const p = t.paper;
+  const isDesktop = useIsDesktop();
 
   const isReturn = bast.kind === 'return';
   // Perlengkapan names no unit and counts nothing in the opening line: the
@@ -724,6 +726,12 @@ function PaperPreview({ bast }: { bast: BastDetail }) {
     <View
       style={[
         styles.paper,
+        // On a phone the sheet fills the screen, which is the only sensible
+        // shape there. On a desktop it stops at A4's own width and stands in
+        // the middle: a document stretched to 1100px stops looking like paper
+        // and starts looking like a banner, and the line length is past what
+        // anybody reads comfortably.
+        isDesktop ? styles.paperA4 : null,
         { backgroundColor: p.sheet, borderColor: p.border, borderRadius: t.radii.paper },
         t.shadow.paper,
       ]}
@@ -1140,6 +1148,11 @@ const styles = StyleSheet.create({
   // Proportions mirror the PDF: the A4 content column is 471pt wide, so a
   // 8.5pt body here reads at roughly the size 10pt does on the sheet.
   paper: { borderWidth: 1, paddingHorizontal: 16, paddingVertical: 18 },
+  // A4 is 210 x 297mm. 794 x 1123 is that at 96dpi, which is what a browser
+  // calls an inch. minHeight rather than height, so a document with four
+  // holders grows past one page instead of being clipped by its own frame —
+  // the same thing the PDF does when it runs to a second sheet.
+  paperA4: { width: 794, maxWidth: '100%', minHeight: 1123, alignSelf: 'center' },
   // The ASPIRE artwork is a stacked lockup whose bottom line is "member of
   // ASTRA"; anything shorter renders that line as a smudge.
   paperAspire: { height: 38 },
