@@ -17,6 +17,7 @@ import { Image, Linking, Pressable, StyleSheet, Text, View } from 'react-native'
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import * as DocumentPicker from 'expo-document-picker';
+import { Asset } from 'expo-asset';
 import Svg, { Path } from 'react-native-svg';
 import { Check, ChevronLeft, Download, PenLine, Plus, Trash2, Upload } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -70,15 +71,21 @@ import { usePermissions } from '@/auth';
  * body sentence ("dari Divisi IT") on their own paperwork and a second logo up
  * there reads as a second company.
  *
- * The file may still be a committed 1×1 transparent placeholder — Metro has to
+ * The file may still be a committed 1x1 transparent placeholder — Metro has to
  * resolve the require either way. Anything that small is treated as "no logo
  * yet" rather than drawn invisible, which is why the dimensions are checked
  * instead of assumed.
+ *
+ * Read through expo-asset rather than Image.resolveAssetSource, which exists on
+ * React Native and NOT on react-native-web. It was called at module scope, so
+ * on the web importing this file threw before a single component rendered and
+ * the whole e-BAST detail page came up blank — a crash with no message, on a
+ * line that had nothing to do with documents.
  */
 const ASPIRE = require('../../../assets/aspire-logo.png');
-const aspireSource = Image.resolveAssetSource(ASPIRE);
-const HAS_ASPIRE = (aspireSource?.width ?? 0) > 2;
-const ASPIRE_RATIO = HAS_ASPIRE ? aspireSource.width / aspireSource.height : 1;
+const aspireAsset = Asset.fromModule(ASPIRE);
+const HAS_ASPIRE = (aspireAsset?.width ?? 0) > 2;
+const ASPIRE_RATIO = HAS_ASPIRE ? (aspireAsset.width ?? 1) / (aspireAsset.height ?? 1) : 1;
 
 function shortDate(value: string): string {
   return new Date(value).toLocaleDateString('en-GB', {
@@ -692,12 +699,24 @@ function PaperPreview({ bast }: { bast: BastDetail }) {
       ? 'Demikian Berita Acara penarikan barang ini buat, agar dapat diketahui serta ditandatangani bersama serta diketahui oleh pihak - pihak yang berkepentingan.'
       : 'Demikian Berita Acara serah terima barang ini buat, agar dapat diketahui serta ditandatangani bersama serta diketahui oleh pihak - pihak yang berkepentingan.';
 
-  const party: [string, string][] = [
-    ['Nama', bast.employeeName],
-    ['NIK', bast.employeeNik],
-    ['Jabatan', bast.employeeTitle],
-    ['Dept./Divisi', bast.departmentName],
-  ];
+  // One block per holder, matching what the PDF prints. Naming only the first
+  // while drawing three signature boxes is what made the boxes look like they
+  // all belonged to the same person.
+  const parties = bast.holders?.length
+    ? bast.holders.map((h) => ({
+        name: h.name,
+        nik: h.nik,
+        title: h.title,
+        department: h.department,
+      }))
+    : [
+        {
+          name: bast.employeeName,
+          nik: bast.employeeNik,
+          title: bast.employeeTitle,
+          department: bast.departmentName,
+        },
+      ];
 
   const items = bast.items ?? [];
 
@@ -725,11 +744,27 @@ function PaperPreview({ bast }: { bast: BastDetail }) {
       <Text style={[styles.paperSentence, { color: p.body }]}>{opening}</Text>
 
       <View style={styles.paperParty}>
-        {party.map(([label, value]) => (
-          <View key={label} style={styles.paperPartyRow}>
-            <Text style={[styles.paperPartyKey, { color: p.body }]}>{label}</Text>
-            <Text style={[styles.paperPartyColon, { color: p.body }]}>:</Text>
-            <Text style={[styles.paperPartyValue, { color: p.ink }]}>{value}</Text>
+        {parties.map((person, i) => (
+          <View key={`${person.name}-${i}`} style={i > 0 ? styles.paperPartyNext : undefined}>
+            {parties.length > 1 ? (
+              <Text style={[styles.paperPartyKey, { color: p.ink, fontWeight: '700' }]}>
+                {`${i + 1}.`}
+              </Text>
+            ) : null}
+            {(
+              [
+                ['Nama', person.name],
+                ['NIK', person.nik],
+                ['Jabatan', person.title],
+                ['Dept./Divisi', person.department],
+              ] as [string, string][]
+            ).map(([label, value]) => (
+              <View key={label} style={styles.paperPartyRow}>
+                <Text style={[styles.paperPartyKey, { color: p.body }]}>{label}</Text>
+                <Text style={[styles.paperPartyColon, { color: p.body }]}>:</Text>
+                <Text style={[styles.paperPartyValue, { color: p.ink }]}>{value}</Text>
+              </View>
+            ))}
           </View>
         ))}
       </View>
@@ -1121,6 +1156,7 @@ const styles = StyleSheet.create({
   paperParty: { marginTop: 8, marginLeft: 14 },
   paperPartyRow: { flexDirection: 'row', paddingVertical: 1.5 },
   paperPartyKey: { width: 74, fontSize: 8.5 },
+  paperPartyNext: { marginTop: 6 },
   paperPartyColon: { width: 10, fontSize: 8.5 },
   paperPartyValue: { flex: 1, fontSize: 8.5, fontWeight: '600' },
 
