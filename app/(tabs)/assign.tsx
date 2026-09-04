@@ -70,7 +70,7 @@ import {
   type AccessoryRow,
 } from '@/api/accessories';
 import { bastIdByNumber } from '@/api/bast';
-import { setSecondaryHolder } from '@/api/assignments';
+import { setAssetHolders } from '@/api/assignments';
 import { queryKeys } from '@/lib/queryClient';
 import { useScopeStore } from '@/store/useScopeStore';
 import { useToast } from '@/store/useUiStore';
@@ -80,8 +80,8 @@ import { useToast } from '@/store/useUiStore';
  * one — indexing panels by `step === 2` would silently mean different things in
  * the two modes, which is the kind of bug that only shows up in the wrong one.
  */
-const ASSIGN_STAGES = ['employee', 'asset', 'details'] as const;
-const RETURN_STAGES = ['asset', 'details'] as const;
+const ASSIGN_STAGES = ['employee', 'asset', 'details', 'review'] as const;
+const RETURN_STAGES = ['asset', 'details', 'review'] as const;
 
 type Stage = (typeof ASSIGN_STAGES)[number];
 
@@ -89,6 +89,7 @@ const STAGE_NAMES: Record<Stage, string> = {
   employee: 'Employee',
   asset: 'Asset',
   details: 'Details',
+  review: 'Review',
 };
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -144,7 +145,10 @@ export default function AssignScreen() {
   // The other shift on a shared handy-talkie. Optional and hidden behind a
   // link, because almost everything has one holder and the wizard must not get
   // heavier for the exception.
-  const [secondHolderId, setSecondHolderId] = useState<string | null>(null);
+  // Holders 2..N, in the order they will be printed. Three at most, because
+  // each position needs a signature role of its own and four exist.
+  const [extraHolders, setExtraHolders] = useState<string[]>([]);
+  const MAX_EXTRA_HOLDERS = 3;
   const [secondSheet, setSecondSheet] = useState(false);
   const [condition, setCondition] = useState<Option | null>(null);
   const [conditionOpen, setConditionOpen] = useState(false);
@@ -234,8 +238,8 @@ export default function AssignScreen() {
       // below, so a failure to write paper can never leave the shelf wrong.
       // Before the accessories, so the draft BAST already knows it needs a
       // third signature by the time anything is written on it.
-      if (secondHolderId) {
-        await setSecondaryHolder(asset!.id, secondHolderId);
+      if (extraHolders.length > 0) {
+        await setAssetHolders(asset!.id, extraHolders);
       }
 
       const checkoutIds: string[] = [];
@@ -293,6 +297,13 @@ export default function AssignScreen() {
         return;
       }
       setDateError('');
+      setStepError('');
+      setStep(step + 1);
+      return;
+    }
+    // Nothing is written until this step. Everything before it can be walked
+    // back with Back; this is the only button that commits.
+    if (stage === 'review') {
       setStepError('');
       commit.mutate();
       return;
@@ -392,8 +403,46 @@ export default function AssignScreen() {
   const loading = employees.isPending || assets.isPending || options.isPending;
   const error = employees.error ?? assets.error ?? options.error;
 
+  // Pinned to the bottom rather than left at the end of the page. Step 1 lists
+  // every person in scope — hundreds of rows — and Continue used to sit
+  // underneath all of them, so choosing somebody meant scrolling back down past
+  // the whole list to move on.
+  const footer = (
+    <>
+      {stepError ? (
+        <View style={styles.errorRow}>
+          <AlertCircle size={14} color={t.color.error} strokeWidth={2} />
+          <Text style={[t.type.meta, { color: t.color.error }]}>{stepError}</Text>
+        </View>
+      ) : null}
+
+      <View style={styles.actions}>
+        {step > 1 ? (
+          <Button
+            label="Back"
+            variant="secondary"
+            style={styles.navButton}
+            onPress={() => {
+              setStepError('');
+              setStep(step - 1);
+            }}
+          />
+        ) : null}
+        <Button
+          label={
+            stage === 'review' ? (isReturn ? 'Confirm return' : 'Confirm assignment') : 'Continue'
+          }
+          block
+          loading={commit.isPending}
+          style={styles.navButton}
+          onPress={advance}
+        />
+      </View>
+    </>
+  );
+
   return (
-    <Screen>
+    <Screen footer={footer}>
       <Pressable
         onPress={() => router.back()}
         accessibilityRole="button"
@@ -413,12 +462,14 @@ export default function AssignScreen() {
       </Text>
 
       <View style={styles.bars}>
-        {[1, 2, 3].map((n) => (
-          <View
-            key={n}
-            style={[styles.bar, { backgroundColor: n <= step ? t.color.navy : t.color.line }]}
-          />
-        ))}
+        {stages
+          .map((_, i) => i + 1)
+          .map((n) => (
+            <View
+              key={n}
+              style={[styles.bar, { backgroundColor: n <= step ? t.color.navy : t.color.line }]}
+            />
+          ))}
       </View>
 
       {error ? (
@@ -504,38 +555,48 @@ export default function AssignScreen() {
               {employee ? (
                 <Card radius="cardMedium" padding={14} style={styles.secondHolder}>
                   <Text style={[t.type.metaStrong, { color: t.color.text }]}>
-                    {secondHolderId ? 'Two people are answerable for this' : 'Held by two people?'}
+                    {extraHolders.length > 0
+                      ? `${extraHolders.length + 1} people are answerable for this`
+                      : 'Held by more than one person?'}
                   </Text>
                   <Text style={[t.type.meta, styles.accessoryHint, { color: t.color.sub }]}>
                     A handy-talkie carried on opposite shifts, for example. The document is raised
-                    once for the pair and is not finished until BOTH have signed it. Shift changes
-                    are not recorded.
+                    once for the whole group, names every one of them, and is not finished until ALL
+                    of them have signed it. Shift changes are not recorded.
                   </Text>
 
-                  {secondHolderId ? (
-                    <View style={styles.accessoryRow}>
+                  {extraHolders.map((holderId, i) => (
+                    <View key={holderId} style={styles.accessoryRow}>
                       <View style={styles.accessoryText}>
                         <Text numberOfLines={1} style={[t.type.bodySmall, { color: t.color.text }]}>
-                          {employees.data?.find((e) => e.id === secondHolderId)?.full_name}
+                          {`${i + 2}. ${
+                            employees.data?.find((e) => e.id === holderId)?.full_name ?? ''
+                          }`}
                         </Text>
                       </View>
                       <Pressable
-                        onPress={() => setSecondHolderId(null)}
+                        onPress={() => setExtraHolders(extraHolders.filter((x) => x !== holderId))}
                         accessibilityRole="button"
-                        accessibilityLabel="Remove the second holder"
+                        accessibilityLabel="Remove this holder"
                         hitSlop={10}
                       >
                         <X size={16} color={t.color.sub} strokeWidth={1.9} />
                       </Pressable>
                     </View>
-                  ) : (
+                  ))}
+
+                  {extraHolders.length < MAX_EXTRA_HOLDERS ? (
                     <Button
-                      label="Add a second holder"
+                      label={extraHolders.length === 0 ? 'Add a second holder' : 'Add another'}
                       variant="secondary"
                       block
                       onPress={() => setSecondSheet(true)}
                       style={styles.accessoryAdd}
                     />
+                  ) : (
+                    <Text style={[t.type.meta, styles.accessoryHint, { color: t.color.sub }]}>
+                      Four people is the most one document can be addressed to.
+                    </Text>
                   )}
                 </Card>
               ) : null}
@@ -779,37 +840,64 @@ export default function AssignScreen() {
             </View>
           ) : null}
 
-          <View style={styles.actions}>
-            {step > 1 ? (
-              <Button
-                label="Back"
-                variant="secondary"
-                style={styles.navButton}
-                onPress={() => {
-                  setStepError('');
-                  setStep(step - 1);
-                }}
-              />
-            ) : null}
-            <Button
-              label={
-                stage === 'details'
-                  ? isReturn
-                    ? 'Confirm return'
-                    : 'Confirm assignment'
-                  : 'Continue'
-              }
-              block
-              loading={commit.isPending}
-              style={styles.navButton}
-              onPress={advance}
-            />
-          </View>
+          {stage === 'review' ? (
+            <View style={styles.stepBody}>
+              <Card radius="cardMedium" padding={16}>
+                <Text style={[t.type.sectionLabel, { color: t.color.sub }]}>
+                  {isReturn ? 'About to record this return' : 'About to record this assignment'}
+                </Text>
+                <Text style={[t.type.meta, styles.accessoryHint, { color: t.color.sub }]}>
+                  Nothing has been written yet. Check it, then confirm.
+                </Text>
 
-          {stepError ? (
-            <View style={styles.errorRow}>
-              <AlertCircle size={14} color={t.color.error} strokeWidth={2} />
-              <Text style={[t.type.meta, { color: t.color.error }]}>{stepError}</Text>
+                <View style={styles.reviewList}>
+                  <ReviewRow
+                    label={isReturn ? 'Returned by' : 'Assigned to'}
+                    value={
+                      [
+                        employee?.full_name,
+                        ...extraHolders.map(
+                          (id) => employees.data?.find((e) => e.id === id)?.full_name,
+                        ),
+                      ]
+                        .filter(Boolean)
+                        .join(', ') || '—'
+                    }
+                    hint={
+                      extraHolders.length > 0
+                        ? `All ${extraHolders.length + 1} must sign the document`
+                        : undefined
+                    }
+                  />
+                  <ReviewRow
+                    label="Asset"
+                    value={asset ? `${asset.asset_code} · ${asset.name}` : '—'}
+                  />
+                  <ReviewRow label={isReturn ? 'Return date' : 'Assignment date'} value={date} />
+                  {!isReturn && expectedReturn ? (
+                    <ReviewRow label="Expected back" value={expectedReturn} />
+                  ) : null}
+                  {condition ? <ReviewRow label="Condition" value={condition.name} /> : null}
+                  {pickedAccessories.length > 0 ? (
+                    <ReviewRow
+                      label="Accessories"
+                      value={pickedAccessories
+                        .map((a) => `${a.name} × ${accessoryPicks[a.id]}`)
+                        .join(', ')}
+                    />
+                  ) : null}
+                  <ReviewRow
+                    label="E-BAST"
+                    value={autoBast ? 'A draft will be raised' : 'Not raised'}
+                    hint={
+                      autoBast
+                        ? 'It still needs signing before it becomes a document'
+                        : 'The handover is recorded either way'
+                    }
+                  />
+                  {notes.trim() ? <ReviewRow label="Notes" value={notes.trim()} /> : null}
+                </View>
+              </Card>
             </View>
           ) : null}
         </>
@@ -827,16 +915,16 @@ export default function AssignScreen() {
 
       <PickerSheet
         visible={secondSheet}
-        title="Second holder"
+        title={extraHolders.length === 0 ? 'Second holder' : 'Another holder'}
         options={(employees.data ?? [])
-          .filter((e) => e.id !== employee?.id)
+          .filter((e) => e.id !== employee?.id && !extraHolders.includes(e.id))
           .map((e) => ({
             id: e.id,
             name: e.full_name,
             detail: [e.department_name, e.location_name, e.nik].filter(Boolean).join(' · '),
           }))}
-        selectedId={secondHolderId}
-        onSelect={(option) => setSecondHolderId(option.id)}
+        selectedId={null}
+        onSelect={(option) => setExtraHolders([...extraHolders, option.id])}
         onDismiss={() => setSecondSheet(false)}
         emptyMessage="Nobody else in this scope."
       />
@@ -914,7 +1002,27 @@ function SelectableRow({
   );
 }
 
+/** One line of the final recap: label on the left, what was chosen on the right. */
+function ReviewRow({ label, value, hint }: { label: string; value: string; hint?: string }) {
+  const t = useTheme();
+  return (
+    <View style={styles.reviewRow}>
+      <Text style={[t.type.metaStrong, styles.reviewLabel, { color: t.color.sub }]}>{label}</Text>
+      <View style={styles.reviewValue}>
+        <Text style={[t.type.bodySmall, { color: t.color.text }]}>{value}</Text>
+        {hint ? (
+          <Text style={[t.type.meta, { color: t.color.sub, marginTop: 2 }]}>{hint}</Text>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  reviewList: { marginTop: 14, gap: 12 },
+  reviewRow: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
+  reviewLabel: { width: 108 },
+  reviewValue: { flex: 1, minWidth: 0 },
   back: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 12, minHeight: 24 },
   stepLine: { marginTop: 3 },
   bars: { flexDirection: 'row', gap: 5, marginTop: 14 },

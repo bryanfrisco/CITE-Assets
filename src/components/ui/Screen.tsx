@@ -48,6 +48,19 @@ export interface ScreenProps {
   onRefresh?: () => void;
   contentStyle?: StyleProp<ViewStyle>;
   style?: StyleProp<ViewStyle>;
+  /**
+   * Pinned to the bottom, outside the scroll.
+   *
+   * For the action somebody came to the screen to perform. On a long form the
+   * button that finishes it sits below everything else, so reaching it means
+   * scrolling past every field — worst on the Assign wizard, where the list of
+   * people is hundreds of rows long and Continue is underneath all of them.
+   *
+   * It rides above the keyboard rather than under it, and carries the same
+   * bottom clearance the scrolling content uses so it never sits on the
+   * floating nav.
+   */
+  footer?: ReactNode;
   testID?: string;
 }
 
@@ -59,6 +72,7 @@ export function Screen({
   onRefresh,
   contentStyle,
   style,
+  footer,
   testID,
 }: ScreenProps) {
   const t = useTheme();
@@ -72,10 +86,52 @@ export function Screen({
     paddingBottom: t.spacing.screenBottom + keyboard,
   };
 
+  // With a footer the scrolling content stops short of it, so the last field is
+  // reachable instead of hiding underneath.
+  const FOOTER_CLEARANCE = 84;
+  const scrollPadding: ViewStyle = footer
+    ? { ...padding, paddingBottom: FOOTER_CLEARANCE + keyboard }
+    : padding;
+
+  const bar = footer ? (
+    <View
+      style={[
+        styles.footer,
+        {
+          paddingHorizontal: t.spacing.screenX,
+          paddingBottom: t.spacing.screenBottom + keyboard,
+          backgroundColor: t.color.bg,
+          borderTopColor: t.color.line,
+        },
+      ]}
+    >
+      {footer}
+    </View>
+  ) : null;
+
   if (!scroll) {
     return (
       <View testID={testID} style={[styles.fill, { backgroundColor: t.color.bg }, style]}>
         <View style={[padding, styles.fill, contentStyle]}>{children}</View>
+        {bar}
+      </View>
+    );
+  }
+
+  if (footer) {
+    return (
+      <View style={[styles.fill, { backgroundColor: t.color.bg }, style]}>
+        <ScrollView
+          testID={testID}
+          style={styles.fill}
+          contentContainerStyle={[scrollPadding, contentStyle]}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+        >
+          {children}
+        </ScrollView>
+        {bar}
       </View>
     );
   }
@@ -107,4 +163,5 @@ export function Screen({
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
+  footer: { paddingTop: 10, borderTopWidth: 1 },
 });
