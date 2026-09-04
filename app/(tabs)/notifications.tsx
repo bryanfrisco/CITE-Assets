@@ -80,6 +80,9 @@ export default function NotificationsScreen() {
     if (!row.read_at) readOne.mutate(row.id);
     if (row.bast_id) router.push(`/bast/${row.bast_id}`);
     else if (row.asset_code) router.push(`/asset/${row.asset_code}`);
+    else if (row.license_id) {
+      router.push({ pathname: '/license/[id]', params: { id: row.license_id } });
+    }
   };
 
   return (

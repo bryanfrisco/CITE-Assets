@@ -18,7 +18,8 @@ export type NotificationKind =
   | 'new_assignment'
   | 'new_bast'
   | 'maintenance_reminder'
-  | 'import_completed';
+  | 'import_completed'
+  | 'license_expiring';
 
 export interface NotificationRow {
   id: string;
@@ -29,6 +30,9 @@ export interface NotificationRow {
   asset_code: string | null;
   bast_id: string | null;
   bast_number: string | null;
+  /** Set on a licence-expiring reminder; null on every other kind. */
+  license_id: string | null;
+  license_name: string | null;
   read_at: string | null;
   created_at: string;
 }
