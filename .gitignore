@@ -38,3 +38,12 @@ Hr Employee*.csv
 Hr Employee*.xlsx
 *hr.employee*.csv
 *hr.employee*.xlsx
+
+# Data lisensi asli — sebagian sel AKUN MANAGER berisi password teks biasa.
+SOFTWARE LICENSING*.xlsx
+SOFTWARE LICENSING*.csv
+*licens*.csv
+
+# Backup salinan .env — jangan pernah ikut ter-commit.
+.env.local-backup
+.env.*-backup

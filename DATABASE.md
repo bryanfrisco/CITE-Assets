@@ -769,7 +769,186 @@ dropped and recreated — a `RETURNS TABLE` cannot gain a column in place.
 
 ---
 
-## 15. Entity relationships (summary)
+## 15. Licenses (migrations 0062-0068)
+
+The third register after assets and accessories. An asset is held by one person;
+a **licence** has many **seats**, and each seat goes to somebody.
+
+Three parts of this schema came from reading the real spreadsheet rather than
+from a guess:
+
+**`license_number` is nullable.** Seven of the fifteen licences genuinely have
+none, and the values that exist are not always numbers — `Using Email` and
+`Subscription ID : 5521692074` both appear. Stored as text, never validated.
+Identity is therefore an expression index, not a table constraint:
+
+```sql
+create unique index licenses_identity_idx
+  on licenses (lower(software), coalesce(license_number, ''));
+```
+
+**The manager account belongs to the SEAT.** Seven licences carry a different
+account on each seat — 3DMine has three across five, AutoCAD four across four,
+because Autodesk and Esri issue one named account per user under one
+subscription. A column on `licenses` would have kept one and lost the rest.
+
+**Seat status is not stored.** The sheet's `USED`/`STANDBY` column is entirely
+derivable: no row is `USED` without a user. So it is computed —
+`case when account_id is null then 'Standby' else 'Used' end` — for the same
+reason `accessories.available` is never stored.
+
+```
+licenses          software, license_number?, category_id, vendor_id?,
+                  purchase_year?, expiry_date?, notes?, is_active
+license_seats     license_id, account_id?, seat_account?, seat_secret?,
+                  assigned_date?, notes?
+license_categories  name          -- MINING, OFFICE, MULTIMEDIA, SUPPORT
+```
+
+`license_seats.license_id` is the one `on delete cascade` in this schema. A seat
+has no meaning without its licence, and an orphaned seat is a row nobody can
+read. The licence itself is still protected: `delete_license()` refuses while
+any seat is occupied.
+
+### Scope
+
+Unlike assets and accessories, licences carry **no `location_id`**. Software is
+bought centrally, so every signed-in account reads the whole register and only
+Corporate IT and above write. `can_write_licenses()` is the single definition of
+that rule.
+
+### The stored password
+
+`seat_secret` holds a password when the source recorded one — five of them do.
+Three things guard it, and the third is the one that actually matters:
+
+1. `licenses_list()` and `license_detail()` never project it. `license_detail()`
+   returns `has_secret`, a boolean.
+2. `reveal_seat_secret(p_seat)` is the only way to read it: Super Admin only, and
+   it writes the `license_secret_viewed` audit row **before** returning.
+3. The column is **not granted**. Migration 0067 replaced the blanket
+   `grant select on license_seats` with a column list that leaves `seat_secret`
+   out, because with the blanket grant a client could simply ask PostgREST for
+   `/rest/v1/license_seats?select=seat_secret` and bypass the other two.
+
+> This is access control, not encryption. Anyone who can read the database
+> directly — a backup, the service key — can read the column. There is no Vault
+> in this project, and a key stored beside the data it encrypts protects nothing.
+
+### Import
+
+`import_licenses(p_rows, p_dry_run, p_file_name)` reads one row per **seat**; a
+blank `software` means "another seat of the licence above", which is how the
+merged cells of the source spreadsheet read. Idempotence works two ways:
+
+- a seat that names an account is matched on `(license_id, seat_account)`
+- a seat with no account has nothing to match on, so the file is read as a
+  **count** and topped up to; a second run finds it satisfied and adds nothing
+
+Neither path removes a seat or empties a holder. `license_parse_date()` accepts
+Excel serials (epoch 1899-12-30), ISO dates, and `-`.
+
+### Server-side functions added
+
+```
+license_expiry_state(date)      none | ok | expiring (<=60d) | expired
+can_write_licenses()            super_admin, corporate_it
+licenses_list / license_detail
+create_license / update_license / delete_license(id, reason)
+set_license_seats(license, count)
+assign_seat / return_seat
+reveal_seat_secret(seat)        super_admin only, audited
+import_licenses(rows, dry_run, file_name)
+license_parse_date(text)
+```
+
+`master_table()`, `master_label()` and `master_usage()` were replaced with the
+same signatures to add the `license_category` entity — the eleventh chip.
+`audit_list()` was dropped and recreated so entries about a licence or a seat
+resolve to the licence.
+
+## 16. Many holders, restore, and service rules (migrations 0069-0080)
+
+### A voided document can come back
+
+`restore_bast(id, reason)` returns a voided BAST to `draft`, keeping its number.
+Super Admin only, reason required, and both the void and the restore stay in the
+audit log. Signatures survive a void — `bast_signatures` is append-only — so the
+document returns as a draft rather than silently re-asserting a signed state.
+
+### Holders 2..N
+
+`secondary_account_id` hard-coded the number two. Positions 2..4 now live in
+`bast_holders` and `assignment_holders`; position 1 stays in `bast.account_id`,
+because every join and RLS check resolves through it and it is genuinely the
+person the document is addressed to.
+
+`secondary_account_id` is KEPT and kept in sync as position 2 — the same
+denormalisation as `assets.assigned_to`, and read by queries that predate the
+table.
+
+```
+holders_of_bast(bast)      every holder in order, position 1 first
+holder_signature_role(n)   receiver | receiver_2 | receiver_3 | receiver_4
+set_asset_holders(asset, uuid[])   replaces the list outright
+```
+
+`holders_of_bast()` falls back to `secondary_account_id` when a document has no
+`bast_holders` rows. That fallback is not cosmetic: `return_asset()` carries the
+pair across in the column only, and without it `sign_bast()` counted one holder
+and called a withdrawal complete after the first of two people signed — issuing
+a PDF as evidence of a return that had not fully happened.
+
+**Completeness** is counted against `holders_of_bast()`, not against two named
+roles, so a fourth holder needs no change to `sign_bast()`.
+
+**Four is the limit**, and the reason is the enum rather than the paper: each
+position needs a signature role of its own. The document itself now paginates.
+
+### The PDF runs to two pages
+
+`buildPdf()` took one `Content` and hard-coded `/Count 1`. It now takes one per
+page. `render()` draws a party block per holder and stacks the signature blocks
+down the right column, spilling onto a second sheet headed "Lanjutan tanda
+tangan" when the column would reach the footer. A single-holder document is
+still exactly one page.
+
+Signature boxes are never shrunk to fit: strokes are normalised 0..1 and would
+shrink with the box, turning a signature into a smudge.
+
+### Search and labels reach every holder
+
+`search_assets()` matches holders 3 and 4 through `assignment_holders`, and
+`bast_list()` builds `holder_label` from `holders_of_bast()` — `"Ahmad, Rivaldi,
+Sari"`. Both stopped at position 2 when the table first went in, which made an
+asset held by three people invisible to the third. `bast_list()` also gained
+`p_search` (dropped and recreated — never a new parameter on a live function).
+
+### Stepping through the register
+
+`asset_neighbours(code, locations)` returns the assets either side by asset code
+within scope. Deliberately not within the current filter: Next would then mean
+something different depending on how somebody arrived.
+
+### Service rules
+
+```
+maintenance_schedules      one row per category: every_months
+set_maintenance_schedule(category, months, notes)   null months clears it
+maintenance_schedules_list()
+maintenance_due_list(locations, within_days)
+```
+
+The rule belongs to the **category** — "every laptop, every six months" — so it
+covers assets bought after it was written. Due dates are **derived on read**:
+last completed service, else purchase date, else `created_at`, plus the interval.
+A stored due date would keep answering with the old rule the moment somebody
+changed it, and applying to everything underneath is the whole point of a rule.
+
+Assets with a terminal status are excluded. A Lost laptop is not overdue for
+service, and listing it as such teaches people to ignore the list.
+
+## 17. Entity relationships (summary)
 
 ```
 locations ──┬─< assets >─┬── categories
@@ -788,6 +967,13 @@ accounts ───┼─< assignments >── assets      (account_id + secondar
 
 units ──────── locations                  (assets.unit_id → units)
 accessories ── locations, categories, brands, vendors
+bast ───────┬─< bast_holders >── accounts      (positions 2..4)
+assignments ─┬─< assignment_holders >── accounts
+categories ──── maintenance_schedules            (every_months)
+
+licenses ───┬── license_categories
+            ├── vendors
+            └─< license_seats >── accounts   (account_id null = Standby)
 
 assets ─┬─< movements (append-only, from_location/to_location → locations)
         ├─< bast >──< bast_versions (append-only)

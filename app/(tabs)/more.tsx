@@ -14,6 +14,7 @@ import {
   Boxes,
   FileSpreadsheet,
   Grid3x3,
+  KeyRound,
   QrCode,
   Settings as SettingsIcon,
   ShieldCheck,
@@ -48,6 +49,8 @@ export default function MoreScreen() {
       | '/accounts'
       | '/maintenance'
       | '/accessories'
+      | '/licenses'
+      | '/import-licenses'
       | '/import'
       | '/import-employees'
       | '/reports'
@@ -84,6 +87,12 @@ export default function MoreScreen() {
       route: '/accessories' as const,
     },
     {
+      icon: <KeyRound {...iconProps} />,
+      title: 'Licenses',
+      subtitle: 'Software licences and who holds each seat',
+      route: '/licenses' as const,
+    },
+    {
       icon: <FileSpreadsheet {...iconProps} />,
       title: 'Import assets',
       subtitle: 'Template → check → import',
@@ -96,6 +105,16 @@ export default function MoreScreen() {
             title: 'Import employees',
             subtitle: 'Straight from the Odoo hr.employee export',
             route: '/import-employees' as const,
+          },
+        ]
+      : []),
+    ...(can('account.manage')
+      ? [
+          {
+            icon: <KeyRound {...iconProps} />,
+            title: 'Import licenses',
+            subtitle: 'One row per seat, straight from the spreadsheet',
+            route: '/import-licenses' as const,
           },
         ]
       : []),

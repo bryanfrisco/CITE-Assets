@@ -757,3 +757,218 @@ tidak terlihat seperti dua serah terima terpisah.
 
 Yang sudah dikembalikan tidak muncul di sini — riwayatnya ada di halaman aset atau
 accessory-nya sendiri.
+
+## 20. Licenses — lisensi perangkat lunak
+
+Modul ketiga setelah Assets dan Accessories. Bedanya satu, dan semua yang lain
+mengikuti dari situ:
+
+| | Dipegang oleh |
+|---|---|
+| **Aset** | satu orang |
+| **Accessory** | dihitung per jumlah |
+| **Lisensi** | banyak **seat** (kursi), tiap kursi satu orang |
+
+Jadi satu lisensi AutoCAD bisa punya 4 kursi: tiga terpakai, satu kosong.
+
+### Istilah yang dipakai
+
+- **Seat / kursi** — satu jatah pemakaian dari sebuah lisensi.
+- **Used** — kursi yang ada pemakainya.
+- **Standby** — kursi kosong, siap diberikan.
+
+**Status ini tidak diisi tangan.** Aplikasi menyimpulkannya dari ada-tidaknya
+pemakai, supaya tidak pernah ada kursi bertuliskan Standby padahal ada orang di
+dalamnya.
+
+### Membuka dan memberikan
+
+**More → Licenses.** Angka di kanan tiap baris adalah kursi kosong dari total —
+itu yang perlu diketahui sebelum menjanjikan lisensi ke seseorang.
+
+Buka satu lisensi, lalu **Assign to** pada kursi yang kosong. Departemen orang
+itu terbaca sendiri dari data akunnya, tidak perlu diisi ulang.
+
+**Return** mengosongkan kursi. Tidak perlu memilih orang — kursinya sudah tahu
+siapa yang memegangnya.
+
+### Menambah atau mengurangi kursi
+
+Tombol **Seats** di halaman lisensi. Menambah membuat kursi kosong baru;
+mengurangi **hanya membuang kursi yang kosong**. Kursi yang sedang dipakai tidak
+akan pernah hilang karena tombol ini — kalau jumlahnya diturunkan di bawah yang
+terpakai, aplikasi menolak dan menyebut angkanya.
+
+### Nomor lisensi boleh kosong
+
+Tujuh dari lima belas lisensi Anda memang tidak punya nomor, dan yang punya pun
+tidak selalu berupa angka — ada yang tertulis `Using Email`. Jadi kolom itu tidak
+wajib. Memaksanya wajib hanya akan membuat orang mengarang isian.
+
+### Tanggal kedaluwarsa
+
+Lencana di halaman lisensi berubah sendiri: **Expired** kalau sudah lewat,
+**Expiring soon** kalau tinggal 60 hari atau kurang. Lisensi tanpa tanggal
+akhir tidak diberi lencana sama sekali.
+
+### Password — baca ini sebelum memakainya
+
+Sebagian akun manager punya password, dan aplikasi bisa menyimpannya.
+
+**Yang dijamin:**
+
+- Password **tidak pernah ikut terkirim** saat daftar atau detail lisensi dibuka.
+  Yang dikirim hanya keterangan bahwa passwordnya ada.
+- Hanya **Super Admin** yang melihat tombol **Reveal password**.
+- **Setiap kali password dibuka, tercatat di Audit log** — siapa, kapan, lisensi
+  mana. Catatannya ditulis sebelum passwordnya diberikan, jadi tidak ada cara
+  membacanya diam-diam.
+- Kolomnya tidak bisa dibaca langsung lewat API, bahkan oleh Super Admin. Satu-
+  satunya jalan adalah tombol tadi.
+
+**Yang TIDAK dijamin:** ini pengendalian akses, **bukan enkripsi**. Siapa pun
+yang bisa membuka isi database secara langsung — lewat backup, atau lewat kunci
+service — bisa membaca password itu. Proyek ini tidak punya brankas kunci, dan
+menyimpan kunci di database yang sama dengan datanya tidak menambah keamanan apa
+pun.
+
+> **Saran:** kalau bisa, jangan simpan passwordnya sama sekali — cukup nama
+> akunnya, dan biarkan password tinggal di pengelola kata sandi. Kolomnya boleh
+> dikosongkan kapan saja tanpa mengubah apa pun yang lain.
+>
+> Terpisah dari itu: lima password yang ada di berkas Excel sekarang sudah
+> beredar dalam bentuk berkas. Sebaiknya kelimanya diganti.
+
+### Import
+
+**More → Import licenses** (Super Admin saja). Tiga langkah seperti import yang
+lain: unduh template → pilih berkas → lihat dulu apa yang akan terjadi.
+
+Bentuk berkasnya **satu baris per kursi**. Kolom `Software` dikosongkan berarti
+"kursi lain dari lisensi di baris atasnya" — itulah cara menulis lisensi dengan
+28 kursi. Kolom lain **tidak** diwariskan ke bawah.
+
+Yang perlu diketahui:
+
+- Pratinjau menyebut dua angka: berapa **lisensi** dan berapa **kursi**. Berkas
+  71 baris berisi 15 lisensi, dan menyebut "15" saja akan terbaca seperti ada
+  yang hilang.
+- Import **tidak pernah mengosongkan kursi** yang sudah ada pemakainya.
+- Nama pemakai dicocokkan ke akun. Nama yang tidak dikenal — atau yang dimiliki
+  lebih dari satu orang — membuat kursinya dibiarkan kosong dan dilaporkan
+  sebagai peringatan, bukan ditebak.
+- Import berkas yang sama dua kali **tidak menambah satu baris pun**.
+- Tanggal boleh berupa angka serial Excel (`46448` → 2 Maret 2027), tanggal
+  biasa, atau `-` untuk kosong.
+
+### Kategori lisensi
+
+Chip ke-11 di **Master data**: MINING, OFFICE, MULTIMEDIA, SUPPORT. Sengaja
+terpisah dari kategori aset, karena CCTV dan laptop bukan ranah yang sama.
+
+Vendor memakai daftar yang sama dengan aset — tidak ada daftar vendor kedua.
+
+### Yang sengaja tidak ada
+
+**Tidak ada e-BAST untuk lisensi.** Tidak ada barang fisik yang diserahterimakan,
+jadi tidak ada surat bertanda tangan. Jejaknya tetap lengkap di Audit log, dan
+entri di sana bisa ditekan langsung menuju lisensinya.
+
+**Tidak ada nilai rupiah di Reports.** Berkas sumbernya tidak punya kolom harga
+sama sekali. Menambahkan kolom kosong hanya akan membuat angka total yang
+menyesatkan.
+
+## 21. Perubahan September 2026
+
+### BAST yang terlanjur dibatalkan bisa dikembalikan
+
+Dulu membatalkan (void) surat adalah pintu satu arah: kolom tanda tangannya
+hilang dan tidak ada jalan kembali. Sekarang **Super Admin** melihat tombol
+**Restore this document** pada surat yang void.
+
+Yang terjadi saat dipulihkan:
+
+- Statusnya kembali **Draft**, dan **nomornya tetap sama** — satu serah terima
+  tidak boleh menghabiskan dua nomor
+- **Tanda tangan yang sudah ada selamat.** Tabel tanda tangan bersifat
+  append-only, jadi pembatalan tidak pernah menghapusnya. Suratnya kembali
+  sebagai draft supaya Anda memeriksa dulu apa yang sudah tertera
+- Baik pembatalan maupun pemulihan **keduanya tercatat** di Audit log, lengkap
+  dengan alasannya
+
+### Satu surat, sampai empat pemegang
+
+Sebelumnya sistem hanya mengenal "pemegang kedua" — tepat dua orang. Sekarang
+sampai **empat orang** bisa memegang satu aset.
+
+Yang berubah di suratnya:
+
+- **Tiap pemegang punya blok profilnya sendiri** (Nama, NIK, Jabatan,
+  Dept./Divisi), bernomor. Dulu surat hanya menyebut satu orang padahal kotak
+  tanda tangannya dua — itulah sebabnya kedua kotak terbaca seperti milik orang
+  yang sama
+- **Suratnya menjadi dua halaman** kalau kolom tanda tangan penuh. Halaman kedua
+  berjudul "Lanjutan tanda tangan". Surat satu penerima **tetap satu halaman**,
+  tidak ada yang berubah
+- **Belum lengkap sampai semuanya tanda tangan.** Tiga pemegang berarti tiga
+  tanda tangan penerima; PDF final tidak terbit sebelum itu
+
+Batasnya empat karena tiap posisi butuh peran tanda tangan tersendiri. Kalau
+suatu saat perlu lima, itu satu migrasi kecil.
+
+### Semua nama muncul, bukan cuma yang pertama
+
+Di daftar aset, daftar e-BAST, dan halaman aset, aset yang dipegang berdua kini
+tertulis **`Ahmad, Rivaldi`**. Pencarian juga menemukannya lewat **nama siapa
+pun** di antara mereka — dulu orang ketiga tidak bisa menemukan barangnya
+sendiri.
+
+### e-BAST bisa dicari
+
+Kolom pencarian di halaman E-BAST. Mencocokkan nomor surat, kode aset, nama
+aset, **semua nama pemegang**, departemen, dan lokasi.
+
+### Assign: tombol tidak lagi tenggelam, dan ada rekap
+
+Tombol **Continue** dan **Back** sekarang **menempel di bawah layar**. Dulu
+memilih orang dari ratusan nama berarti menggulung kembali ke bawah hanya untuk
+menekan lanjut.
+
+Ada juga langkah terakhir baru: **Review**. Isinya rekap penerima (semua nama),
+aset, tanggal, kondisi, accessories, dan apakah e-BAST akan terbit. **Tidak ada
+yang ditulis sampai tombol konfirmasi ditekan.**
+
+### Berpindah aset tanpa kembali ke daftar
+
+Dua panah di kanan atas halaman aset. Urutannya mengikuti kode aset dalam scope
+Anda — bukan hasil pencarian yang sedang tampil, supaya tombol Next selalu
+berarti hal yang sama.
+
+### Jadwal maintenance
+
+**Maintenance → Service schedule.**
+
+Aturannya dipasang **per kategori**, bukan per aset: "tiap laptop, tiap 6 bulan".
+Sekali ditulis, berlaku untuk semua laptop — termasuk yang dibeli nanti.
+
+Dua tab:
+
+- **Due now** — aset yang jatuh tempo dalam 30 hari, paling telat di atas
+- **Rules** — daftar kategori; ketuk untuk mengatur atau menghapus aturannya
+
+Tanggal jatuh temponya **tidak disimpan**, tapi dihitung ulang setiap kali
+dibaca:
+
+| Keadaan aset | Dihitung dari |
+|---|---|
+| Pernah diservis | Servis terakhir + N bulan |
+| Belum pernah | Tanggal beli + N bulan |
+| Tanggal beli kosong | Tanggal masuk sistem + N bulan |
+
+Karena tidak disimpan, mengubah aturan **langsung** mengubah daftar yang jatuh
+tempo. Kalau tanggalnya disimpan, ia akan tetap menyebut aturan lama — padahal
+gunanya aturan justru supaya berlaku ke semuanya.
+
+Aset berstatus **Lost** atau **Retired** tidak pernah muncul di daftar ini.
+Laptop yang sudah hilang tidak "telat diservis", dan mencantumkannya hanya
+melatih orang mengabaikan daftarnya.
