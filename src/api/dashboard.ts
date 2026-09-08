@@ -34,6 +34,20 @@ export interface DashboardSummary {
   addedThisMonth: number;
   byStatus: StatusCount[];
   warrantyExpiring: number;
+  /**
+   * Licences inside `license_expiry_state()`'s "expiring" window — 60 days.
+   * The threshold lives in that function, not here, so the card and the badge
+   * in the licence list can never disagree about the same licence.
+   *
+   * Not scoped by location: a licence has no site, and a seat is held by a
+   * person rather than a place.
+   */
+  licensesExpiring: number;
+  licensesExpired: number;
+  /** Assets a servicing rule says are due within 30 days, counted from the
+   *  last service rather than the purchase date. */
+  maintenanceDue: number;
+  maintenanceOverdue: number;
   byCategory: NamedCount[];
   byLocation: NamedCount[];
   byDepartment: NamedCount[];

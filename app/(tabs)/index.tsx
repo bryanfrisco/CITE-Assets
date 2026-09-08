@@ -24,9 +24,11 @@ import {
   Clock,
   FileSpreadsheet,
   FileText,
+  KeyRound,
   PackagePlus,
   QrCode,
   UserPlus,
+  Wrench,
 } from 'lucide-react-native';
 
 import { useTheme } from '@/theme';
@@ -135,42 +137,57 @@ export default function HomeScreen() {
             ))}
           </View>
 
-          {/* Shown even at zero: "0 in the next 30 days" is an answer somebody
-              wants, and a card that disappears reads as broken. */}
-          <Card radius="cardLarge" padding={0} style={styles.warrantyCard}>
-            <LinearGradient
-              colors={[...t.gradients.navy.colors]}
-              start={t.gradients.navy.start}
-              end={t.gradients.navy.end}
-              style={styles.warranty}
-            >
-              <View style={styles.warrantyHead}>
-                <View style={[styles.warrantyIcon, { backgroundColor: t.badge('gold').bg }]}>
-                  <Clock size={15} color={t.color.gold} strokeWidth={2} />
-                </View>
-                <Text style={[t.type.kpiLabel, { color: t.color.gold }]}>WARRANTY EXPIRING</Text>
-              </View>
+          {/* Three things that run out. Shown even at zero: "0 in the next 30
+              days" is an answer somebody wants, and a card that disappears
+              reads as broken.
 
-              <Text style={[styles.warrantyNumber, { color: t.color.onNavy }]}>
-                {data.warrantyExpiring}
-              </Text>
-              <Text style={[t.type.bodySmall, styles.warrantySub, { color: t.color.onNavy }]}>
-                {data.warrantyExpiring === 1
+              Side by side on a desktop, stacked on a phone. They answer the
+              same question about three different things, so seeing them
+              together is the point. */}
+          <View style={isDesktop ? styles.expiryRow : styles.expiryStack}>
+            <ExpiryCard
+              label="WARRANTY EXPIRING"
+              count={data.warrantyExpiring}
+              sub={
+                data.warrantyExpiring === 1
                   ? 'asset in the next 30 days'
-                  : 'assets in the next 30 days'}
-              </Text>
+                  : 'assets in the next 30 days'
+              }
+              icon={<Clock size={15} color={t.color.gold} strokeWidth={2} />}
+              onPress={() => router.push('/reports')}
+            />
 
-              {data.warrantyExpiring > 0 ? (
-                <Button
-                  label="Review list"
-                  variant="gold"
-                  size="sm"
-                  onPress={() => router.push('/reports')}
-                  style={styles.warrantyButton}
-                />
-              ) : null}
-            </LinearGradient>
-          </Card>
+            <ExpiryCard
+              label="LICENCES EXPIRING"
+              count={data.licensesExpiring}
+              sub={
+                data.licensesExpiring === 1
+                  ? 'licence in the next 60 days'
+                  : 'licences in the next 60 days'
+              }
+              // Already out of time is a different problem from running out of
+              // it, so it gets its own line rather than being folded into one
+              // number that hides it.
+              urgent={data.licensesExpired > 0 ? `${data.licensesExpired} already expired` : null}
+              icon={<KeyRound size={15} color={t.color.gold} strokeWidth={2} />}
+              onPress={() => router.push('/licenses')}
+            />
+
+            <ExpiryCard
+              label="SERVICE DUE"
+              count={data.maintenanceDue}
+              sub={
+                data.maintenanceDue === 1
+                  ? 'asset in the next 30 days'
+                  : 'assets in the next 30 days'
+              }
+              urgent={
+                data.maintenanceOverdue > 0 ? `${data.maintenanceOverdue} already overdue` : null
+              }
+              icon={<Wrench size={15} color={t.color.gold} strokeWidth={2} />}
+              onPress={() => router.push('/maintenance')}
+            />
+          </View>
 
           {!isReadOnly ? (
             <>
@@ -259,6 +276,72 @@ export default function HomeScreen() {
         </>
       )}
     </Screen>
+  );
+}
+
+/**
+ * One thing that runs out: warranties, licences, servicing.
+ *
+ * The three read as one family because they answer the same question, and the
+ * shape came from the warranty card that was already here rather than a new
+ * design invented alongside it.
+ *
+ * `urgent` is for what has already passed its date. Adding it to the headline
+ * would make one bigger number and lose the distinction that matters — a
+ * licence that lapsed last month has somebody locked out of their tools today.
+ */
+function ExpiryCard({
+  label,
+  count,
+  sub,
+  urgent = null,
+  icon,
+  onPress,
+}: {
+  label: string;
+  count: number;
+  sub: string;
+  urgent?: string | null;
+  icon: React.ReactNode;
+  onPress: () => void;
+}) {
+  const t = useTheme();
+
+  return (
+    <Card radius="cardLarge" padding={0} style={styles.expiryCard}>
+      <LinearGradient
+        colors={[...t.gradients.navy.colors]}
+        start={t.gradients.navy.start}
+        end={t.gradients.navy.end}
+        style={styles.warranty}
+      >
+        <View style={styles.warrantyHead}>
+          <View style={[styles.warrantyIcon, { backgroundColor: t.badge('gold').bg }]}>{icon}</View>
+          <Text numberOfLines={1} style={[t.type.kpiLabel, { color: t.color.gold }]}>
+            {label}
+          </Text>
+        </View>
+
+        <Text style={[styles.warrantyNumber, { color: t.color.onNavy }]}>{count}</Text>
+        <Text style={[t.type.bodySmall, styles.warrantySub, { color: t.color.onNavy }]}>{sub}</Text>
+
+        {urgent ? (
+          <Text style={[t.type.metaStrong, styles.expiryUrgent, { color: t.color.gold }]}>
+            {urgent}
+          </Text>
+        ) : null}
+
+        {count > 0 || urgent ? (
+          <Button
+            label="Review list"
+            variant="gold"
+            size="sm"
+            onPress={onPress}
+            style={styles.warrantyButton}
+          />
+        ) : null}
+      </LinearGradient>
+    </Card>
   );
 }
 
@@ -374,7 +457,12 @@ const styles = StyleSheet.create({
   kpiDot: { width: 7, height: 7, borderRadius: 7, marginBottom: 7 },
   kpiValue: { marginTop: 3, marginBottom: 2 },
 
-  warrantyCard: { marginTop: 16, overflow: 'hidden' },
+  // The three run-out cards. `flex: 1` with `minWidth: 0` lets them share a
+  // desktop row evenly without a long label pushing one wider than the rest.
+  expiryRow: { flexDirection: 'row', gap: 12, marginTop: 16, alignItems: 'stretch' },
+  expiryStack: { gap: 12, marginTop: 16 },
+  expiryCard: { flex: 1, minWidth: 0, overflow: 'hidden' },
+  expiryUrgent: { marginTop: 8 },
   warranty: { padding: 18 },
   warrantyHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   warrantyIcon: {
