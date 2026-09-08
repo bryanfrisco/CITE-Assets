@@ -61,6 +61,13 @@ export default function LicenseDetailScreen() {
   const [seatForAssign, setSeatForAssign] = useState<SeatRow | null>(null);
   const [peopleOpen, setPeopleOpen] = useState(false);
   const [accountId, setAccountId] = useState<string | null>(null);
+  /**
+   * The account this seat runs under. Follows the chosen person's work email
+   * until somebody types over it — which is what makes the ordinary case one
+   * tap and still leaves room for a shared or vendor-issued account.
+   */
+  const [seatAccount, setSeatAccount] = useState('');
+  const [accountEdited, setAccountEdited] = useState(false);
   const [assignError, setAssignError] = useState('');
 
   const [seatsOpen, setSeatsOpen] = useState(false);
@@ -90,11 +97,13 @@ export default function LicenseDetailScreen() {
   const give = useMutation({
     mutationFn: async () => {
       if (!seatForAssign || !accountId) throw new Error('Pick somebody first');
-      await assignSeat(seatForAssign.id, accountId);
+      await assignSeat(seatForAssign.id, accountId, null, seatAccount.trim());
     },
     onSuccess: () => {
       setSeatForAssign(null);
       setAccountId(null);
+      setSeatAccount('');
+      setAccountEdited(false);
       setAssignError('');
       invalidate();
     },
@@ -298,6 +307,10 @@ export default function LicenseDetailScreen() {
                       onPress={() => {
                         setSeatForAssign(seat);
                         setAccountId(null);
+                        // An account the import already recorded counts as
+                        // deliberate, so picking a person must not overwrite it.
+                        setSeatAccount(seat.seat_account ?? '');
+                        setAccountEdited(Boolean(seat.seat_account));
                         setAssignError('');
                       }}
                     />
@@ -353,6 +366,24 @@ export default function LicenseDetailScreen() {
           </Text>
         </Pressable>
 
+        <Text style={[t.type.meta, { color: t.color.sub, marginTop: 12, marginBottom: 6 }]}>
+          Account this seat runs under
+        </Text>
+        <Input
+          value={seatAccount}
+          onChangeText={(v) => {
+            setSeatAccount(v);
+            setAccountEdited(true);
+          }}
+          autoCapitalize="none"
+          keyboardType="email-address"
+          placeholder="name@company.co.id"
+        />
+        <Text style={[t.type.meta, { color: t.color.sub, marginTop: 6 }]}>
+          Filled in from their work email. Change it for a shared or vendor account, or leave it
+          empty for a licence identified by its number instead.
+        </Text>
+
         {assignError ? (
           <Text style={[t.type.meta, { color: t.color.error, marginTop: 8 }]}>{assignError}</Text>
         ) : null}
@@ -405,6 +436,9 @@ export default function LicenseDetailScreen() {
         selectedId={accountId}
         onSelect={(o) => {
           setAccountId(o.id);
+          if (!accountEdited) {
+            setSeatAccount((people.data ?? []).find((p) => p.id === o.id)?.email ?? '');
+          }
           setAssignError('');
         }}
         onDismiss={() => setPeopleOpen(false)}

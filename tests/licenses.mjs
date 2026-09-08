@@ -138,6 +138,60 @@ async function main() {
   check('the list counts one seat in use', row?.used_seats === 1, `got ${row?.used_seats}`);
   check('and three free', row?.available_seats === 3, `got ${row?.available_seats}`);
 
+  // --------------------------------------------- the account a seat runs on
+  // Not every licence has a licence number. For those, the account IS the only
+  // identity the seat has, so it has to survive a handover rather than being
+  // wiped every time somebody gives the seat back.
+  const seatB = detail.seats[1].id;
+  const accountOf = (id) => detail.seats.find((s) => s.id === id)?.seat_account;
+  const reread = async () => {
+    detail = (await admin.rpc('license_detail', { p_id: licenseId })).data;
+  };
+
+  await admin.rpc('assign_seat', {
+    p_seat: seatB,
+    p_account: holder.id,
+    p_date: null,
+    p_seat_account: '  budi.santoso@aspire.id  ',
+  });
+  await reread();
+  check(
+    'the account handed in with a seat is stored, trimmed',
+    accountOf(seatB) === 'budi.santoso@aspire.id',
+    `got ${accountOf(seatB)}`,
+  );
+
+  await admin.rpc('return_seat', { p_seat: seatB });
+  await reread();
+  check(
+    'giving the seat back leaves its account alone',
+    accountOf(seatB) === 'budi.santoso@aspire.id',
+  );
+
+  await admin.rpc('assign_seat', { p_seat: seatB, p_account: holder.id, p_date: null });
+  await reread();
+  check(
+    'handing it out again without naming an account keeps the one it had',
+    accountOf(seatB) === 'budi.santoso@aspire.id',
+    `got ${accountOf(seatB)}`,
+  );
+
+  await admin.rpc('return_seat', { p_seat: seatB });
+  await admin.rpc('assign_seat', {
+    p_seat: seatB,
+    p_account: holder.id,
+    p_date: null,
+    p_seat_account: '',
+  });
+  await reread();
+  check(
+    'an empty account clears it, for a seat known by its licence number',
+    accountOf(seatB) === null,
+    `got ${accountOf(seatB)}`,
+  );
+  await admin.rpc('return_seat', { p_seat: seatB });
+  await reread();
+
   const shrink = await admin.rpc('set_license_seats', { p_license: licenseId, p_count: 0 });
   check(
     'seats cannot be dropped below the number in use',

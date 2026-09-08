@@ -132,15 +132,26 @@ export async function setLicenseSeats(licenseId: string, count: number): Promise
   if (error) throw new Error(error.message);
 }
 
+/**
+ * Hands a seat to somebody.
+ *
+ * `seatAccount` is the account the seat runs under — usually the person's own
+ * work email, sometimes a shared or vendor-issued one. Leaving it `undefined`
+ * keeps whatever the seat already had (the import may have filled it); passing
+ * an empty string clears it, for the seats identified by a licence number
+ * instead of an account.
+ */
 export async function assignSeat(
   seatId: string,
   accountId: string,
   date?: string | null,
+  seatAccount?: string,
 ): Promise<void> {
   const { error } = await supabase.rpc('assign_seat', {
     p_seat: seatId,
     p_account: accountId,
     p_date: date ?? null,
+    p_seat_account: seatAccount ?? null,
   });
   if (error) throw new Error(error.message);
 }
