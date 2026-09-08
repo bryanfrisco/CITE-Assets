@@ -10,24 +10,48 @@
  *   untagged        blank stock; go and register the device
  *   tagged          open the asset it belongs to
  *   out of scope    tagged, but to an asset at a location you cannot see
+ *
+ * Blank stock has TWO right answers, and which one depends on where the
+ * scanner was opened from. Arriving from the tab bar means the sticker comes
+ * first and the device is registered against it. Arriving from an asset that
+ * has no label — `?attachTo=` — means the device already exists and the
+ * sticker is being put on it, so the same blank label must attach rather than
+ * offer a second registration form for a machine already in the register.
  */
 
 import React, { useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { AlertCircle, Camera, ChevronLeft, ScanLine } from 'lucide-react-native';
 
 import { useTheme } from '@/theme';
 import { Badge, Button, Card, EmptyState, Screen } from '@/components/ui';
-import { scanTag, type ScanResult } from '@/api/tags';
+import { attachTag, scanTag, type ScanResult } from '@/api/tags';
 import { usePermissions } from '@/auth';
+import { useToast } from '@/store/useUiStore';
 
 export default function ScanScreen() {
   const t = useTheme();
   const router = useRouter();
   const { can } = usePermissions();
+  const queryClient = useQueryClient();
+  const toast = useToast();
   const [permission, requestPermission] = useCameraPermissions();
+
+  /**
+   * Set when the scanner was opened from an asset that needs a label, so a
+   * blank sticker means "put this one on THAT asset" rather than "register
+   * something new".
+   *
+   * Without it the two flows collide: somebody labelling a laptop they just
+   * added would be offered a fresh registration form and could end up with a
+   * second record for the same machine.
+   */
+  const params = useLocalSearchParams<{ attachTo?: string; attachCode?: string }>();
+  const attachTo = typeof params.attachTo === 'string' ? params.attachTo : undefined;
+  const attachCode = typeof params.attachCode === 'string' ? params.attachCode : undefined;
 
   const [result, setResult] = useState<ScanResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -52,6 +76,20 @@ export default function ScanScreen() {
     setResult(null);
     setError(null);
   };
+
+  const attach = useMutation({
+    mutationFn: (code: string) => attachTag(code, attachTo!),
+    onSuccess: (r) => {
+      void queryClient.invalidateQueries({ queryKey: ['assetTag'] });
+      void queryClient.invalidateQueries({ queryKey: ['tags'] });
+      void queryClient.invalidateQueries({ queryKey: ['tagStock'] });
+      toast(r.alreadyAttached ? 'That label was already on it' : 'Label attached');
+      // Back to the asset that sent us here, not forward to a new screen.
+      if (attachCode) router.replace(`/asset/${attachCode}`);
+      else router.back();
+    },
+    onError: (e: Error) => setError(e.message),
+  });
 
   // ------------------------------------------------------------------- web
   // Scanning is a phone job by design (client decision): a laptop webcam points
@@ -127,21 +165,39 @@ export default function ScanScreen() {
             <Text style={[t.type.body, styles.resultTitle, { color: t.color.text }]}>
               Ready to be registered
             </Text>
-            <Text style={[t.type.meta, styles.resultBody, { color: t.color.sub }]}>
-              Stick it on the device, then record what the device is. The asset is created and the
-              label claimed together.
-            </Text>
-            {can('asset.create') ? (
-              <Button
-                label="Register this asset"
-                block
-                style={styles.action}
-                onPress={() => router.replace(`/add-asset?tag=${result.code}`)}
-              />
+            {attachTo ? (
+              <>
+                <Text style={[t.type.meta, styles.resultBody, { color: t.color.sub }]}>
+                  Stick it on the device, then attach it here. {attachCode} keeps its own code — the
+                  label does not rename it.
+                </Text>
+                <Button
+                  label={attachCode ? `Attach to ${attachCode}` : 'Attach to this asset'}
+                  block
+                  style={styles.action}
+                  loading={attach.isPending}
+                  onPress={() => attach.mutate(result.code)}
+                />
+              </>
             ) : (
-              <Text style={[t.type.meta, styles.resultBody, { color: t.color.sub }]}>
-                You do not have permission to register assets.
-              </Text>
+              <>
+                <Text style={[t.type.meta, styles.resultBody, { color: t.color.sub }]}>
+                  Stick it on the device, then record what the device is. The asset is created and
+                  the label claimed together.
+                </Text>
+                {can('asset.create') ? (
+                  <Button
+                    label="Register this asset"
+                    block
+                    style={styles.action}
+                    onPress={() => router.replace(`/add-asset?tag=${result.code}`)}
+                  />
+                ) : (
+                  <Text style={[t.type.meta, styles.resultBody, { color: t.color.sub }]}>
+                    You do not have permission to register assets.
+                  </Text>
+                )}
+              </>
             )}
             <Button label="Scan another" variant="secondary" block onPress={reset} />
           </Card>

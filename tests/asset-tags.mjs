@@ -301,6 +301,88 @@ async function run() {
     );
   }
 
+  // The other direction: the asset exists first and a blank sticker is put on
+  // it afterwards. `attach_tag()` is what the asset screen's "Attach a label"
+  // calls, and it had no coverage at all — which matters more than most,
+  // because it is the function holding the one-asset-one-sticker rule.
+  console.log('\nLabelling an asset that already exists');
+  {
+    const fresh = await admin.rpc('create_tag_batch', { p_count: 2, p_location: location });
+    const spare = (fresh.data ?? []).map((r) => r.code);
+
+    const available = options.statuses.find((s) => s.name === 'Available').id;
+    const made = await admin.rpc('create_asset', {
+      p_name: 'Laptop registered before its sticker',
+      p_category: category,
+      p_serial: `SN-ATTACH-${stamp}`,
+      p_location: location,
+      p_status: available,
+      p_condition: condition,
+    });
+    check('an asset can be created with no label at all', !made.error, made.error?.message);
+    const assetId = made.data?.id;
+
+    const first = await admin.rpc('attach_tag', { p_code: spare[0], p_asset: assetId });
+    check('a blank label attaches to it', !first.error, first.error?.message);
+    check('and reports it was not already attached', first.data?.alreadyAttached === false);
+
+    const scanned = await admin.rpc('scan_tag', { p_code: spare[0] });
+    check(
+      'scanning that label now finds the asset',
+      scanned.data?.assetId === assetId,
+      `got ${scanned.data?.assetId}`,
+    );
+
+    // Doing it twice is what happens when somebody taps back and tries again.
+    // Saying "already done" beats an error for something that is already true.
+    const repeat = await admin.rpc('attach_tag', { p_code: spare[0], p_asset: assetId });
+    check('attaching the same label again is not an error', !repeat.error, repeat.error?.message);
+    check(
+      'and it says so rather than pretending it did work',
+      repeat.data?.alreadyAttached === true,
+    );
+
+    const second = await admin.rpc('attach_tag', { p_code: spare[1], p_asset: assetId });
+    check(
+      'a second label on the same asset is refused',
+      second.error !== null,
+      second.error ? '' : 'it was allowed',
+    );
+    check(
+      'and the message names the label already on it',
+      (second.error?.message ?? '').includes(spare[0]),
+      second.error?.message,
+    );
+
+    const other = await admin.rpc('create_asset', {
+      p_name: 'Another laptop',
+      p_category: category,
+      p_serial: `SN-ATTACH2-${stamp}`,
+      p_location: location,
+      p_status: available,
+      p_condition: condition,
+    });
+    const taken = await admin.rpc('attach_tag', { p_code: spare[0], p_asset: other.data?.id });
+    check(
+      'a label already on one asset cannot be moved to another',
+      taken.error !== null,
+      taken.error ? '' : 'it was allowed',
+    );
+
+    // A sticker printed for Head Office must not end up on a Site machine:
+    // the batch is what ties a label to a place.
+    const siteTag = await admin.rpc('create_tag_batch', { p_count: 1, p_location: siteLocation });
+    const wrongPlace = await admin.rpc('attach_tag', {
+      p_code: siteTag.data[0].code,
+      p_asset: assetId,
+    });
+    check(
+      "a label from another location's batch is refused",
+      wrongPlace.error !== null,
+      wrongPlace.error ? '' : 'it was allowed',
+    );
+  }
+
   console.log('\nPermissions');
   {
     const viewer = await clientFor('andi.prasetyo@cite.co.id');

@@ -507,7 +507,10 @@ export default function AssetDetailScreen() {
             block
             onPress={() => {
               setLabelOpen(false);
-              router.push('/scan');
+              // Carry the asset with us. Without it the scanner offers to
+              // register a NEW asset for the blank sticker, which is how one
+              // laptop ends up with two records.
+              router.push(`/scan?attachTo=${a.id}&attachCode=${a.assetCode}`);
             }}
           />
         </View>
