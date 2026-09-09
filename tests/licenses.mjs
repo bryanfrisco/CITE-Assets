@@ -139,9 +139,14 @@ async function main() {
   check('and three free', row?.available_seats === 3, `got ${row?.available_seats}`);
 
   // --------------------------------------------- the account a seat runs on
-  // Not every licence has a licence number. For those, the account IS the only
-  // identity the seat has, so it has to survive a handover rather than being
-  // wiped every time somebody gives the seat back.
+  // The account belongs to the PERSON, not to the chair. Almost every value in
+  // this column is somebody's work address, so an empty seat still showing one
+  // is not merely untidy: a licence reset sent to the address on an empty seat
+  // reaches somebody who no longer holds it.
+  //
+  // 0086 got this backwards and kept the account through a return. That also
+  // broke the next handover, because the screen read a leftover address as
+  // deliberate and refused to replace it with the new holder's.
   const seatB = detail.seats[1].id;
   const accountOf = (id) => detail.seats.find((s) => s.id === id)?.seat_account;
   const reread = async () => {
@@ -164,15 +169,39 @@ async function main() {
   await admin.rpc('return_seat', { p_seat: seatB });
   await reread();
   check(
-    'giving the seat back leaves its account alone',
-    accountOf(seatB) === 'budi.santoso@aspire.id',
+    'giving the seat back takes the account with it',
+    accountOf(seatB) === null,
+    `still ${accountOf(seatB)}`,
   );
 
   await admin.rpc('assign_seat', { p_seat: seatB, p_account: holder.id, p_date: null });
   await reread();
   check(
-    'handing it out again without naming an account keeps the one it had',
-    accountOf(seatB) === 'budi.santoso@aspire.id',
+    'and the next holder does not inherit the last one address',
+    accountOf(seatB) === null,
+    `got ${accountOf(seatB)}`,
+  );
+
+  // The stale-address case: a seat that somehow still carries an old account
+  // must accept a new one rather than keeping what it had.
+  await admin.rpc('return_seat', { p_seat: seatB });
+  await admin.rpc('assign_seat', {
+    p_seat: seatB,
+    p_account: holder.id,
+    p_date: null,
+    p_seat_account: 'old.address@aspire.id',
+  });
+  await admin.rpc('return_seat', { p_seat: seatB });
+  await admin.rpc('assign_seat', {
+    p_seat: seatB,
+    p_account: holder.id,
+    p_date: null,
+    p_seat_account: 'new.address@aspire.id',
+  });
+  await reread();
+  check(
+    'naming an account replaces whatever was there',
+    accountOf(seatB) === 'new.address@aspire.id',
     `got ${accountOf(seatB)}`,
   );
 

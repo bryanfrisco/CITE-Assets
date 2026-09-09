@@ -147,9 +147,11 @@ export async function setLicenseSeats(licenseId: string, count: number): Promise
  *
  * `seatAccount` is the account the seat runs under — usually the person's own
  * work email, sometimes a shared or vendor-issued one. Leaving it `undefined`
- * keeps whatever the seat already had (the import may have filled it); passing
- * an empty string clears it, for the seats identified by a licence number
- * instead of an account.
+ * keeps whatever the seat already had; passing an empty string clears it, for
+ * the seats identified by a licence number instead of an account.
+ *
+ * The account goes back with the person: `returnSeat` clears it, so a seat is
+ * never handed on wearing the last holder's address.
  */
 export async function assignSeat(
   seatId: string,

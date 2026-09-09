@@ -307,10 +307,14 @@ export default function LicenseDetailScreen() {
                       onPress={() => {
                         setSeatForAssign(seat);
                         setAccountId(null);
-                        // An account the import already recorded counts as
-                        // deliberate, so picking a person must not overwrite it.
                         setSeatAccount(seat.seat_account ?? '');
-                        setAccountEdited(Boolean(seat.seat_account));
+                        // Starts false even when the seat already carries an
+                        // account. Treating an existing value as "deliberate"
+                        // is what stopped the chosen person's email from
+                        // filling in — a leftover address blocked the very
+                        // thing that would have replaced it. Only typing in
+                        // the field marks it as yours.
+                        setAccountEdited(false);
                         setAssignError('');
                       }}
                     />
