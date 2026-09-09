@@ -28,6 +28,16 @@ export interface LicenseRow {
   id: string;
   software: string;
   license_number: string | null;
+  /**
+   * Every distinct account on this licence's seats, comma-joined; null when it
+   * has none.
+   *
+   * Not every licence has a number — some are known only by the account you
+   * sign in with at the vendor, and for those this IS the identity. Show it
+   * wherever `license_number` is missing rather than printing a dash over a
+   * fact the database already holds.
+   */
+  account_label: string | null;
   category_id: string;
   category_name: string;
   vendor_name: string | null;

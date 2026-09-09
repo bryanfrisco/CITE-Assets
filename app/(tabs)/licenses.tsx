@@ -262,12 +262,15 @@ export default function LicensesScreen() {
               ),
             },
             {
+              // A licence is known by its number OR by the account it signs in
+              // with — never both, and some by neither. One column, because
+              // they answer the same question: which licence is this?
               key: 'number',
-              header: 'Licence no.',
-              weight: 1.6,
+              header: 'Licence no. / account',
+              weight: 1.8,
               render: (r) => (
                 <Text numberOfLines={1} style={[t.type.meta, { color: t.color.sub }]}>
-                  {r.license_number ?? '—'}
+                  {r.license_number ?? r.account_label ?? '—'}
                 </Text>
               ),
             },
@@ -332,6 +335,18 @@ export default function LicensesScreen() {
                     >
                       {[row.category_name, row.vendor_name].filter(Boolean).join(' · ')}
                     </Text>
+                    {/* How this licence is identified: a number, or the account
+                        it signs in with. Only one of them ever exists, and for
+                        the account licences it is the only identity there is —
+                        so showing nothing would hide the whole point. */}
+                    {(row.license_number ?? row.account_label) ? (
+                      <Text
+                        numberOfLines={1}
+                        style={[t.type.meta, { color: t.color.sub, marginTop: 2 }]}
+                      >
+                        {row.license_number ?? row.account_label}
+                      </Text>
+                    ) : null}
                   </View>
 
                   <View style={styles.seats}>

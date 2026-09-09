@@ -280,6 +280,83 @@ async function main() {
   );
 
   // -------------------------------------------------------------- expiry
+  // A licence is known by a number OR by the account it signs in with. The
+  // second kind used to be unfindable: the search matched software, number and
+  // vendor, so a licence whose only identity was the account matched nothing at
+  // all — you could hold the account and still not find it.
+  console.log('\nA licence identified by its account, not a number');
+  {
+    const acctLicense = await admin.rpc('create_license', {
+      p_input: {
+        software: 'AccountOnlySuite',
+        license_number: null,
+        category_id: mining?.id,
+      },
+    });
+    const acctId = acctLicense.data;
+    await admin.rpc('set_license_seats', { p_license: acctId, p_count: 2 });
+    const seats = (await admin.rpc('license_detail', { p_id: acctId })).data.seats;
+
+    await admin.rpc('assign_seat', {
+      p_seat: seats[0].id,
+      p_account: holder.id,
+      p_date: null,
+      p_seat_account: 'studio.login@vendor.example',
+    });
+
+    const found = (await admin.rpc('licenses_list', { p_query: 'studio.login' })).data ?? [];
+    check(
+      'a licence with no number is findable by its account',
+      found.some((l) => l.id === acctId),
+      `got ${found.map((l) => l.software).join(', ') || 'nothing'}`,
+    );
+
+    const row = found.find((l) => l.id === acctId);
+    check(
+      'and the list carries the account so the register can show it',
+      row?.account_label === 'studio.login@vendor.example',
+      `got ${row?.account_label}`,
+    );
+    check(
+      'while its licence number stays empty',
+      row?.license_number === null,
+      `got ${row?.license_number}`,
+    );
+
+    // Two seats on two accounts must both be searchable, not just the first.
+    await admin.rpc('assign_seat', {
+      p_seat: seats[1].id,
+      p_account: holder.id,
+      p_date: null,
+      p_seat_account: 'second.login@vendor.example',
+    });
+    const bySecond = (await admin.rpc('licenses_list', { p_query: 'second.login' })).data ?? [];
+    check(
+      'a second account on the same licence is findable too',
+      bySecond.some((l) => l.id === acctId),
+      `got ${bySecond.map((l) => l.software).join(', ') || 'nothing'}`,
+    );
+    const both = bySecond.find((l) => l.id === acctId)?.account_label ?? '';
+    check(
+      'and both accounts are listed, not just one',
+      both.includes('studio.login@vendor.example') && both.includes('second.login@vendor.example'),
+      `got ${both}`,
+    );
+
+    // "Using Email" was a note in the spreadsheet meaning "no number here";
+    // the importer filed it as the number itself.
+    const marker = (await admin.rpc('licenses_list', { p_query: 'Using Email' })).data ?? [];
+    check(
+      'no licence still carries "Using Email" as its number',
+      marker.length === 0,
+      `got ${marker.map((l) => l.software).join(', ')}`,
+    );
+
+    await admin.rpc('return_seat', { p_seat: seats[0].id });
+    await admin.rpc('return_seat', { p_seat: seats[1].id });
+    await admin.rpc('delete_license', { p_id: acctId, p_reason: 'account licence test cleanup' });
+  }
+
   console.log('\nExpiry is decided in one place');
 
   const states = await admin.rpc('license_expiry_state', { p_date: null });
