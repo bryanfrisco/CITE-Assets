@@ -158,6 +158,87 @@ async function run() {
     `card ${withBoth.maintenanceOverdue}, list ${due.filter((r) => r.days_late > 0).length}`,
   );
 
+  // ------------------------------------------- zero is not the same as unasked
+  // The card used to print 0 for servicing whether everything was serviced or
+  // nothing was being watched. Those are opposite situations wearing the same
+  // number, and the second one is the dangerous one.
+  console.log('\nA zero and an unasked question are told apart');
+
+  const rules = (await admin.rpc('maintenance_schedules_list')).data ?? [];
+  const activeRules = rules.filter((r) => r.is_active).length;
+  check(
+    'maintenanceRules matches how many rules actually exist',
+    withBoth.maintenanceRules === activeRules,
+    `summary ${withBoth.maintenanceRules}, list ${activeRules}`,
+  );
+  check(
+    'with no rules, nothing can be due either',
+    activeRules > 0 || withBoth.maintenanceDue === 0,
+    `no rules but maintenanceDue is ${withBoth.maintenanceDue}`,
+  );
+
+  // ---------------------------------------------- a zero still has a horizon
+  console.log('\nA zero still says what is coming next');
+
+  for (const key of ['nextWarranty', 'nextLicense', 'nextService']) {
+    const v = withBoth[key];
+    check(
+      `${key} is either null or carries a label and a date`,
+      v === null || (typeof v?.label === 'string' && typeof v?.date === 'string'),
+      `got ${JSON.stringify(v)}`,
+    );
+  }
+  check(
+    'the next licence is outside the window it would otherwise be counted in',
+    withBoth.nextLicense === null ||
+      new Date(withBoth.nextLicense.date) > new Date(Date.now() + 60 * 864e5),
+    `next is ${withBoth.nextLicense?.date}`,
+  );
+
+  // ------------------------------------------------------ work sitting still
+  console.log('\nWork sitting still is counted, and split by whose move it is');
+
+  const bast = (await admin.rpc('bast_list', { p_locations: scope })).data ?? [];
+  const drafts = bast.filter((b) => b.status === 'draft').length;
+  const waiting = bast.filter((b) => b.status === 'awaiting_signature').length;
+  check(
+    'bastDraft matches the register',
+    withBoth.bastDraft === drafts,
+    `summary ${withBoth.bastDraft}, register ${drafts}`,
+  );
+  check(
+    'bastAwaitingSignature matches the register',
+    withBoth.bastAwaitingSignature === waiting,
+    `summary ${withBoth.bastAwaitingSignature}, register ${waiting}`,
+  );
+  check(
+    'the two are kept apart rather than summed into one figure',
+    'bastDraft' in withBoth && 'bastAwaitingSignature' in withBoth,
+  );
+
+  const assets =
+    (await admin.rpc('search_assets', { p_locations: scope, p_sort: 'code' })).data ?? [];
+  // Terminal statuses are excluded on purpose. A retired laptop with no holder
+  // is not work sitting still — it is finished. Counting it would put a number
+  // on the dashboard that nobody can ever bring down.
+  const terminal = new Set(
+    ((await admin.from('asset_statuses').select('name, is_terminal')).data ?? [])
+      .filter((s) => s.is_terminal)
+      .map((s) => s.name),
+  );
+  const loose = assets.filter((a) => !a.holder_name && !terminal.has(a.status_name)).length;
+  check(
+    'unassignedAssets matches the register, retired kit aside',
+    withBoth.unassignedAssets === loose,
+    `summary ${withBoth.unassignedAssets}, register ${loose}`,
+  );
+  check(
+    'and retired assets really were the difference',
+    assets.filter((a) => !a.holder_name).length >= loose,
+  );
+
+  check('labelsUnused is a number', typeof withBoth.labelsUnused === 'number');
+
   // ----------------------------------------------------------- put it back
   for (const id of [soon.data, gone.data]) {
     await admin.rpc('delete_license', { p_id: id, p_reason: 'dashboard test cleanup' });

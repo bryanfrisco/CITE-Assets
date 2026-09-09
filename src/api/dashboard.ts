@@ -29,6 +29,12 @@ export interface RecentEvent {
   assetCode: string;
 }
 
+export interface UpcomingItem {
+  /** An asset code or a licence name — whatever names the thing on screen. */
+  label: string;
+  date: string;
+}
+
 export interface DashboardSummary {
   total: number;
   addedThisMonth: number;
@@ -48,6 +54,29 @@ export interface DashboardSummary {
    *  last service rather than the purchase date. */
   maintenanceDue: number;
   maintenanceOverdue: number;
+  /**
+   * How many categories carry an active service rule.
+   *
+   * Without this, `maintenanceDue: 0` is ambiguous in the worst way: it looks
+   * like "everything is serviced" when it can equally mean "nothing is being
+   * watched". The screen shows a dash and an invitation instead of a zero when
+   * this is 0.
+   */
+  maintenanceRules: number;
+
+  /** The first one PAST each window, so a zero still carries a horizon. */
+  nextWarranty: UpcomingItem | null;
+  nextLicense: UpcomingItem | null;
+  nextService: UpcomingItem | null;
+
+  /** Handovers that are not finished. A draft waits on you; one awaiting a
+   *  signature waits on somebody else. */
+  bastDraft: number;
+  bastAwaitingSignature: number;
+  /** Live assets with no holder: ready to hand out, or forgotten. */
+  unassignedAssets: number;
+  /** Printed stickers not yet on any device. */
+  labelsUnused: number;
   byCategory: NamedCount[];
   byLocation: NamedCount[];
   byDepartment: NamedCount[];

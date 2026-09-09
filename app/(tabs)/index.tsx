@@ -1,8 +1,15 @@
 /**
  * Home (Dashboard) — README § Screens 1.
  *
- * Greeting, scope sentence, KPI grid, warranty card, quick actions, the
- * category donut, location and department bars, and recent activity.
+ * Greeting, scope sentence, KPI grid, a "Needs attention" block, quick
+ * actions, the category donut, location and department bars, and recent
+ * activity.
+ *
+ * The attention block replaced three gradient cards that filled a row to say
+ * "0", "0", "0". Its rows are in a FIXED order rather than sorted by count,
+ * because a list read every morning is read by position, and every row says
+ * why its number reads as it does — a bare zero cannot tell "nothing is due"
+ * apart from "nothing is being watched".
  *
  * Everything comes from one `dashboard_summary()` call. Six separate queries
  * would each settle at a different moment and the tiles would disagree with the
@@ -16,28 +23,25 @@
 
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, type Href } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
-import { LinearGradient } from 'expo-linear-gradient';
 import {
   ArrowLeftRight,
-  Clock,
+  ChevronRight,
   FileSpreadsheet,
   FileText,
-  KeyRound,
   PackagePlus,
   QrCode,
   UserPlus,
-  Wrench,
 } from 'lucide-react-native';
 
 import { useTheme } from '@/theme';
-import { Button, Card, EmptyState, Screen, SkeletonKpiGrid } from '@/components/ui';
+import { Card, EmptyState, Screen, SkeletonKpiGrid } from '@/components/ui';
 import { fetchDashboard, type RecentEvent } from '@/api/dashboard';
 import { Bars } from '@/components/charts/Bars';
 import { useIsDesktop } from '@/lib/useBreakpoint';
 import { Donut } from '@/components/charts/Donut';
-import { formatRelative } from '@/lib/dates';
+import { formatDate, formatRelative } from '@/lib/dates';
 import { greetingFor, useSessionStore } from '@/store/useSessionStore';
 import { useScopeSentence, useScopeStore } from '@/store/useScopeStore';
 import { usePermissions } from '@/auth';
@@ -67,6 +71,99 @@ export default function HomeScreen() {
 
   const data = summary.data;
   const scopeSentence = useScopeSentence(data?.total);
+
+  /**
+   * The rows of the "Needs attention" block.
+   *
+   * `count: null` means the question is not being asked — not that the answer
+   * is zero. It renders as a dash with a line saying what is missing, because
+   * a 0 there would read as reassurance that nothing needs servicing when in
+   * fact nothing is being watched.
+   *
+   * `detail` always says something. On a zero it carries the horizon: nothing
+   * in the next 60 days, and here is the first one after that.
+   */
+  const attention: AttentionItem[] = data
+    ? [
+        {
+          key: 'bast',
+          count: data.bastDraft + data.bastAwaitingSignature,
+          label: 'e-BAST not yet signed',
+          // Both are unfinished, but a draft waits on you and a sent one waits
+          // on somebody else. The number is the backlog; this says whose move.
+          detail:
+            data.bastDraft + data.bastAwaitingSignature === 0
+              ? 'Every handover is signed'
+              : [
+                  data.bastDraft > 0 ? `${data.bastDraft} draft` : null,
+                  data.bastAwaitingSignature > 0
+                    ? `${data.bastAwaitingSignature} awaiting a signature`
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · '),
+          route: '/bast',
+        },
+        {
+          key: 'unassigned',
+          count: data.unassignedAssets,
+          label: 'Assets nobody is holding',
+          detail:
+            data.unassignedAssets === 0
+              ? 'Everything is with somebody'
+              : 'Ready to hand out, or forgotten',
+          route: '/assets',
+        },
+        {
+          key: 'labels',
+          count: data.labelsUnused,
+          label: 'Labels printed, not yet on anything',
+          detail:
+            data.labelsUnused === 0
+              ? 'No blank stock waiting'
+              : 'Stick one on a device to register it',
+          route: '/labels',
+        },
+        {
+          key: 'warranty',
+          count: data.warrantyExpiring,
+          label: 'Warranties ending in 30 days',
+          detail: horizon(data.nextWarranty, 'Nothing after that either'),
+          route: '/reports',
+        },
+        {
+          key: 'licences',
+          count: data.licensesExpiring,
+          label: 'Licences ending in 60 days',
+          detail:
+            data.licensesExpired > 0
+              ? `${data.licensesExpired} already expired`
+              : horizon(data.nextLicense, 'None with an end date'),
+          urgent: data.licensesExpired > 0,
+          route: '/licenses',
+        },
+        data.maintenanceRules === 0
+          ? {
+              key: 'service',
+              // Not zero — unasked. The dash is the honest answer.
+              count: null,
+              label: 'Service due',
+              detail: 'No service rules set yet — tap to add one',
+              route: '/maintenance-schedule',
+            }
+          : {
+              key: 'service',
+              count: data.maintenanceDue,
+              label: 'Assets due for service in 30 days',
+              detail:
+                data.maintenanceOverdue > 0
+                  ? `${data.maintenanceOverdue} already overdue`
+                  : horizon(data.nextService, 'Nothing coming up'),
+              urgent: data.maintenanceOverdue > 0,
+              route: '/maintenance',
+            },
+      ]
+    : [];
 
   const icon = { size: 18, color: t.color.royal, strokeWidth: 1.8 } as const;
   const actionIcons = [
@@ -137,57 +234,25 @@ export default function HomeScreen() {
             ))}
           </View>
 
-          {/* Three things that run out. Shown even at zero: "0 in the next 30
-              days" is an answer somebody wants, and a card that disappears
-              reads as broken.
+          {/* One block instead of three cards that each filled a third of a row
+              to say "0".
 
-              Side by side on a desktop, stacked on a phone. They answer the
-              same question about three different things, so seeing them
-              together is the point. */}
-          <View style={isDesktop ? styles.expiryRow : styles.expiryStack}>
-            <ExpiryCard
-              label="WARRANTY EXPIRING"
-              count={data.warrantyExpiring}
-              sub={
-                data.warrantyExpiring === 1
-                  ? 'asset in the next 30 days'
-                  : 'assets in the next 30 days'
-              }
-              icon={<Clock size={15} color={t.color.gold} strokeWidth={2} />}
-              onPress={() => router.push('/reports')}
-            />
+              Order is FIXED, not sorted by count. A dashboard read every
+              morning is read by position — a list that rearranges itself makes
+              you check each line instead of glancing at the one you want. Work
+              sitting still comes first, then the things running out.
 
-            <ExpiryCard
-              label="LICENCES EXPIRING"
-              count={data.licensesExpiring}
-              sub={
-                data.licensesExpiring === 1
-                  ? 'licence in the next 60 days'
-                  : 'licences in the next 60 days'
-              }
-              // Already out of time is a different problem from running out of
-              // it, so it gets its own line rather than being folded into one
-              // number that hides it.
-              urgent={data.licensesExpired > 0 ? `${data.licensesExpired} already expired` : null}
-              icon={<KeyRound size={15} color={t.color.gold} strokeWidth={2} />}
-              onPress={() => router.push('/licenses')}
-            />
-
-            <ExpiryCard
-              label="SERVICE DUE"
-              count={data.maintenanceDue}
-              sub={
-                data.maintenanceDue === 1
-                  ? 'asset in the next 30 days'
-                  : 'assets in the next 30 days'
-              }
-              urgent={
-                data.maintenanceOverdue > 0 ? `${data.maintenanceOverdue} already overdue` : null
-              }
-              icon={<Wrench size={15} color={t.color.gold} strokeWidth={2} />}
-              onPress={() => router.push('/maintenance')}
-            />
-          </View>
+              Every row says why its number is what it is. A bare zero cannot
+              tell "nothing is due" apart from "nothing is being watched", and
+              Service Due was the second kind while looking like the first. */}
+          <Text style={[t.type.sectionLabel, styles.sectionLabel, { color: t.color.sub }]}>
+            Needs attention
+          </Text>
+          <Card padding={0} radius="listContainer">
+            {attention.map((row, i) => (
+              <AttentionRow key={row.key} row={row} last={i === attention.length - 1} />
+            ))}
+          </Card>
 
           {!isReadOnly ? (
             <>
@@ -279,69 +344,71 @@ export default function HomeScreen() {
   );
 }
 
-/**
- * One thing that runs out: warranties, licences, servicing.
- *
- * The three read as one family because they answer the same question, and the
- * shape came from the warranty card that was already here rather than a new
- * design invented alongside it.
- *
- * `urgent` is for what has already passed its date. Adding it to the headline
- * would make one bigger number and lose the distinction that matters — a
- * licence that lapsed last month has somebody locked out of their tools today.
- */
-function ExpiryCard({
-  label,
-  count,
-  sub,
-  urgent = null,
-  icon,
-  onPress,
-}: {
+interface AttentionItem {
+  key: string;
+  /** null means "not being watched", which is not the same as zero. */
+  count: number | null;
   label: string;
-  count: number;
-  sub: string;
-  urgent?: string | null;
-  icon: React.ReactNode;
-  onPress: () => void;
-}) {
+  detail: string;
+  /** Something has already passed its date, rather than approaching one. */
+  urgent?: boolean;
+  route: Href;
+}
+
+/**
+ * "Nothing in the window, and the next one is X on 12 Dec."
+ *
+ * A zero on its own tells you today is fine and nothing about tomorrow. The
+ * server deliberately returns the first item BEYOND the window, since anything
+ * inside it is already in the count.
+ */
+function horizon(next: { label: string; date: string } | null, whenNone: string): string {
+  if (!next) return whenNone;
+  return `Next: ${next.label} · ${formatDate(next.date)}`;
+}
+
+/**
+ * One line of the block: a number, what it counts, and why it reads that way.
+ *
+ * The number carries the emphasis rather than an icon or a colour block —
+ * scanning this list is reading six numbers, and anything competing with them
+ * slows that down. Colour is spent only on the two states that mean somebody
+ * is already late.
+ */
+function AttentionRow({ row, last }: { row: AttentionItem; last: boolean }) {
   const t = useTheme();
+  const router = useRouter();
+
+  const idle = row.count === 0 || row.count === null;
+  const tone = row.urgent ? t.color.error : idle ? t.color.sub : t.color.text;
 
   return (
-    <Card radius="cardLarge" padding={0} style={styles.expiryCard}>
-      <LinearGradient
-        colors={[...t.gradients.navy.colors]}
-        start={t.gradients.navy.start}
-        end={t.gradients.navy.end}
-        style={styles.warranty}
-      >
-        <View style={styles.warrantyHead}>
-          <View style={[styles.warrantyIcon, { backgroundColor: t.badge('gold').bg }]}>{icon}</View>
-          <Text numberOfLines={1} style={[t.type.kpiLabel, { color: t.color.gold }]}>
-            {label}
-          </Text>
-        </View>
+    <Pressable
+      onPress={() => router.push(row.route)}
+      accessibilityRole="button"
+      accessibilityLabel={`${row.label}, ${row.count ?? 'not set up'}. ${row.detail}`}
+      style={({ pressed }) => [
+        styles.attnRow,
+        {
+          borderBottomWidth: last ? 0 : 1,
+          borderBottomColor: t.color.line,
+          backgroundColor: pressed ? t.color.soft : 'transparent',
+        },
+      ]}
+    >
+      <Text style={[styles.attnCount, { color: tone }]}>{row.count ?? '—'}</Text>
 
-        <Text style={[styles.warrantyNumber, { color: t.color.onNavy }]}>{count}</Text>
-        <Text style={[t.type.bodySmall, styles.warrantySub, { color: t.color.onNavy }]}>{sub}</Text>
+      <View style={styles.attnText}>
+        <Text numberOfLines={1} style={[t.type.body, { color: idle ? t.color.sub : t.color.text }]}>
+          {row.label}
+        </Text>
+        <Text numberOfLines={1} style={[t.type.meta, { color: t.color.sub, marginTop: 2 }]}>
+          {row.detail}
+        </Text>
+      </View>
 
-        {urgent ? (
-          <Text style={[t.type.metaStrong, styles.expiryUrgent, { color: t.color.gold }]}>
-            {urgent}
-          </Text>
-        ) : null}
-
-        {count > 0 || urgent ? (
-          <Button
-            label="Review list"
-            variant="gold"
-            size="sm"
-            onPress={onPress}
-            style={styles.warrantyButton}
-          />
-        ) : null}
-      </LinearGradient>
-    </Card>
+      <ChevronRight size={17} color={t.color.sub} strokeWidth={1.7} />
+    </Pressable>
   );
 }
 
@@ -457,24 +524,11 @@ const styles = StyleSheet.create({
   kpiDot: { width: 7, height: 7, borderRadius: 7, marginBottom: 7 },
   kpiValue: { marginTop: 3, marginBottom: 2 },
 
-  // The three run-out cards. `flex: 1` with `minWidth: 0` lets them share a
-  // desktop row evenly without a long label pushing one wider than the rest.
-  expiryRow: { flexDirection: 'row', gap: 12, marginTop: 16, alignItems: 'stretch' },
-  expiryStack: { gap: 12, marginTop: 16 },
-  expiryCard: { flex: 1, minWidth: 0, overflow: 'hidden' },
-  expiryUrgent: { marginTop: 8 },
-  warranty: { padding: 18 },
-  warrantyHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  warrantyIcon: {
-    width: 26,
-    height: 26,
-    borderRadius: 9,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  warrantyNumber: { fontSize: 34, fontWeight: '700', marginTop: 12, letterSpacing: -1 },
-  warrantySub: { opacity: 0.82 },
-  warrantyButton: { marginTop: 14, alignSelf: 'flex-start' },
+  // A fixed-width number column so six counts line up as a column somebody can
+  // run an eye down, whether they are 0 or 60.
+  attnRow: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 13, minHeight: 58 },
+  attnCount: { fontSize: 21, fontWeight: '700', minWidth: 38, textAlign: 'right' },
+  attnText: { flex: 1, minWidth: 0 },
 
   sectionLabel: { marginTop: 22, marginBottom: 10, marginLeft: 2 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 9 },
