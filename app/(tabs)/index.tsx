@@ -245,45 +245,64 @@ export default function HomeScreen() {
               Every row says why its number is what it is. A bare zero cannot
               tell "nothing is due" apart from "nothing is being watched", and
               Service Due was the second kind while looking like the first. */}
-          <Text style={[t.type.sectionLabel, styles.sectionLabel, { color: t.color.sub }]}>
-            Needs attention
-          </Text>
-          <Card padding={0} radius="listContainer">
-            {attention.map((row, i) => (
-              <AttentionRow key={row.key} row={row} last={i === attention.length - 1} />
-            ))}
-          </Card>
+          {/* What needs doing, beside how to do it.
 
-          {!isReadOnly ? (
-            <>
+              On a wide screen these two sit side by side: the attention list is
+              six short rows, and left alone it stretched 1280px with most of
+              the line empty while the actions were pushed a scroll below the
+              thing that prompts you to use them. On a phone they stack, because
+              there is only ever one column of room. */}
+          <View style={isDesktop ? styles.workRow : undefined}>
+            <View style={isDesktop ? styles.workMain : undefined}>
               <Text style={[t.type.sectionLabel, styles.sectionLabel, { color: t.color.sub }]}>
-                Quick actions
+                Needs attention
               </Text>
-              <View style={styles.actions}>
-                {QUICK_ACTIONS.map((action, i) => (
-                  <Pressable
-                    key={action.label}
-                    onPress={() => router.push(action.route)}
-                    accessibilityRole="button"
-                    accessibilityLabel={action.label}
-                    style={({ pressed }) => [
-                      styles.action,
-                      {
-                        borderRadius: t.radii.card,
-                        borderColor: t.color.line,
-                        backgroundColor: pressed ? t.color.soft : t.color.card,
-                      },
-                    ]}
-                  >
-                    {actionIcons[i]}
-                    <Text numberOfLines={1} style={[t.type.meta, { color: t.color.text }]}>
-                      {action.label}
-                    </Text>
-                  </Pressable>
+              <Card padding={0} radius="listContainer">
+                {attention.map((row, i) => (
+                  <AttentionRow key={row.key} row={row} last={i === attention.length - 1} />
                 ))}
+              </Card>
+            </View>
+
+            {!isReadOnly ? (
+              <View style={isDesktop ? styles.workSide : undefined}>
+                <Text style={[t.type.sectionLabel, styles.sectionLabel, { color: t.color.sub }]}>
+                  Quick actions
+                </Text>
+                {/* One card holding the actions rather than six loose boxes, so
+                    it reads as the same kind of thing as the block above it. */}
+                <Card padding={11} radius="listContainer">
+                  <View style={styles.actions}>
+                    {QUICK_ACTIONS.map((action, i) => (
+                      <Pressable
+                        key={action.label}
+                        onPress={() => router.push(action.route)}
+                        accessibilityRole="button"
+                        accessibilityLabel={action.label}
+                        style={({ pressed }) => [
+                          styles.action,
+                          // Three across on a phone, two in the narrower
+                          // desktop column beside the attention list.
+                          isDesktop ? styles.actionNarrow : styles.actionWide,
+                          {
+                            borderRadius: t.radii.card,
+                            borderColor: t.color.line,
+                            backgroundColor: t.color.soft,
+                            opacity: pressed ? 0.6 : 1,
+                          },
+                        ]}
+                      >
+                        {actionIcons[i]}
+                        <Text numberOfLines={1} style={[t.type.meta, { color: t.color.text }]}>
+                          {action.label}
+                        </Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                </Card>
               </View>
-            </>
-          ) : null}
+            ) : null}
+          </View>
 
           {/* Three views of the same fleet. Side by side on a wide screen
               because comparing them is the point; stacked on a phone because
@@ -532,7 +551,18 @@ const styles = StyleSheet.create({
 
   sectionLabel: { marginTop: 22, marginBottom: 10, marginLeft: 2 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 9 },
-  action: { width: '31.5%', alignItems: 'center', gap: 7, paddingVertical: 14, borderWidth: 1 },
+  action: { alignItems: 'center', gap: 7, paddingVertical: 14, borderWidth: 1 },
+  // Three across on a phone; two in the narrow desktop column, where the tile
+  // sits beside the attention list rather than under it.
+  actionWide: { width: '31.5%' },
+  actionNarrow: { width: '48%' },
+
+  // The working half of the dashboard: what needs doing, and how to do it.
+  // 1.6 to 1 gives the six-row list the width its text needs and leaves the
+  // actions a column wide enough for two tiles.
+  workRow: { flexDirection: 'row', gap: 14, alignItems: 'flex-start' },
+  workMain: { flex: 1.6, minWidth: 0 },
+  workSide: { flex: 1, minWidth: 0 },
 
   recentRow: {
     flexDirection: 'row',
