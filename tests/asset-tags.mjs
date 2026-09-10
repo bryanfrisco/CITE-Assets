@@ -425,14 +425,96 @@ async function run() {
       !(hoOnly.data ?? []).some((t) => t.code.startsWith('CTS-')),
       JSON.stringify((hoOnly.data ?? []).map((t) => t.code).slice(0, 5)),
     );
+  }
+
+  // A label is `tagged` the moment it goes on a machine. Whether that machine
+  // is then handed to somebody is a separate fact, and the register showed both
+  // as "In use" — so an audit could not tell a label doing its job from one on
+  // a device sitting in a cupboard.
+  console.log('\nA label on a device nobody holds');
+  {
+    const spare = await admin.rpc('create_tag_batch', { p_count: 1, p_location: location });
+    const code = spare.data[0].code;
+    const made = await admin.rpc('create_asset', {
+      p_name: 'Laptop for the holder column',
+      p_category: category,
+      p_serial: `SN-HOLDER-${stamp}`,
+      p_location: location,
+      p_status: options.statuses.find((s) => s.name === 'Available').id,
+      p_condition: condition,
+    });
+    await admin.rpc('attach_tag', { p_code: code, p_asset: made.data.id });
+
+    const rowOf = async (filter) =>
+      ((await admin.rpc('list_tags', filter)).data ?? []).find((t) => t.code === code);
+
+    let row = await rowOf({});
+    check(
+      'a freshly labelled asset has no holder yet',
+      row?.holder_name === null,
+      `got ${row?.holder_name}`,
+    );
+    check('but it does report the asset it is on', row?.asset_code === made.data.assetCode);
+    check(
+      'and it is still `tagged` — unassigned is not a fourth tag state',
+      row?.status === 'tagged',
+      `got ${row?.status}`,
+    );
+
+    const inUnassigned = await rowOf({ p_status: 'unassigned' });
+    check('the unassigned filter finds it', inUnassigned?.code === code);
+    const inTagged = await rowOf({ p_status: 'tagged' });
+    check(
+      'and "in use" still finds it too — the filter narrows, it does not exclude',
+      inTagged?.code === code,
+    );
+
+    const before = (await admin.rpc('tag_stock', {})).data;
+
+    const person = (await admin.rpc('assignable_employees', { p_locations: [location] })).data?.[0];
+    const handed = await admin.rpc('assign_asset', {
+      p_asset: made.data.id,
+      p_account: person.id,
+      p_location: location,
+      p_date: new Date().toISOString().slice(0, 10),
+    });
+    check('the asset is handed to somebody', !handed.error, handed.error?.message);
+
+    row = await rowOf({});
+    check(
+      'once somebody holds it, the label names them',
+      row?.holder_name === person.full_name,
+      `got ${row?.holder_name}`,
+    );
+    check(
+      'and it drops out of the unassigned filter',
+      (await rowOf({ p_status: 'unassigned' })) === undefined,
+    );
+
+    const after = (await admin.rpc('tag_stock', {})).data;
+    check(
+      'the unassigned count falls by exactly one',
+      after.unassigned === before.unassigned - 1,
+      `${before.unassigned} -> ${after.unassigned}`,
+    );
+    check(
+      'while the in-use count does not move, because it never left',
+      after.tagged === before.tagged,
+      `${before.tagged} -> ${after.tagged}`,
+    );
+  }
+
+  console.log('\nThe list joins through to the asset');
+  {
+    const untagged = await admin.rpc('list_tags', { p_status: 'untagged' });
     check(
       'the untagged list excludes used labels',
       !(untagged.data ?? []).some((t) => t.code === codes[0]),
     );
 
     const all = await admin.rpc('list_tags', {});
-    const row = (all.data ?? []).find((t) => t.code === codes[0]);
-    check('the list joins the asset through', Boolean(row?.asset_code), JSON.stringify(row));
+    const joined = (all.data ?? []).find((t) => t.code === codes[0]);
+    check('the list joins the asset through', Boolean(joined?.asset_code), JSON.stringify(joined));
   }
 
   console.log(`\n${failures === 0 ? 'All checks passed.' : `${failures} check(s) failed.`}\n`);

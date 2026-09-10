@@ -11,6 +11,14 @@ import type { CreateAssetInput } from '@/api/assets';
 
 export type TagStatus = 'untagged' | 'tagged' | 'void';
 
+/**
+ * What the Labels screen can filter by. `unassigned` is NOT a tag state — the
+ * tag is genuinely `tagged`. It is a fact about the ASSET underneath it: the
+ * sticker is on a device that nobody is holding. Derived on read rather than
+ * stored, so it can never disagree with the assignment it describes.
+ */
+export type TagFilter = TagStatus | 'unassigned';
+
 /** Everything the scanner screen needs to decide what to show next. */
 export interface ScanResult {
   found: boolean;
@@ -44,10 +52,18 @@ export interface TagRow {
   /** Which stock the sticker came from. Null for labels printed before 0033. */
   location_id: string | null;
   location_name: string | null;
+  /**
+   * Who is holding the device this label is on.
+   *
+   * Null means two different things, and `asset_code` tells them apart: no
+   * asset at all (a blank sticker), or an asset sitting in a cupboard with
+   * nobody assigned to it.
+   */
+  holder_name: string | null;
 }
 
 export async function listTags(
-  status?: TagStatus,
+  status?: TagFilter,
   scope?: string[],
   batchId?: string,
 ): Promise<TagRow[]> {
@@ -82,6 +98,8 @@ export async function fetchTagPrefixes(scope: string[]): Promise<TagPrefix[]> {
 export interface TagStock {
   untagged: number;
   tagged: number;
+  /** A subset of `tagged`, counted separately: on a device, held by nobody. */
+  unassigned: number;
   void: number;
   total: number;
 }
@@ -91,7 +109,7 @@ export async function fetchTagStock(scope?: string[]): Promise<TagStock> {
     p_locations: scope && scope.length > 0 ? scope : null,
   });
   if (error) throw new Error(error.message);
-  return (data ?? { untagged: 0, tagged: 0, void: 0, total: 0 }) as TagStock;
+  return (data ?? { untagged: 0, tagged: 0, unassigned: 0, void: 0, total: 0 }) as TagStock;
 }
 
 /**

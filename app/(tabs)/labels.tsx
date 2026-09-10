@@ -49,7 +49,7 @@ import {
   fetchTagStock,
   listTags,
   type TagRow,
-  type TagStatus,
+  type TagFilter,
 } from '@/api/tags';
 import {
   DEFAULT_SYMBOLOGY,
@@ -68,10 +68,17 @@ import { saveFile, savePdfFromHtml } from '@/lib/download';
 import { useToast } from '@/store/useUiStore';
 import { usePermissions } from '@/auth';
 
-const FILTERS: { key: TagStatus | 'all'; label: string }[] = [
+/**
+ * "In use" covered two different situations. A label is `tagged` the moment it
+ * goes on a machine; whether that machine is then handed to somebody is a
+ * separate fact, and both wore the same word. Unassigned is a subset of In use,
+ * not a rival to it — the chip narrows, it does not exclude.
+ */
+const FILTERS: { key: TagFilter | 'all'; label: string }[] = [
   { key: 'all', label: 'All' },
   { key: 'untagged', label: 'Blank' },
   { key: 'tagged', label: 'In use' },
+  { key: 'unassigned', label: 'Unassigned' },
   { key: 'void', label: 'Voided' },
 ];
 
@@ -87,7 +94,7 @@ export default function LabelsScreen() {
   const [tape, setTape] = useState<TapeWidth>(DEFAULT_TAPE);
   const [symbology, setSymbology] = useState<Symbology>(DEFAULT_SYMBOLOGY);
   const [layout, setLayout] = useState<LabelLayout>('tape');
-  const [filter, setFilter] = useState<TagStatus | 'all'>('all');
+  const [filter, setFilter] = useState<TagFilter | 'all'>('all');
   const [search, setSearch] = useState('');
   const [error, setError] = useState('');
   const [openCode, setOpenCode] = useState<string | null>(null);
@@ -117,7 +124,7 @@ export default function LabelsScreen() {
   if (chosen && locationId !== chosen.location_id) setLocationId(chosen.location_id);
 
   /**
-   * Matches the sticker code AND what it is stuck to.
+   * Matches the sticker code, what it is stuck to, and who is holding that.
    *
    * Filtered here rather than in the database on purpose: `list_tags` already
    * returns the whole set and the screen already renders every row, so a search
@@ -129,7 +136,7 @@ export default function LabelsScreen() {
   const needle = search.trim().toLowerCase();
   const matched = (tags.data ?? []).filter((row) => {
     if (!needle) return true;
-    return [row.code, row.asset_code, row.asset_name]
+    return [row.code, row.asset_code, row.asset_name, row.holder_name]
       .filter(Boolean)
       .some((field) => field!.toLowerCase().includes(needle));
   });
@@ -240,6 +247,7 @@ export default function LabelsScreen() {
           [
             ['Blank', stock.data?.untagged],
             ['In use', stock.data?.tagged],
+            ['Unassigned', stock.data?.unassigned],
             ['Voided', stock.data?.void],
           ] as const
         ).map(([label, value]) => (
@@ -777,9 +785,26 @@ function TagRowView({
   onPress: () => void;
 }) {
   const t = useTheme();
-  const label = row.status === 'untagged' ? 'Blank' : row.status === 'tagged' ? 'In use' : 'Voided';
+  // A label on a device nobody holds is still in use, but it is not doing the
+  // job a label is for: there is nobody to walk up to and check it against.
+  // It gets its own badge rather than hiding inside "In use".
+  const loose = row.status === 'tagged' && !row.holder_name;
+  const label =
+    row.status === 'untagged'
+      ? 'Blank'
+      : row.status === 'void'
+        ? 'Voided'
+        : loose
+          ? 'Unassigned'
+          : 'In use';
   const tone =
-    row.status === 'untagged' ? 'available' : row.status === 'void' ? 'retired' : undefined;
+    row.status === 'untagged'
+      ? 'available'
+      : row.status === 'void'
+        ? 'retired'
+        : loose
+          ? 'maintenance'
+          : 'assigned';
 
   return (
     <View
@@ -815,6 +840,9 @@ function TagRowView({
           {[
             row.location_name,
             row.asset_code ? `${row.asset_code} · ${row.asset_name}` : 'Not yet on a device',
+            // Only once there IS a device. Saying "nobody" about a blank
+            // sticker would be answering a question nobody asked.
+            row.asset_code ? (row.holder_name ?? 'Not assigned to anyone') : null,
           ]
             .filter(Boolean)
             .join(' · ')}
