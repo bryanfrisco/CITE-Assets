@@ -28,7 +28,7 @@ import {
   updateLicense,
   type LicenseInput,
 } from '@/api/licenses';
-import { listMaster } from '@/api/masterData';
+import { createMaster, listMaster, type MasterEntity } from '@/api/masterData';
 import { queryKeys } from '@/lib/queryClient';
 import { usePermissions } from '@/auth';
 import { useKeyboardInset } from '@/lib/useKeyboardInset';
@@ -38,7 +38,19 @@ export default function LicenseEditScreen() {
   const router = useRouter();
   const qc = useQueryClient();
   const { id } = useLocalSearchParams<{ id?: string }>();
-  const { role } = usePermissions();
+  const { role, can } = usePermissions();
+
+  /**
+   * Adds a licence category or a vendor without leaving this form. Neither
+   * carries a code or any behaviour beyond its name, so one is all the sheet
+   * has to ask for.
+   */
+  const canWriteMaster = can('master.write');
+  const addMaster = async (entity: MasterEntity, name: string) => {
+    const made = await createMaster(entity, name);
+    await qc.invalidateQueries({ queryKey: queryKeys.master(entity) });
+    return { id: made.id, name: made.name };
+  };
   const keyboard = useKeyboardInset();
 
   const editing = typeof id === 'string' && id.length > 0;
@@ -244,7 +256,9 @@ export default function LicenseEditScreen() {
         selectedId={categoryId}
         onSelect={(o) => setCategoryId(o.id)}
         onDismiss={() => setCategorySheet(false)}
-        emptyMessage="No licence categories in master data yet"
+        emptyMessage="No licence categories yet — type a name to add one."
+        createLabel="licence category"
+        onCreate={canWriteMaster ? (name) => addMaster('license_category', name) : undefined}
       />
 
       <PickerSheet
@@ -256,7 +270,9 @@ export default function LicenseEditScreen() {
         selectedId={vendorId}
         onSelect={(o) => setVendorId(o.id)}
         onDismiss={() => setVendorSheet(false)}
-        emptyMessage="No vendors in master data yet"
+        emptyMessage="No vendors yet — type a name to add one."
+        createLabel="vendor"
+        onCreate={canWriteMaster ? (name) => addMaster('vendor', name) : undefined}
         clearLabel="No vendor"
         onClear={() => setVendorId(null)}
       />

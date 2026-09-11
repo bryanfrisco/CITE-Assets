@@ -63,6 +63,14 @@ export interface AssignResult {
   assignmentId: string;
   /** null when the switch was off. */
   bastNumber: string | null;
+  /**
+   * The draft this handover raised, so the screen can open it.
+   *
+   * Without the id all the success step could do was announce a number and
+   * send somebody to the register to go and find the document they had just
+   * made. `returnAsset` has always returned this; assign did not.
+   */
+  bastId: string | null;
 }
 
 export async function assignAsset(input: AssignInput): Promise<AssignResult> {
@@ -76,9 +84,14 @@ export async function assignAsset(input: AssignInput): Promise<AssignResult> {
     p_auto_bast: input.autoBast,
   });
   if (error) throw new Error(error.message);
-  const row = (data ?? [])[0] as { assignment_id: string; bast_number: string | null } | undefined;
+  const row = (data ?? [])[0] as
+    { assignment_id: string; bast_number: string | null; bast_id: string | null } | undefined;
   if (!row) throw new Error('Assignment failed');
-  return { assignmentId: row.assignment_id, bastNumber: row.bast_number };
+  return {
+    assignmentId: row.assignment_id,
+    bastNumber: row.bast_number,
+    bastId: row.bast_id ?? null,
+  };
 }
 
 export interface ReturnInput {

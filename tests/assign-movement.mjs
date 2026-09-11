@@ -251,6 +251,11 @@ async function run() {
     const row = assigned.data?.[0];
     check('assign returns an assignment id', Boolean(row?.assignment_id), assigned.error?.message);
     check('Auto-generate BAST off → no number', row?.bast_number === null, row?.bast_number);
+    check(
+      'and no id either — there is no document to point at',
+      row?.bast_id === null,
+      row?.bast_id,
+    );
 
     const after = await detailOf('MON122-24-205');
     check('the asset status becomes Assigned', after.statusName === 'Assigned', after.statusName);
@@ -382,10 +387,19 @@ async function run() {
 
     const { data: bast } = await admin
       .from('bast')
-      .select('status, assignment_id, asset_id, account_id')
+      .select('id, status, assignment_id, asset_id, account_id')
       .eq('bast_number', number)
       .single();
     check('the BAST is created as a draft', bast?.status === 'draft', bast?.status);
+
+    // Migration 0093. Without the id the success step could only announce a
+    // number and send somebody to the register to find the document they had
+    // just made; with it, the button opens the signature page directly.
+    check(
+      'the handover hands back the id of the draft it raised',
+      assigned.data[0].bast_id === bast?.id,
+      `returned ${assigned.data[0].bast_id}, document is ${bast?.id}`,
+    );
     check(
       'it is linked to the assignment it documents',
       bast?.assignment_id === assigned.data[0].assignment_id,

@@ -69,7 +69,6 @@ import {
   fetchAccessories,
   type AccessoryRow,
 } from '@/api/accessories';
-import { bastIdByNumber } from '@/api/bast';
 import { setAssetHolders } from '@/api/assignments';
 import { queryKeys } from '@/lib/queryClient';
 import { useScopeStore } from '@/store/useScopeStore';
@@ -155,7 +154,9 @@ export default function AssignScreen() {
 
   const [stepError, setStepError] = useState('');
   const [dateError, setDateError] = useState('');
-  const [done, setDone] = useState<{ bastNumber: string | null } | null>(null);
+  const [done, setDone] = useState<{ bastNumber: string | null; bastId: string | null } | null>(
+    null,
+  );
 
   // Coming from Asset Detail the asset is already chosen. Adjusted during
   // render rather than in an effect — the same pattern the Edit form uses.
@@ -169,7 +170,22 @@ export default function AssignScreen() {
     if (found) setAsset(found);
   }
 
-  const stages: readonly Stage[] = isReturn ? RETURN_STAGES : ASSIGN_STAGES;
+  /**
+   * Arriving with `?asset=` means the asset is already decided — from Asset
+   * Detail, or from a scan. Walking somebody through a picker to choose the
+   * thing they have just scanned is asking a question that is already
+   * answered, and every panel here is rendered by stage NAME rather than by
+   * index, so a stage can be dropped without anything else shifting under it.
+   *
+   * Only dropped once the asset is actually FOUND. A code that is not in the
+   * assignable list — already out, or outside the scope — must still leave a
+   * way to pick something, or the wizard would have no route forward at all.
+   */
+  const assetFixed = Boolean(assetParam) && Boolean(asset);
+  const allStages: readonly Stage[] = isReturn ? RETURN_STAGES : ASSIGN_STAGES;
+  const stages: readonly Stage[] = assetFixed
+    ? allStages.filter((st) => st !== 'asset')
+    : allStages;
   const stage = stages[step - 1] ?? stages[stages.length - 1]!;
   const lastStep = stages.length;
 
@@ -221,7 +237,8 @@ export default function AssignScreen() {
           notes: notes || null,
           autoBast,
         });
-        return { bastNumber: result.bastNumber };
+        // return_asset() has always handed back the id; assign does too now.
+        return { bastNumber: result.bastNumber, bastId: result.bastId, accessories: 0 };
       }
       const result = await assignAsset({
         assetId: asset!.id,
@@ -254,13 +271,17 @@ export default function AssignScreen() {
         checkoutIds.push(out.checkoutId);
       }
 
-      if (checkoutIds.length > 0 && result.bastNumber) {
-        // assign_asset() hands back the number it minted, not the id.
-        const bastId = await bastIdByNumber(result.bastNumber);
-        if (bastId) await attachAccessoriesToBast(bastId, checkoutIds);
+      // assign_asset() hands back the id of the draft it raised (0093), so
+      // there is no second round trip to find the document by its number.
+      if (checkoutIds.length > 0 && result.bastId) {
+        await attachAccessoriesToBast(result.bastId, checkoutIds);
       }
 
-      return { bastNumber: result.bastNumber, accessories: checkoutIds.length };
+      return {
+        bastNumber: result.bastNumber,
+        bastId: result.bastId,
+        accessories: checkoutIds.length,
+      };
     },
     onSuccess: (result) => {
       setDone(result);
@@ -379,15 +400,28 @@ export default function AssignScreen() {
           ))}
         </Card>
 
-        <Button
-          label="Generate E-BAST document"
-          block
-          style={styles.doneAction}
-          onPress={() => {
-            if (done.bastNumber) toast(`${done.bastNumber} generated`);
-            router.replace('/bast');
-          }}
-        />
+        {/* The draft already exists — assign_asset() raised it. The old button
+            said "Generate", generated nothing, and left somebody on the
+            register hunting for the document they had just made. With the id
+            in hand (migration 0093) it opens the signature page directly.
+
+            When no document was raised, because the switch was off, there is
+            nothing to sign and the register is the honest destination. */}
+        {done.bastId ? (
+          <Button
+            label="Sign the E-BAST"
+            block
+            style={styles.doneAction}
+            onPress={() => router.replace(`/bast/sign?id=${done.bastId}`)}
+          />
+        ) : (
+          <Button
+            label="Open E-BAST register"
+            block
+            style={styles.doneAction}
+            onPress={() => router.replace('/bast')}
+          />
+        )}
         <Button
           label="Back to dashboard"
           variant="secondary"

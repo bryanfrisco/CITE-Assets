@@ -47,6 +47,7 @@ import { todayIso } from '@/lib/dates';
 import { queryKeys } from '@/lib/queryClient';
 import { useToast } from '@/store/useUiStore';
 import { usePermissions } from '@/auth';
+import { createMaster } from '@/api/masterData';
 
 type PickerKey =
   'category' | 'brand' | 'model' | 'vendor' | 'department' | 'location' | 'status' | 'condition';
@@ -65,6 +66,29 @@ export default function AddAssetScreen() {
   const toast = useToast();
   const queryClient = useQueryClient();
   const { can } = usePermissions();
+  const canWriteMaster = can('master.write');
+
+  /**
+   * Mints a master record from inside the picker that needed it.
+   *
+   * Registering a laptop of a category nobody had entered yet used to mean
+   * abandoning a half-filled form, walking to Master data, and starting over.
+   * `PickerKey` and `MasterEntity` use the same words, so the key is the
+   * entity — no mapping table to fall out of step.
+   *
+   * The form options are invalidated rather than patched locally: the new
+   * record has to exist for every other screen too, and a list stitched
+   * together here would be the one place it looked different.
+   */
+  const addMaster = async (key: PickerKey, name: string, code: string) => {
+    const made = await createMaster(
+      key,
+      name,
+      key === 'category' ? { code } : key === 'model' ? { brandId: chosenBrandId } : {},
+    );
+    await queryClient.invalidateQueries({ queryKey: ['assetFormOptions'] });
+    return { id: made.id, name: made.name };
+  };
 
   // `?edit=<assetCode>` turns this screen into the Edit form. Same fields, same
   // validation — only the write path and the copy differ.
@@ -180,6 +204,12 @@ export default function AddAssetScreen() {
     setNotes(loadedAsset.notes ?? '');
     setSpecs(loadedAsset.specifications ?? []);
   }
+
+  // Read as a plain string here rather than reached for inside a callback.
+  // The React Compiler cannot prove an object captured by a prop-bound closure
+  // is never mutated afterwards, and the memo below would lose its
+  // optimisation on the strength of that doubt alone.
+  const chosenBrandId = values.brand?.id;
 
   // Models are filtered to the chosen brand, so the two pickers cannot disagree.
   const modelOptions = useMemo(() => {
@@ -675,13 +705,43 @@ export default function AddAssetScreen() {
           emptyMessage={
             key === 'model' && !values.brand
               ? 'Choose a brand first.'
-              : `No ${key} records yet — add one in Master data.`
+              : CREATABLE[key]
+                ? `No ${key} records yet — type a name to add one.`
+                : `No ${key} records yet — add one in Master data.`
+          }
+          createLabel={key}
+          createCodeLabel={key === 'category' ? 'Code — LAP, MON, PRN…' : undefined}
+          onCreate={
+            CREATABLE[key] && canWriteMaster && !(key === 'model' && !values.brand)
+              ? (name, code) => addMaster(key, name, code)
+              : undefined
           }
         />
       ))}
     </Screen>
   );
 }
+
+/**
+ * Which pickers can mint a record without leaving this form.
+ *
+ * The ones left out are not an oversight. `status` and `condition` carry
+ * behaviour — is_terminal decides whether an asset can still be assigned, and
+ * the colour feeds the dashboard — so a name typed in a hurry would create a
+ * status that looks real and behaves wrongly. `location` decides RLS scope and
+ * owns a label prefix. Both belong on the Master data screen where those
+ * fields exist, and their empty message still says so.
+ */
+const CREATABLE: Record<PickerKey, boolean> = {
+  category: true,
+  brand: true,
+  model: true,
+  vendor: true,
+  department: true,
+  location: false,
+  status: false,
+  condition: false,
+};
 
 function Section({ label, children }: { label: string; children: React.ReactNode }) {
   const t = useTheme();

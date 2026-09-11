@@ -233,10 +233,28 @@ export default function ScanScreen() {
             <Text style={[t.type.meta, styles.resultBody, { color: t.color.sub }]}>
               {[result.locationName, result.holderName ?? 'Unassigned'].filter(Boolean).join(' · ')}
             </Text>
+            {/* Somebody who walks up to a machine and scans it usually wants
+                to do the next thing to it, not read about it. When nobody is
+                holding it that next thing is handing it over, and the wizard
+                skips its own asset picker because the scan already answered
+                that question.
+
+                Return is deliberately NOT offered here: return_asset() reads
+                the holder off the active assignment, so on kit nobody holds
+                there is nothing for it to act on. */}
+            {result.holderName == null && can('assignment.write') ? (
+              <Button
+                label="Assign to somebody"
+                block
+                style={styles.action}
+                onPress={() => router.replace(`/assign?asset=${result.assetCode}`)}
+              />
+            ) : null}
             <Button
               label="Open asset"
+              variant={result.holderName == null ? 'secondary' : undefined}
               block
-              style={styles.action}
+              style={result.holderName == null ? undefined : styles.action}
               onPress={() => router.replace(`/asset/${result.assetCode}`)}
             />
             <Button label="Scan another" variant="secondary" block onPress={reset} />

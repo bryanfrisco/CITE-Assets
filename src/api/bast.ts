@@ -464,23 +464,6 @@ export async function signBast(
 }
 
 /**
- * The id behind a BAST number.
- *
- * assign_asset() returns the number it minted, not the id, and widening its
- * signature to add one would be the exact mistake migration 0029 exists to
- * clean up after. Numbers are unique, so this is a lookup rather than a guess.
- */
-export async function bastIdByNumber(bastNumber: string): Promise<string | null> {
-  const { data, error } = await supabase
-    .from('bast')
-    .select('id')
-    .eq('bast_number', bastNumber)
-    .maybeSingle();
-  if (error) throw new Error(error.message);
-  return (data?.id as string | undefined) ?? null;
-}
-
-/**
  * Voiding and deleting, which are not the same thing.
  *
  * `voidBast` is what "delete" means for a document that exists: the status

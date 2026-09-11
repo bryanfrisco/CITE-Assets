@@ -35,7 +35,7 @@ import {
   Switch,
 } from '@/components/ui';
 import { createAccessory, fetchAccessoryDetail, updateAccessory } from '@/api/accessories';
-import { listMaster } from '@/api/masterData';
+import { createMaster, listMaster, type MasterEntity } from '@/api/masterData';
 import { queryKeys } from '@/lib/queryClient';
 import { useScopeStore } from '@/store/useScopeStore';
 import { useToast } from '@/store/useUiStore';
@@ -50,6 +50,22 @@ export default function AccessoryEditScreen() {
   const queryClient = useQueryClient();
   const scope = useScopeStore((s) => s.scope);
   const { can } = usePermissions();
+
+  /**
+   * Adds a master record from inside the picker that wanted it, so a missing
+   * brand does not cost somebody the half-filled form they are standing in.
+   *
+   * The list is invalidated rather than patched: the record has to exist for
+   * every other screen too, and a locally stitched list would be the one place
+   * it looked different. `location` is absent on purpose — it decides RLS
+   * scope and owns a label prefix, which belong on the Master data screen.
+   */
+  const addMaster = async (entity: MasterEntity, name: string, code: string) => {
+    const made = await createMaster(entity, name, entity === 'category' ? { code } : {});
+    await queryClient.invalidateQueries({ queryKey: queryKeys.master(entity) });
+    return { id: made.id, name: made.name };
+  };
+  const canWriteMaster = can('master.write');
   const { id } = useLocalSearchParams<{ id?: string }>();
   const editing = Boolean(id);
 
@@ -320,7 +336,10 @@ export default function AccessoryEditScreen() {
         selectedId={categoryId}
         onSelect={(o) => setCategoryId(o.id)}
         onDismiss={() => setPicker(null)}
-        emptyMessage="Add a category in Master data first."
+        emptyMessage="No categories yet — type a name to add one."
+        createLabel="category"
+        createCodeLabel="Code — ACC, KBD…"
+        onCreate={canWriteMaster ? (name, code) => addMaster('category', name, code) : undefined}
       />
       <PickerSheet
         visible={picker === 'brand'}
@@ -331,6 +350,8 @@ export default function AccessoryEditScreen() {
         onDismiss={() => setPicker(null)}
         clearLabel="No brand"
         onClear={() => setBrandId(null)}
+        createLabel="brand"
+        onCreate={canWriteMaster ? (name) => addMaster('brand', name, '') : undefined}
       />
       <PickerSheet
         visible={picker === 'vendor'}
@@ -341,6 +362,8 @@ export default function AccessoryEditScreen() {
         onDismiss={() => setPicker(null)}
         clearLabel="No vendor"
         onClear={() => setVendorId(null)}
+        createLabel="vendor"
+        onCreate={canWriteMaster ? (name) => addMaster('vendor', name, '') : undefined}
       />
       <PickerSheet
         visible={picker === 'location'}
